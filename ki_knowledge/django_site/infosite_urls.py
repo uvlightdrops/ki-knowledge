@@ -21,6 +21,8 @@ urlpatterns = [
     # Generation & preview
     path("project/<int:project_id>/generate/", infosite_views.infosite_generate, name="generate"),
     path("project/<int:project_id>/preview/", infosite_views.infosite_preview, name="preview"),
+    path("project/<int:project_id>/download/", infosite_views.infosite_download, name="download"),
+    path("project/<int:project_id>/versions/", infosite_views.infosite_versions, name="versions"),
     
     # Import control
     path("project/<int:project_id>/import/", infosite_views.infosite_import_control, name="import_control"),

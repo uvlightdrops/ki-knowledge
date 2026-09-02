@@ -355,32 +355,34 @@ def infosite_generate(request: HttpRequest, project_id: int):
 @login_required
 def infosite_preview(request: HttpRequest, project_id: int):
     """Preview generated infosite."""
+    from django.conf import settings
+    from ki_knowledge.services.generator import InfoSiteGeneratorService
+    
     project = get_object_or_404(InfoSiteProject, id=project_id)
 
     try:
-        config = Config.from_yaml()
-        infosite_config = InfoSiteConfig(
-            enabled=True,
-            title=project.title,
-            domain=project.domain,
-            output_base_dir=config.infosite_output_base_dir,
-        )
+        if not project.output_dir:
+            messages.warning(request, "No output generated yet. Please generate infosite first.")
+            return redirect("infosite:project_detail", project_id=project.id)
+        
+        output_dir = Path(project.output_dir)
+        
+        if not output_dir.exists():
+            messages.warning(request, "Output directory not found")
+            return redirect("infosite:project_detail", project_id=project.id)
 
-        output_dir = infosite_config.get_output_dir()
-
-        # List generated files
+        # List generated files (excluding _originals)
         files = []
-        if output_dir.exists():
-            for md_file in sorted(output_dir.glob("**/*.md")):
-                if "_originals" not in md_file.parts:
-                    rel_path = md_file.relative_to(output_dir)
-                    files.append(
-                        {
-                            "path": str(rel_path),
-                            "size": md_file.stat().st_size,
-                            "mtime": md_file.stat().st_mtime,
-                        }
-                    )
+        for md_file in sorted(output_dir.glob("**/*.md")):
+            if "_originals" not in md_file.parts:
+                rel_path = md_file.relative_to(output_dir)
+                files.append(
+                    {
+                        "path": str(rel_path),
+                        "size": md_file.stat().st_size,
+                        "mtime": md_file.stat().st_mtime,
+                    }
+                )
 
         context = {
             "project": project,
@@ -391,6 +393,97 @@ def infosite_preview(request: HttpRequest, project_id: int):
 
     except Exception as e:
         messages.error(request, f"Error loading preview: {e}")
+        return redirect("infosite:project_detail", project_id=project.id)
+
+
+@login_required
+def infosite_download(request: HttpRequest, project_id: int):
+    """Download generated infosite as ZIP."""
+    import zipfile
+    import io
+    from django.http import FileResponse
+    
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+
+    try:
+        if not project.output_dir:
+            messages.error(request, "No output generated yet")
+            return redirect("infosite:project_detail", project_id=project.id)
+        
+        output_dir = Path(project.output_dir)
+        
+        if not output_dir.exists():
+            messages.error(request, "Output directory not found")
+            return redirect("infosite:project_detail", project_id=project.id)
+
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add all files except _originals
+            for file_path in output_dir.rglob("*"):
+                if file_path.is_file() and "_originals" not in file_path.parts:
+                    arcname = file_path.relative_to(output_dir)
+                    zip_file.write(file_path, arcname)
+
+        zip_buffer.seek(0)
+        
+        # Return as downloadable file
+        filename = f"{project.domain}_{project.working_title}_infosite.zip"
+        response = FileResponse(zip_buffer, content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Error creating download: {e}")
+        return redirect("infosite:project_detail", project_id=project.id)
+
+
+@login_required
+def infosite_versions(request: HttpRequest, project_id: int):
+    """List available versions of the infosite."""
+    from django.conf import settings
+    from ki_knowledge.services.generator import InfoSiteGeneratorService
+    
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+
+    try:
+        if not project.output_dir:
+            versions = []
+        else:
+            generator = InfoSiteGeneratorService(settings.KI_CONFIG)
+            version_names = generator.list_versions(project.domain, project.working_title)
+            
+            # Get metadata for each version
+            versions = []
+            for version_name in version_names:
+                version_dir = Path(project.output_dir) / "_originals" / version_name
+                if version_dir.exists():
+                    # Count files
+                    file_count = len(list(version_dir.rglob("*")))
+                    # Get size
+                    total_size = sum(f.stat().st_size for f in version_dir.rglob("*") if f.is_file())
+                    
+                    # Get creation time from directory
+                    mtime = version_dir.stat().st_mtime
+                    from datetime import datetime
+                    created_at = datetime.fromtimestamp(mtime)
+                    
+                    versions.append({
+                        "name": version_name,
+                        "file_count": file_count,
+                        "size_bytes": total_size,
+                        "size_mb": round(total_size / 1024 / 1024, 2),
+                        "created_at": created_at,
+                    })
+
+        context = {
+            "project": project,
+            "versions": sorted(versions, key=lambda v: v["created_at"], reverse=True),
+        }
+        return render(request, "infosite/versions.html", context)
+
+    except Exception as e:
+        messages.error(request, f"Error loading versions: {e}")
         return redirect("infosite:project_detail", project_id=project.id)
 
 

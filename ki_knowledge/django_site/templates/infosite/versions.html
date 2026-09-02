@@ -1,0 +1,104 @@
+{% extends "infosite/base.html" %}
+{% load static %}
+
+{% block title %}Versions - {{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1>📚 Version History</h1>
+            <p class="text-muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'infosite:project_detail' project.id %}" class="btn btn-outline-secondary">
+                ← Back to Project
+            </a>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <!-- Versions Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Available Versions</h5>
+        </div>
+        <div class="table-responsive">
+            {% if versions %}
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Created</th>
+                        <th>Documents</th>
+                        <th>Size</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for version in versions %}
+                    <tr>
+                        <td>
+                            <code class="font-monospace">{{ version.name }}</code>
+                        </td>
+                        <td>
+                            <small>{{ version.created_at|date:"Y-m-d H:i" }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ version.file_count }}</span>
+                        </td>
+                        <td>
+                            {{ version.size_mb }} MB
+                        </td>
+                        <td class="text-end">
+                            <small>
+                                {% if version.name == 'v1-original' %}
+                                    <span class="badge bg-success">Baseline</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ version.name }}</span>
+                                {% endif %}
+                            </small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="card-body text-center text-muted">
+                <p>No versions found. Generate an infosite to create a baseline version.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Version Info -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">ℹ️ About Versions</h5>
+        </div>
+        <div class="card-body">
+            <p>
+                Versions are stored in the <code>_originals/</code> directory under the project output folder.
+            </p>
+            <ul>
+                <li><strong>v1-original:</strong> The initial baseline created during generation (immutable)</li>
+                <li><strong>v2-refined:</strong> Version after AI refinement (if applicable)</li>
+                <li><strong>vN-X:</strong> Subsequent versions for tracking changes over time</li>
+            </ul>
+            <p class="mb-0">
+                Each version maintains the complete document hierarchy and can be compared for changes.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

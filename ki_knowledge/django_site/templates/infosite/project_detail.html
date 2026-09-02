@@ -155,7 +155,7 @@
             <h5 class="mb-0">🎯 Actions</h5>
         </div>
         <div class="card-body">
-            <div class="btn-group" role="group">
+            <div class="btn-group" role="group" style="flex-wrap: wrap; gap: 0.5rem;">
                 {% if perms.django_site.add_infositeproject %}
                 <form method="post" action="{% url 'infosite:sync' project.id %}" style="display:inline;">
                     {% csrf_token %}
@@ -179,6 +179,14 @@
                 <a href="{% url 'infosite:preview' project.id %}" class="btn btn-secondary">
                     👁️ Preview
                 </a>
+                {% if project.generation_status == 'completed' %}
+                <a href="{% url 'infosite:download' project.id %}" class="btn btn-outline-primary">
+                    ⬇️ Download ZIP
+                </a>
+                <a href="{% url 'infosite:versions' project.id %}" class="btn btn-outline-info">
+                    📚 Versions
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>
