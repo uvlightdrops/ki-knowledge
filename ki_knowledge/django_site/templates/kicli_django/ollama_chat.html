@@ -1,0 +1,148 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Ollama Chat · KICLI{% endblock %}
+{% block content %}
+<h1>Ollama Chat</h1>
+<p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+<p class="muted">Gespeichert wird in: <span class="mono">{{ saved_path|default:"dev_data/md/&lt;domain&gt;/ollama-chat/" }}</span></p>
+
+{% if notice %}
+  <div class="card section">
+    <strong>Status:</strong> {{ notice }}
+  </div>
+{% endif %}
+{% if error_message %}
+  <div class="card section" style="border-color:#ef4444;">
+    <strong>Fehler:</strong> <span class="mono">{{ error_message }}</span>
+  </div>
+{% endif %}
+
+<div class="grid section">
+  <div class="card">
+    <h3>Chat</h3>
+    <form method="post">
+      {% csrf_token %}
+      <label for="title">Titel</label><br>
+      <input id="title" name="title" type="text" style="width:100%;" placeholder="z. B. Projektzusammenfassung">
+      <div class="section">
+        <label for="model">Modell</label><br>
+        <select id="model" name="model" style="width:100%;">
+          <option value="{{ default_model }}">{{ default_model }}</option>
+          {% for model in available_models %}
+            {% if model != default_model %}
+              <option value="{{ model }}">{{ model }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="section">
+        <label for="system_prompt">System prompt</label><br>
+        <textarea id="system_prompt" name="system_prompt" rows="4" style="width:100%;">{{ default_system_prompt }}</textarea>
+      </div>
+      <div class="section">
+        <label for="question">Frage</label><br>
+        <textarea id="question" name="question" rows="8" style="width:100%;" placeholder="Was soll Ollama ausarbeiten?"></textarea>
+      </div>
+      <div class="section">
+        <label>Weiterer Workflow</label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin-top:8px;">
+          <button type="submit" name="action" value="ask" class="secondary">Nur Antwort</button>
+          <button type="submit" name="action" value="save">Als Markdown speichern</button>
+          <button type="submit" name="action" value="save_import">Speichern + einlesen</button>
+          <button type="submit" name="action" value="save_import_semantic">Speichern + semantisch</button>
+        </div>
+      </div>
+    </form>
+    <form method="post" class="section">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="clear">
+      <button type="submit" class="secondary">Verlauf löschen</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Workflow</h3>
+    <ol class="muted" style="padding-left: 1.2rem; margin: 0;">
+      <li>Ollama beantwortet die Frage.</li>
+      <li>Du entscheidest explizit: nur Antwort, speichern, einlesen oder semantisch verarbeiten.</li>
+      <li>Der Status wird im Verlauf sofort sichtbar.</li>
+    </ol>
+    <p style="margin-top:12px;">
+      <a href="/workspace/">Workspace</a> ·
+      <a href="/records/">Records</a> ·
+      <a href="/jobs/">Jobs</a>
+    </p>
+    {% if imported_notice %}
+      <p><strong>Import:</strong> {{ imported_notice }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section">
+  {% if history %}
+    {% for item in history %}
+      <div class="card" style="margin-bottom: 12px;">
+        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px;">
+          <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:{% if item.saved_path %}#22c55e{% elif item.imported %}#f59e0b{% else %}#94a3b8{% endif %}; box-shadow: 0 0 0 2px rgba(255,255,255,0.2);"></span>
+          {% if item.saved_path %}
+            <span class="chip">Gespeichert</span>
+          {% else %}
+            <span class="chip muted">Entwurf</span>
+          {% endif %}
+          {% if item.imported %}
+            <span class="chip">Eingelesen</span>
+          {% endif %}
+          {% if item.semantic %}
+            <span class="chip">Semantik</span>
+          {% endif %}
+        </div>
+        <p><strong>{{ item.title }}</strong></p>
+        <p><strong>Du:</strong> {{ item.question }}</p>
+        <p><strong>Ollama ({{ item.model }}):</strong> {{ item.answer }}</p>
+        {% if item.saved_path %}
+          <p class="muted">Gespeichert: <span class="mono">{{ item.saved_path }}</span></p>
+        {% endif %}
+        {% if item.imported %}
+          <p class="muted">Einlesen: {{ item.imported }}</p>
+        {% endif %}
+        {% if item.semantic %}
+          <p class="muted">Semantik: {{ item.semantic }}</p>
+        {% endif %}
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+          {% if not item.saved_path %}
+            <form method="post" style="display:inline; margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_entry">
+              <input type="hidden" name="entry_index" value="{{ forloop.counter0 }}">
+              <button type="submit">Speichern</button>
+            </form>
+          {% endif %}
+          {% if item.saved_path %}
+            <form method="post" style="display:inline; margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="import_entry">
+              <input type="hidden" name="entry_index" value="{{ forloop.counter0 }}">
+              <button type="submit">Einlesen</button>
+            </form>
+          {% endif %}
+          {% if item.saved_path %}
+            <form method="post" style="display:inline; margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="semantic_entry">
+              <input type="hidden" name="entry_index" value="{{ forloop.counter0 }}">
+              <button type="submit">Semantisch</button>
+            </form>
+          {% endif %}
+        </div>
+        {% if item.system_prompt %}
+          <details style="margin-top:8px;">
+            <summary>System prompt</summary>
+            <pre>{{ item.system_prompt }}</pre>
+          </details>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card"><p>Noch keine Chats gespeichert.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

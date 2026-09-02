@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ki-knowledge"
+version = "0.1.0"
+description = "Knowledge Base System with Graph and Ingestion"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "KI Team"}]
+
+dependencies = [
+    "Django>=4.2",
+    "elasticsearch>=8.0",
+    "pypdf>=3.0",
+    "ki-core @ file:///home/flow/dev_flow/ki-core",
+    "requests>=2.31.0",
+    "PyYAML>=6.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "networkx>=3.2",
+    "pyvis>=0.3.2",
+    "rdflib>=7.0.0",
+    "markdown>=3.6",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "httpx>=0.27.0",
+]
+
+[tool.setuptools]
+packages = ["ki_knowledge"]

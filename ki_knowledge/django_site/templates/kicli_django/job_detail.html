@@ -1,0 +1,61 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Job {{ job.job_id|short_id }} · KICLI{% endblock %}
+{% block content %}
+<h1>Job Detail</h1>
+<p class="muted"><a href="{% url 'jobs' %}">← Back to Jobs</a></p>
+
+<div class="grid">
+  <div class="card">
+    <h3>Job</h3>
+    <p><strong>ID:</strong> <code>{{ job.job_id }}</code></p>
+    <p><strong>Status:</strong> <span class="chip">{{ job.status }}</span></p>
+    <p><strong>Type:</strong> {{ job.job_type }}</p>
+    <p><strong>Attempts:</strong> {{ job.attempts }}</p>
+    <p><strong>Created:</strong> {{ job.created_at|date:"Y-m-d H:i:s" }}</p>
+    <p><strong>Updated:</strong> {{ job.updated_at|date:"Y-m-d H:i:s" }}</p>
+    <p><strong>Retry:</strong> {{ job.next_retry_at|date:"Y-m-d H:i:s"|default:"—" }}</p>
+    {% if job.error_message %}
+      <p><strong>Error:</strong> {{ job.error_message }}</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Target</h3>
+    {% if term %}
+      <p><strong>Term:</strong> <a href="{% url 'semantic-term-detail' term.term_id %}">{{ term.canonical_label }}</a></p>
+      <p><strong>Term ID:</strong> <code>{{ term.term_id }}</code></p>
+      <p><strong>Status:</strong> {{ term.status }}</p>
+    {% else %}
+      <p><strong>Target ID:</strong> <code>{{ job.term_id }}</code></p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section card">
+  <h3>Related facts</h3>
+  {% if facts %}
+    <ul>
+      {% for item in facts %}
+        {% if item.fact_type %}
+          <li><strong>{{ item.fact_type }}:</strong> {{ item.content }}</li>
+        {% else %}
+          <li>{{ item }}</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No related facts recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="section card">
+  <h3>KI Query / Prompt</h3>
+  {% if job.prompt_text or prompt %}
+    <p class="muted">Das ist der Text, der an das KI-Backend ging oder aus dem aktuellen Stand rekonstruiert wurde.</p>
+    <pre>{{ job.prompt_text|default:prompt }}</pre>
+  {% else %}
+    <p>Noch kein Prompt gespeichert.</p>
+  {% endif %}
+</div>
+{% endblock %}

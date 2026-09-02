@@ -1,0 +1,304 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+
+{% block title %}PDF Import Jobs - KICLI Knowledge{% endblock %}
+
+{% block content %}
+<h1>PDF Import Jobs</h1>
+
+<div class="section">
+  <h2>Enqueue New Job</h2>
+  <form method="POST" action="/pdf-import/" style="display: grid; gap: 12px; max-width: 500px;">
+    {% csrf_token %}
+    <div>
+      <label for="domain"><strong>Domain</strong></label>
+      <input type="text" id="domain" name="domain" placeholder="anthro" required 
+             style="width: 100%; padding: 8px; font-size: 0.9rem;">
+      <small class="muted">Knowledge domain (e.g., "anthro", "books", "papers") - determines default PDF path</small>
+    </div>
+    <div>
+      <label for="pdf_path"><strong>PDF Path</strong></label>
+      <input type="text" id="pdf_path" name="pdf_path" placeholder="~/dev_data/ki-knowledge/pdf/books/chapter1.pdf" required 
+             style="width: 100%; padding: 8px; font-family: monospace; font-size: 0.9rem;">
+      <small class="muted">Full path to PDF file or directory. Auto-filled from domain. Supports ~ for home directory.</small>
+    </div>
+    <button type="submit" style="padding: 10px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
+      Enqueue PDF Import
+    </button>
+  </form>
+  <p class="hint" style="margin-top: 12px;">
+    💡 For batch import of entire directories, use: <code>python examples/batch_import_pdfs.py ~/dev_data/ki-knowledge/pdf/anthro "anthro"</code>
+  </p>
+</div>
+
+<div class="section">
+  <h2>Overview</h2>
+  <div class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+    <div>
+      <strong>Total:</strong> {{ summary.total }}
+    </div>
+    <div>
+      <strong style="color: #fbbf24;">Pending:</strong> {{ summary.pending }}
+    </div>
+    <div>
+      <strong style="color: #60a5fa;">Processing:</strong> {{ summary.processing }}
+    </div>
+    <div>
+      <strong style="color: #34d399;">Done:</strong> {{ summary.done }}
+    </div>
+    <div>
+      <strong style="color: #f87171;">Failed:</strong> {{ summary.failed }}
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Processing Report</h2>
+  <div class="card" style="display: grid; gap: 12px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+      <div><strong>Total:</strong> {{ report.counts.total }}</div>
+      <div><strong style="color: #fbbf24;">Pending:</strong> {{ report.counts.pending }}</div>
+      <div><strong style="color: #60a5fa;">Processing:</strong> {{ report.counts.processing }}</div>
+      <div><strong style="color: #34d399;">Done:</strong> {{ report.counts.done }}</div>
+      <div><strong style="color: #f87171;">Failed:</strong> {{ report.counts.failed }}</div>
+    </div>
+    <p class="hint">
+      <a href="{% url 'pdf-import-report' %}?domain={{ active_domain }}">Open full report</a>
+      · current domain: <span class="mono">{{ active_domain }}</span>
+    </p>
+    {% if report.processing_jobs %}
+      <div>
+        <h3 style="margin-top: 0;">Active processing</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>File</th>
+                <th>Age</th>
+                <th>Pages</th>
+                <th>Started</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for job in report.processing_jobs %}
+                <tr>
+                  <td class="mono">{{ job.job_id }}</td>
+                  <td class="mono" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+                  <td>{% if job.age_minutes is not None %}{{ job.age_minutes }} min{% else %}—{% endif %}</td>
+                  <td>{{ job.pages_processed }}/{{ job.pages_total }}</td>
+                  <td class="mono">{{ job.started_at|date:"Y-m-d H:i:s" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+    {% if report.failed_jobs %}
+      <div>
+        <h3 style="margin-bottom: 6px;">Recent failures</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>File</th>
+                <th>When</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for job in report.failed_jobs %}
+                <tr>
+                  <td class="mono">{{ job.job_id }}</td>
+                  <td class="mono" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+                  <td>{% if job.age_minutes is not None %}{{ job.age_minutes }} min ago{% else %}—{% endif %}</td>
+                  <td style="color: #f87171;">{{ job.error_message }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+    {% if report.stale_processing %}
+      <p style="color: #fbbf24; margin: 0;">
+        {{ report.stale_processing|length }} processing job(s) are older than the timeout threshold and should be retried or cleaned up.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section">
+  <h2>Jobs</h2>
+  
+  {% if jobs %}
+    <form id="bulk-delete-form" method="post" action="{% url 'pdf-import-jobs' %}" style="margin-bottom: 12px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete-selected">
+      <input type="hidden" name="domain" value="{{ active_domain }}">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button type="submit" form="process-pending-form">Process pending jobs</button>
+        <button type="submit" onclick="return confirm('Ausgewählte alte Jobs löschen?')">Delete selected</button>
+        <button type="submit" name="action" value="delete-old" onclick="return confirm('Alle alten Jobs löschen?')">Delete old jobs</button>
+        <button type="submit" form="reset-stale-form" onclick="return confirm('Stuck processing jobs zurücksetzen?')">Reset stuck jobs</button>
+      </div>
+    </form>
+    <form id="process-pending-form" method="post" action="{% url 'pdf-import-jobs' %}" style="display:inline-block; margin: 0 0 12px 0;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="process-pending">
+      <input type="hidden" name="domain" value="{{ active_domain }}">
+      <input type="hidden" name="timeout_seconds" value="600">
+    </form>
+    <form id="reset-stale-form" method="post" action="{% url 'pdf-import-jobs' %}" style="display:inline-block; margin: 0 0 12px 0;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="reset-stale">
+      <input type="hidden" name="domain" value="{{ active_domain }}">
+      <label for="timeout_seconds" class="muted" style="margin-right: 8px;">Timeout (s)</label>
+      <input id="timeout_seconds" type="number" name="timeout_seconds" min="5" max="3600" value="30" style="width: 80px; padding: 6px;">
+    </form>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Select</th>
+            <th>Job ID</th>
+            <th>PDF File</th>
+            <th>Domain</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>Pages</th>
+            <th>Created</th>
+            <th>Error</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+            <tr title="{% if job.content_preview %}{{ job.content_preview|truncatechars:80 }}{% elif job.error_message %}{{ job.error_message|truncatechars:80 }}{% else %}{{ job.display_pdf_path }}{% endif %}">
+              <td>
+                {% if job.status == "done" or job.status == "failed" %}
+                  <input type="checkbox" form="bulk-delete-form" name="job_ids" value="{{ job.job_id }}">
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="mono" style="font-size: 0.9rem;"><a href="{% url 'pdf-job-detail' job.job_id %}">{{ job.job_id }}</a></td>
+              <td class="mono" style="font-size: 0.9rem;" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+              <td><strong>{{ job.domain }}</strong></td>
+              <td>
+                {% if job.status == "pending" %}
+                  <span style="color: #fbbf24;">pending</span>
+                {% elif job.status == "processing" %}
+                  <span style="color: #60a5fa;">⟳ processing</span>
+                {% elif job.status == "done" %}
+                  <span style="color: #34d399;">✓ done</span>
+                {% elif job.status == "failed" %}
+                  <span style="color: #f87171;">✗ failed</span>
+                {% else %}
+                  {{ job.status }}
+                {% endif %}
+              </td>
+              <td>
+                {% if job.pages_total > 0 %}
+                  <div style="background: #334155; border-radius: 4px; padding: 2px 4px; font-size: 0.85rem;">
+                    <div style="background: #3b82f6; width: {{ job.progress_percent }}%; padding: 2px 4px; border-radius: 2px; color: white;">
+                      {{ job.progress_percent }}%
+                    </div>
+                  </div>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                {% if job.pages_total > 0 %}
+                  {{ job.pages_processed }}/{{ job.pages_total }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td class="mono" style="font-size: 0.85rem;">{{ job.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td style="font-size: 0.85rem; color: #ef4444;">
+                {% if job.error_message %}
+                  <details>
+                    <summary style="cursor: pointer; color: #f87171;">Error</summary>
+                    <pre style="margin: 8px 0 0 0; font-size: 0.8rem; white-space: pre-wrap;">{{ job.error_message }}</pre>
+                  </details>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'pdf-job-detail' job.job_id %}" style="margin-right: 8px;">Report</a>
+                {% if job.status == "done" or job.status == "failed" %}
+                  <form method="post" action="{% url 'pdf-import-jobs' %}" onsubmit="return confirm('Job wirklich löschen?');" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete-one">
+                    <input type="hidden" name="domain" value="{{ active_domain }}">
+                    <input type="hidden" name="job_id" value="{{ job.job_id }}">
+                    <button type="submit">Delete</button>
+                  </form>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">No jobs found.</p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <p class="hint">
+    This page shows PDF import jobs from the batch processor.
+    Status updates are fetched from <code>/pdf-import/jobs.json</code>.
+  </p>
+</div>
+
+<script>
+// Auto-update PDF path based on domain input
+document.addEventListener('DOMContentLoaded', function() {
+  const domainInput = document.getElementById('domain');
+  const pdfPathInput = document.getElementById('pdf_path');
+  
+  if (!domainInput || !pdfPathInput) return;
+  
+  // Function to update PDF path
+  function updatePdfPath() {
+    const domain = domainInput.value.trim();
+    if (domain) {
+      // Set default path to domain directory
+      pdfPathInput.value = `~/dev_data/ki-knowledge/pdf/${domain}/`;
+    } else {
+      pdfPathInput.value = '';
+    }
+  }
+  
+  // Update on domain change
+  domainInput.addEventListener('input', updatePdfPath);
+  
+  // Set initial value if domain is pre-filled
+  if (domainInput.value) {
+    updatePdfPath();
+  }
+});
+
+// Auto-refresh job status every 3 seconds
+setInterval(function() {
+  fetch('/pdf-import/jobs.json?domain={{ active_domain }}&status={{ status }}')
+    .then(r => r.json())
+    .then(data => {
+      // Update page with new data (optional: reload page)
+      const hasProcessing = data.summary.processing > 0;
+      if (hasProcessing) {
+        // Keep polling while processing
+        console.log('PDF jobs processing:', data.summary);
+      }
+    })
+    .catch(e => console.error('Failed to fetch job status:', e));
+}, 3000);
+</script>
+{% endblock %}

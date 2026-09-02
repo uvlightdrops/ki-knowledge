@@ -1,0 +1,72 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Jira Graph Explorer · KICLI{% endblock %}
+{% block content %}
+<h1>Jira Graph Explorer</h1>
+<p class="muted">Graph DB: <span class="mono">{{ graph_db }}</span></p>
+<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span> · Issues: {{ issue_count }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ graph_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ graph_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" action="">
+    <label>Issue key</label>
+    <input type="text" name="issue_key" value="{{ issue_key }}" placeholder="ABC-123">
+    <label style="margin-left:12px;">limit</label>
+    <input type="number" name="limit" value="{{ limit }}" min="1" max="200">
+    <label style="margin-left:12px;">
+      <input type="checkbox" name="rebuild" value="1" {% if rebuild %}checked{% endif %}>
+      Graph neu aufbauen
+    </label>
+    <button type="submit">Anzeigen</button>
+  </form>
+</div>
+
+<div class="card">
+  <p><strong>Nodes:</strong> {{ stats.nodes }} · <strong>Edges:</strong> {{ stats.edges }}</p>
+  <h3>Neighbors{% if issue_key %} für {{ issue_key }}{% endif %}</h3>
+  {% if neighbors %}
+    {% if display_mode == "cards" %}
+      <div class="grid">
+        {% for nb in neighbors %}
+          <div class="card">
+            <h3 class="mono">{{ nb.neighbor_id }}</h3>
+            <p>{{ nb.relation }} · {{ nb.neighbor_type }}</p>
+            <p>{{ nb.weight|floatformat:3 }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Relation</th>
+              <th>Neighbor</th>
+              <th>Type</th>
+              <th>Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for nb in neighbors %}
+              <tr>
+                <td>{{ nb.relation }}</td>
+                <td class="mono">{{ nb.neighbor_id }}</td>
+                <td>{{ nb.neighbor_type }}</td>
+                <td>{{ nb.weight|floatformat:3 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% else %}
+    <p>Keine Nachbarn gefunden.</p>
+  {% endif %}
+</div>
+{% endblock %}

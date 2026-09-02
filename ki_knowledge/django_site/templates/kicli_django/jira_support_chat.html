@@ -1,0 +1,110 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Domain Support Chat · KICLI{% endblock %}
+{% block content %}
+<h1>Domain Support Chat</h1>
+<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span></p>
+
+<div class="card" style="margin-bottom: 16px;">
+  <strong>Status:</strong> <span id="chat-status">Bereit</span>
+  <p class="muted" style="margin-bottom: 0;">Aktuelle Kommunikation:</p>
+  <p><strong>Frage:</strong> <span id="chat-live-question" class="mono">—</span></p>
+  <p class="muted" style="margin-bottom: 0;">Der Server sucht zusammenhängend über Markdown, PDF, CSV/Jira-Daten und OWL/Knowledge-Quellen in der aktuellen Domain.</p>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form id="jira-support-chat-form" method="post" action="">
+    {% csrf_token %}
+    <label>Frage</label>
+    <textarea id="chat-question" name="question" rows="4" style="width:100%;" placeholder="Was ist der Stand zu Thema X?"></textarea>
+    <label style="margin-top: 10px; display:block;">Kontext-Limit</label>
+    <input id="chat-limit" type="number" name="limit" value="8" min="1" max="20">
+    <label style="margin-top: 10px; display:block;">Quellen</label>
+    <select name="source_types" style="width:100%;">
+      <option value="markdown,pdf,jira,owl">alle Quellen</option>
+      <option value="markdown">nur Markdown</option>
+      <option value="pdf">nur PDF</option>
+      <option value="jira">nur Issue/CSV</option>
+      <option value="owl">nur OWL</option>
+    </select>
+    <button id="chat-submit" type="submit">Fragen</button>
+  </form>
+  <form method="post" action="" style="margin-top:8px;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="clear">
+    <button type="submit">Chat leeren</button>
+  </form>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById("jira-support-chat-form");
+  const question = document.getElementById("chat-question");
+  const limit = document.getElementById("chat-limit");
+  const status = document.getElementById("chat-status");
+  const liveQuestion = document.getElementById("chat-live-question");
+  const submit = document.getElementById("chat-submit");
+
+  const updatePreview = () => {
+    const text = (question?.value || "").trim();
+    liveQuestion.textContent = text || "—";
+    status.textContent = text ? `Bereit · Kontext-Limit ${limit?.value || 8}` : "Bereit";
+  };
+
+  question?.addEventListener("input", updatePreview);
+  limit?.addEventListener("input", updatePreview);
+  form?.addEventListener("submit", () => {
+    const text = (question?.value || "").trim();
+    status.textContent = text ? `Sende an KI: "${text}"` : "Sende an KI...";
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "Sende...";
+    }
+  });
+
+  updatePreview();
+})();
+</script>
+
+<div class="section">
+  {% if history %}
+    {% for item in history %}
+      <div class="card" style="margin-bottom: 12px;">
+        <p><strong>Du:</strong> {{ item.question }}</p>
+        <p><strong>Assistent:</strong> {{ item.answer }}</p>
+        <p class="muted">
+          Quellen: {% if item.sources %}{{ item.sources|join:", " }}{% else %}(keine Treffer){% endif %}
+        </p>
+        {% if item.source_details %}
+          <div style="margin-top: 10px;">
+            <strong>Quellen-Details:</strong>
+            <ul>
+              {% for detail in item.source_details %}
+                <li>
+                  <span class="chip">{{ detail.source_type }}</span>
+                  <strong>{{ detail.title }}</strong>
+                  {% if detail.score %}<span class="hint">(score {{ detail.score }})</span>{% endif %}
+                  <div class="mono hint">{{ detail.path }}</div>
+                  {% if detail.snippet %}
+                    <div class="muted">{{ detail.snippet|truncatechars:220 }}</div>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+        {% if item.graph_expanded %}
+          <p class="muted">Graph ergänzt: {{ item.graph_expanded|join:", " }}</p>
+        {% endif %}
+        {% if item.prompt %}
+          <details style="margin-top:8px;">
+            <summary>KI-Backend Prompt anzeigen</summary>
+            <pre>{{ item.prompt }}</pre>
+          </details>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card"><p>Noch keine Fragen gestellt.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

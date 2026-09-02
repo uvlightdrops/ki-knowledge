@@ -1,0 +1,82 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Jira Exclusions · KICLI{% endblock %}
+{% block content %}
+<h1>Jira Exclusions</h1>
+<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span></p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ exclusions_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ exclusions_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="post" action="">
+    {% csrf_token %}
+    <label>String</label>
+    <input type="text" name="term" style="width:40%;" placeholder="z.B. machen, bitte, follow up">
+    <label style="margin-left:12px;">Kind</label>
+    <select name="kind">
+      <option value="exception">exception</option>
+      <option value="stop_word">stop_word</option>
+    </select>
+    <button type="submit">Hinzufügen</button>
+  </form>
+</div>
+
+{% if display_mode == "cards" %}
+  <div class="grid">
+    {% for item in exclusions %}
+      <div class="card">
+        <h3>{{ item.display_term }}</h3>
+        <p><span class="chip">{{ item.kind }}</span></p>
+        <p class="mono">{{ item.normalized_term }}</p>
+        <p class="muted">{{ item.updated_at|date:"Y-m-d H:i:s" }}</p>
+      </div>
+    {% empty %}
+      <p>Noch keine Exclusions gesetzt.</p>
+    {% endfor %}
+  </div>
+{% else %}
+<div class="card">
+  {% if exclusions %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>String</th>
+            <th>Kind</th>
+            <th>Normalized</th>
+            <th>Updated</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in exclusions %}
+            <tr>
+              <td>{{ item.display_term }}</td>
+              <td><span class="chip">{{ item.kind }}</span></td>
+              <td class="mono">{{ item.normalized_term }}</td>
+              <td class="mono">{{ item.updated_at|date:"Y-m-d H:i:s" }}</td>
+              <td>
+                <form method="post" action="{% url 'jira-exclusions' %}" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="term" value="{{ item.display_term }}">
+                  <button type="submit">Entfernen</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>Noch keine Exclusions gesetzt.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

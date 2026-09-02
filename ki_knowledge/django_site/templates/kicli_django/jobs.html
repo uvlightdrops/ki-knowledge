@@ -1,0 +1,86 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Jobs · KICLI{% endblock %}
+{% block content %}
+<h1>Jobs</h1>
+<p class="muted">Status: {{ status }} · Job type: {{ job_type }} · Limit: {{ limit }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ jobs_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ jobs_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" action="">
+    <label>Status</label>
+    <select name="status">
+      <option value="" {% if status == "(all)" %}selected{% endif %}>(all)</option>
+      <option value="pending" {% if status == "pending" %}selected{% endif %}>pending</option>
+      <option value="running" {% if status == "running" %}selected{% endif %}>running</option>
+      <option value="done" {% if status == "done" %}selected{% endif %}>done</option>
+      <option value="failed" {% if status == "failed" %}selected{% endif %}>failed</option>
+    </select>
+    <label style="margin-left: 12px;">Type</label>
+    <select name="job_type">
+      <option value="" {% if job_type == "(all)" %}selected{% endif %}>(all)</option>
+      {% for job_type_option in available_job_types %}
+        <option value="{{ job_type_option }}" {% if job_type == job_type_option %}selected{% endif %}>{{ job_type_option }}</option>
+      {% endfor %}
+    </select>
+    <label style="margin-left: 12px;">Limit</label>
+    <input type="number" name="limit" value="{{ limit }}" min="1" max="2000">
+    <button type="submit">Filtern</button>
+  </form>
+</div>
+
+{% if display_mode == "cards" %}
+  <div class="grid">
+    {% for job in jobs %}
+      <div class="card">
+        <h3 class="mono">{{ job.job_id|short_id }}</h3>
+        <p><span class="chip">{{ job.status }}</span> <span class="muted">{{ job.job_type }}</span></p>
+        <p class="mono">{{ job.term_id|short_id }}</p>
+        <p class="muted">{{ job.updated_at|date:"Y-m-d H:i:s" }}</p>
+      </div>
+    {% empty %}
+      <p>No jobs found.</p>
+    {% endfor %}
+  </div>
+{% else %}
+<div class="card">
+  {% if jobs %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Updated</th>
+          <th>Status</th>
+          <th>Type</th>
+          <th>Target</th>
+          <th>Attempts</th>
+          <th>Job ID</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr>
+          <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.updated_at|date:"Y-m-d H:i:s" }}</a></td>
+          <td><span class="chip">{{ job.status }}</span></td>
+          <td>{{ job.job_type }}</td>
+          <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.term_id|short_id }}</a></td>
+          <td>{{ job.attempts }}</td>
+          <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.job_id|short_id }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p>No jobs found.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

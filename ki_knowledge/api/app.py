@@ -1,0 +1,1 @@
+from ki_knowledge.api.knowledge_app import _field_embedding_backend, _get_components, _semantic_model_id

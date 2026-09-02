@@ -1,0 +1,75 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Semantic Terms · KICLI{% endblock %}
+{% block content %}
+<h1>Semantic Terms</h1>
+<p class="muted">Filter status: {{ status }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ semantic_terms_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ semantic_terms_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" action="">
+    <label>Status</label>
+    <select name="status">
+      <option value="" {% if status == "(all)" %}selected{% endif %}>(all)</option>
+      <option value="new" {% if status == "new" %}selected{% endif %}>new</option>
+      <option value="enriched" {% if status == "enriched" %}selected{% endif %}>enriched</option>
+      <option value="reviewed" {% if status == "reviewed" %}selected{% endif %}>reviewed</option>
+      <option value="deprecated" {% if status == "deprecated" %}selected{% endif %}>deprecated</option>
+    </select>
+    <label style="margin-left: 12px;">limit</label>
+    <input type="number" name="limit" value="{{ limit }}" min="1" max="2000">
+    <button type="submit">Filtern</button>
+  </form>
+</div>
+
+{% if display_mode == "cards" %}
+  <div class="grid">
+    {% for term in terms %}
+      <div class="card">
+        <h3><a href="{% url 'semantic-term-detail' term.term_id %}">{{ term.canonical_label }}</a></h3>
+        <p><span class="chip">{{ term.status }}</span></p>
+        <p><code>{{ term.normalized_label }}</code></p>
+        <p class="muted">{{ term.updated_at|date:"Y-m-d H:i:s" }}</p>
+      </div>
+    {% empty %}
+      <p>No semantic terms.</p>
+    {% endfor %}
+  </div>
+{% else %}
+<div class="card">
+  {% if terms %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Label</th>
+        <th>Status</th>
+        <th>Normalized</th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for term in terms %}
+      <tr>
+        <td><a href="{% url 'semantic-term-detail' term.term_id %}">{{ term.canonical_label }}</a></td>
+        <td><span class="chip">{{ term.status }}</span></td>
+        <td><code>{{ term.normalized_label }}</code></td>
+        <td>{{ term.updated_at|date:"Y-m-d H:i:s" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>No semantic terms.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

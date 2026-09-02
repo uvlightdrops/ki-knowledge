@@ -1,0 +1,100 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Artifacts · KICLI{% endblock %}
+{% block content %}
+<h1>Artifacts</h1>
+<p class="muted">Filter: {{ artifact_type }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ artifacts_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ artifacts_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<form method="post" action="{% url 'artifacts' %}" style="margin-top: 12px;" id="artifacts-delete-form">
+  {% csrf_token %}
+  <input type="hidden" name="type" value="{% if artifact_type != '(all)' %}{{ artifact_type }}{% endif %}">
+  <input type="hidden" name="display" value="{{ display_mode }}">
+  <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+    <button type="submit" name="action" value="delete" onclick="return confirm('Ausgewählte Artefakte löschen?')">Ausgewählte löschen</button>
+    <button type="submit" name="action" value="delete_all" onclick="return confirm('Alle derzeit gefilterten Artefakte löschen?')">Alle löschen</button>
+  </div>
+
+  {% if display_mode == "cards" %}
+    <div class="grid">
+      {% for artifact in display_artifacts %}
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
+            <h3 style="margin:0;">{{ artifact.artifact_type }}</h3>
+            <input type="checkbox" name="artifact_ids" value="{{ artifact.artifact_id }}">
+          </div>
+          <p class="muted mono">{{ artifact.artifact_id|short_id }}</p>
+          <p class="mono" title="{{ artifact.display_source_id }}">{{ artifact.display_source_id|short_id }}</p>
+          {% if artifact.display_preview %}
+            <p>{{ artifact.display_preview }}</p>
+          {% endif %}
+          <details>
+            <summary>Content</summary>
+            <pre style="white-space:pre-wrap">{{ artifact.content }}</pre>
+          </details>
+        </div>
+      {% empty %}
+        <p>No artifacts.</p>
+      {% endfor %}
+    </div>
+  {% else %}
+  {% if display_mode == "table" %}
+    <div class="card">
+      {% if display_artifacts %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" data-select-all="artifact_ids"></th>
+                <th>Type</th>
+                <th>Artifact ID</th>
+                <th>Source ID</th>
+                <th>Preview</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for artifact in display_artifacts %}
+                <tr>
+                  <td><input type="checkbox" name="artifact_ids" value="{{ artifact.artifact_id }}"></td>
+                  <td>{{ artifact.artifact_type }}</td>
+                  <td class="mono">{{ artifact.artifact_id|short_id }}</td>
+                  <td class="mono" title="{{ artifact.display_source_id }}">{{ artifact.display_source_id|short_id }}</td>
+                  <td>{{ artifact.display_preview|default:"-" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>No artifacts.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+  {% endif %}
+</form>
+<script>
+document.addEventListener("change", function (event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || !target.matches("[data-select-all]")) {
+    return;
+  }
+  const form = target.closest("form");
+  if (!form) {
+    return;
+  }
+  const fieldName = target.dataset.selectAll;
+  form.querySelectorAll(`input[name="${fieldName}"]`).forEach((checkbox) => {
+    if (checkbox !== target) {
+      checkbox.checked = target.checked;
+    }
+  });
+});
+</script>
+{% endblock %}

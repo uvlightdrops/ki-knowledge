@@ -1,0 +1,91 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}3D Graph · KICLI{% endblock %}
+{% block content %}
+<h1>3D Graph</h1>
+<p class="muted">{{ source.title }} · <span class="mono">{{ source_id|short_id }}</span></p>
+
+<div class="grid">
+  <div class="card">
+    <h3>Stats</h3>
+    <p>Nodes: {{ stats.total_nodes }}</p>
+    <p>Edges: {{ stats.total_edges }}</p>
+    <p>Density: {{ stats.density }}</p>
+    <p><a href="{{ graph_2d_url }}">Zur 2D-Ansicht</a></p>
+    <p class="hint">Navigation: Links ziehen = drehen, Rechts ziehen = verschieben, Mausrad = zoom.</p>
+  </div>
+  <div class="card">
+    <h3>3D Netzwerk</h3>
+    <div id="graph3d" style="height: 760px; width: 100%;"></div>
+  </div>
+</div>
+
+{{ graph_3d|json_script:"graph3d-data" }}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+  (function () {
+    const payload = JSON.parse(document.getElementById("graph3d-data").textContent);
+    const nodes = payload.nodes || [];
+    const edges = payload.edges || [];
+
+    const edgeX = [];
+    const edgeY = [];
+    const edgeZ = [];
+    edges.forEach((edge) => {
+      edgeX.push(edge.x0, edge.x1, null);
+      edgeY.push(edge.y0, edge.y1, null);
+      edgeZ.push(edge.z0, edge.z1, null);
+    });
+
+    const edgeTrace = {
+      type: "scatter3d",
+      mode: "lines",
+      x: edgeX,
+      y: edgeY,
+      z: edgeZ,
+      line: { width: 1, color: "#64748b" },
+      hoverinfo: "none",
+      name: "relations"
+    };
+
+    const nodeTrace = {
+      type: "scatter3d",
+      mode: "markers+text",
+      x: nodes.map((n) => n.x),
+      y: nodes.map((n) => n.y),
+      z: nodes.map((n) => n.z),
+      text: nodes.map((n) => n.label),
+      hovertext: nodes.map((n) => `${n.node_type}: ${n.label}`),
+      hoverinfo: "text",
+      textposition: "top center",
+      marker: {
+        size: nodes.map((n) => n.size || 7),
+        color: nodes.map((n) => n.node_type || "unknown"),
+        colorscale: "Viridis",
+        opacity: 0.9
+      },
+      name: "nodes"
+    };
+
+    const layout = {
+      paper_bgcolor: "#111827",
+      plot_bgcolor: "#111827",
+      font: { color: "#e2e8f0" },
+      margin: { l: 0, r: 0, b: 0, t: 30 },
+      scene: {
+        xaxis: { visible: false },
+        yaxis: { visible: false },
+        zaxis: { visible: false },
+        bgcolor: "#0b1220"
+      },
+      showlegend: false
+    };
+
+    Plotly.newPlot("graph3d", [edgeTrace, nodeTrace], layout, {
+      responsive: true,
+      displaylogo: false,
+      scrollZoom: true
+    });
+  })();
+</script>
+{% endblock %}

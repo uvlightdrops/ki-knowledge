@@ -1,0 +1,128 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Jira Domain Analysis · KICLI{% endblock %}
+{% block content %}
+<h1>Jira Domain Analysis</h1>
+<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span> · Issues: {{ issue_count }}</p>
+<p class="muted">Embedding: {{ embedding_model }} · letzte Feld-Embeddings: {{ embedded_fields }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ analysis_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ analysis_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <form method="get" action="">
+    <label>terms</label>
+    <input type="number" name="terms" value="{{ limit_terms }}" min="1" max="200">
+    <label style="margin-left:12px;">min_count</label>
+    <input type="number" name="min_count" value="{{ min_count|default:2 }}" min="1" max="50">
+    <label style="margin-left:12px;">hits</label>
+    <input type="number" name="hits" value="{{ limit_hits }}" min="1" max="50">
+    <label style="margin-left:12px;">query</label>
+    <input type="text" name="q" value="{{ query }}" style="width:260px;" placeholder="auth login timeout">
+    <button type="submit">Analysieren</button>
+  </form>
+</div>
+
+{% if display_mode == "cards" %}
+<div class="grid">
+  <div class="card">
+    <h3>Domain terms</h3>
+    {% for term in terms %}
+      <div class="card">
+        <strong>{{ term.term }}</strong>
+        <p>{{ term.count }} · {{ term.issue_count }}</p>
+      </div>
+    {% empty %}
+      <p>Keine Domain Terms gefunden.</p>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <h3>Semantic field hits</h3>
+    {% for hit in hits %}
+      <div class="card">
+        <strong class="mono">{{ hit.issue_key }}</strong>
+        <p>{{ hit.field_kind }}/{{ hit.field_name }}</p>
+        <p>{{ hit.score|floatformat:3 }}</p>
+      </div>
+    {% empty %}
+      {% if query %}
+        <p>Keine semantischen Treffer für die Query.</p>
+      {% else %}
+        <p>Setze eine Query, um semantische Feldtreffer zu sehen.</p>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="grid">
+  <div class="card">
+    <h3>Domain terms</h3>
+    {% if terms %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Term</th>
+              <th>Count</th>
+              <th>Issues</th>
+              <th>Sources</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for term in terms %}
+              <tr>
+                <td>{{ term.term }}</td>
+                <td>{{ term.count }}</td>
+                <td>{{ term.issue_count }}</td>
+                <td>{{ term.sources|join:", " }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>Keine Domain Terms gefunden.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Semantic field hits</h3>
+    {% if hits %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Issue</th>
+              <th>Field</th>
+              <th>Score</th>
+              <th>Terms</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for hit in hits %}
+              <tr>
+                <td class="mono">{{ hit.issue_key }}</td>
+                <td>{{ hit.field_kind }}/{{ hit.field_name }}</td>
+                <td>{{ hit.score|floatformat:3 }}</td>
+                <td>{{ hit.top_terms|join:", " }}</td>
+              </tr>
+              <tr>
+                <td colspan="4" class="muted">{{ hit.excerpt }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% elif query %}
+      <p>Keine semantischen Treffer für die Query.</p>
+    {% else %}
+      <p>Setze eine Query, um semantische Feldtreffer zu sehen.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

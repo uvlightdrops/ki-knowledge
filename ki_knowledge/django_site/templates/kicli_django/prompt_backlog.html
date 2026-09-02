@@ -1,0 +1,133 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Prompt backlog · KICLI{% endblock %}
+{% block content %}
+<h1>Prompt backlog</h1>
+<p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+
+{% if notice %}
+  <div class="card section">
+    <strong>Status:</strong> {{ notice }}
+  </div>
+{% endif %}
+{% if error_message %}
+  <div class="card section" style="border-color:#ef4444;">
+    <strong>Fehler:</strong> <span class="mono">{{ error_message }}</span>
+  </div>
+{% endif %}
+
+<div class="grid section">
+  <div class="card">
+    <h3>Batch queue</h3>
+    <p class="muted">Markdown-Dateien pro Domain fuer offene KI-Fragen und Prompt-Vorlagen.</p>
+    <table>
+      <tbody>
+        <tr><th>Backlog</th><td><span class="mono">{{ backlog_path }}</span></td></tr>
+        <tr><th>Templates</th><td><span class="mono">{{ templates_path }}</span></td></tr>
+        <tr><th>Outputs</th><td><span class="mono">{{ runs_dir }}</span></td></tr>
+        <tr><th>Offen</th><td>{{ open_count }}</td></tr>
+        <tr><th>Erledigt</th><td>{{ done_count }}</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:12px;">
+      Queue-Syntax: <span class="mono">- [ ] Frage</span> oder
+      <span class="mono">- [ ] template-name :: Frage</span>
+    </p>
+    <p class="muted">Vorlagen leben als <span class="mono">## template-name</span>-Abschnitte im Templates-Dokument.</p>
+  </div>
+
+  <div class="card">
+    <h3>Run batch</h3>
+    <form method="post">
+      {% csrf_token %}
+      <p class="muted">Nutzt die aktuell gespeicherten Markdown-Dokumente aus dieser Domain.</p>
+      <label for="model">Modell</label><br>
+      <select id="model" name="model" style="width:100%;">
+        <option value="{{ default_model }}">{{ default_model }}</option>
+        {% for model in available_models %}
+          {% if model != default_model %}
+            <option value="{{ model }}">{{ model }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <div class="section">
+        <label for="system_prompt">System prompt</label><br>
+        <textarea id="system_prompt" name="system_prompt" rows="4" style="width:100%;">{{ default_system_prompt }}</textarea>
+      </div>
+      <div class="section" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
+        <button type="submit" name="action" value="run">Batch laufen lassen</button>
+        <button type="submit" name="action" value="run_import">Batch + einlesen</button>
+        <button type="submit" name="action" value="run_import_semantic">Batch + einlesen + semantisch</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<form method="post" class="section">
+  {% csrf_token %}
+  <p class="muted">Die Buttons unter den Editoren speichern zuerst den aktuellen Text und starten danach optional direkt den Batch.</p>
+  <div class="grid">
+    <div class="card">
+      <h3>Prompt backlog</h3>
+      <textarea name="backlog_content" rows="24" style="width:100%;">{{ backlog_content }}</textarea>
+    </div>
+    <div class="card">
+      <h3>Prompt templates</h3>
+      <textarea name="templates_content" rows="24" style="width:100%;">{{ templates_content }}</textarea>
+    </div>
+  </div>
+  <div class="section" style="display:flex; flex-wrap:wrap; gap:8px;">
+    <button type="submit" name="action" value="save">Dokumente speichern</button>
+    <button type="submit" name="action" value="run">Speichern + Batch laufen lassen</button>
+    <button type="submit" name="action" value="run_import">Speichern + Batch + einlesen</button>
+    <button type="submit" name="action" value="run_import_semantic">Speichern + Batch + semantisch</button>
+  </div>
+</form>
+
+<div class="grid section">
+  <div class="card">
+    <h3>Offene Fragen</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Vorlage</th>
+          <th>Frage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in open_items %}
+          <tr>
+            <td>{{ item.line_number }}</td>
+            <td><span class="chip">{{ item.template }}</span></td>
+            <td>{{ item.question }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="muted">Keine offenen Prompts in der Queue.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Neueste Batch-Outputs</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Datei</th>
+          <th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for file in recent_outputs %}
+          <tr>
+            <td class="mono">{{ file.name }}</td>
+            <td><a href="/workspace/?path={{ file.path|urlencode }}">Im Workspace</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="2" class="muted">Noch keine Batch-Ergebnisse gespeichert.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

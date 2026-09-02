@@ -1,0 +1,56 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Layout settings · KICLI{% endblock %}
+{% block content %}
+  <h1>Layout settings</h1>
+  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+
+  <div class="section card">
+    <h3>GUI layout registry</h3>
+    <p class="muted">Wähle pro Box die gewünschte Breite. Die Einstellung wird lokal im Browser gespeichert.</p>
+    <div class="layout-registry" style="display:grid; gap:12px; margin-top:12px;">
+      {% for label, box_id, default_size, description in layout_items %}
+        <div class="layout-registry-row" style="display:grid; grid-template-columns:minmax(180px,220px) minmax(120px,180px) minmax(160px,220px); gap:12px; align-items:center; padding:10px 12px; border:1px solid #334155; border-radius:10px; background:rgba(15,23,42,0.45);">
+          <strong>{{ label }}</strong>
+          <code style="color:#cbd5e1; font-size:0.78rem; background:rgba(15,23,42,0.78); border:1px solid #334155; border-radius:6px; padding:4px 6px;">{{ box_id }}</code>
+          <select data-layout-control="{{ box_id }}" style="width:100%;">
+            <option value="compact" {% if default_size == "compact" %}selected{% endif %}>compact</option>
+            <option value="balanced" {% if default_size == "balanced" %}selected{% endif %}>balanced</option>
+            <option value="wide" {% if default_size == "wide" %}selected{% endif %}>wide</option>
+            <option value="full" {% if default_size == "full" %}selected{% endif %}>full</option>
+          </select>
+          <div style="grid-column:1 / -1; color:#94a3b8; font-size:0.82rem;">{{ description }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const layoutSizeMap = { compact: 'compact', balanced: 'balanced', wide: 'wide', full: 'full' };
+      const boxMap = {
+        'domain-management': 'domain-management',
+        'knowledge-summary': 'knowledge-summary',
+        'semantic-quick': 'semantic-quick',
+        'semantic-monitor': 'semantic-monitor',
+        'recent-jobs': 'recent-jobs',
+        'kb-management': 'kb-management',
+        'status': 'status',
+        'quick-import': 'quick-import',
+      };
+
+      document.querySelectorAll('[data-layout-control]').forEach((select) => {
+        const box = select.dataset.layoutControl;
+        const storageKey = `kicli-layout-box-${box}`;
+        const restore = localStorage.getItem(storageKey) || select.value || 'balanced';
+        const safe = layoutSizeMap[restore] || 'balanced';
+        select.value = safe;
+        localStorage.setItem(storageKey, safe);
+        select.addEventListener('change', (event) => {
+          const value = layoutSizeMap[event.target.value] || 'balanced';
+          localStorage.setItem(storageKey, value);
+          event.target.value = value;
+        });
+      });
+    })();
+  </script>
+{% endblock %}

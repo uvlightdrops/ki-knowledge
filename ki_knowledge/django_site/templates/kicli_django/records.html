@@ -1,0 +1,109 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Records · KICLI{% endblock %}
+{% block content %}
+<h1>Records</h1>
+<p class="muted"><strong>Gesamtzahl Records:</strong> {{ total_record_count }} · angezeigt: {{ records|length }}</p>
+<p class="muted">Filter source_id: {{ source_id }} · block_type: {{ block_type }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ records_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ records_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" action="">
+    <input type="hidden" name="display" value="{{ display_mode }}">
+    <label>source_id</label>
+    <input type="text" name="source_id" value="{% if source_id != '(all)' %}{{ source_id }}{% endif %}" placeholder="markdown:/...">
+    <label style="margin-left: 12px;">block_type</label>
+    <input type="text" name="block_type" value="{% if block_type != '(all)' %}{{ block_type }}{% endif %}" placeholder="heading, paragraph, ...">
+    <label style="margin-left: 12px;">limit</label>
+    <input type="number" name="limit" value="{{ limit }}" min="1" max="2000">
+    <button type="submit">Filtern</button>
+  </form>
+</div>
+
+<form method="post" action="{% url 'records' %}" style="margin-top: 12px;" id="records-delete-form">
+  {% csrf_token %}
+  <input type="hidden" name="source_id" value="{% if source_id != '(all)' %}{{ source_id }}{% endif %}">
+  <input type="hidden" name="block_type" value="{% if block_type != '(all)' %}{{ block_type }}{% endif %}">
+  <input type="hidden" name="limit" value="{{ limit }}">
+  <input type="hidden" name="display" value="{{ display_mode }}">
+  <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+    <button type="submit" name="action" value="delete" onclick="return confirm('Ausgewählte Records löschen?')">Ausgewählte löschen</button>
+    <button type="submit" name="action" value="delete_all" onclick="return confirm('Alle derzeit gefilterten Records löschen?')">Alle löschen</button>
+  </div>
+
+  <div class="card">
+    {% if records %}
+      {% if display_mode == "cards" %}
+        <div class="grid">
+          {% for record in display_records %}
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
+                <h3 style="margin:0;">{{ record.title }}</h3>
+                <input type="checkbox" name="record_ids" value="{{ record.block_id }}">
+              </div>
+              <p><span class="chip">{{ record.block_type }}</span></p>
+              <p class="mono">{{ record.block_id|short_id }}</p>
+              <p class="mono" title="{{ record.display_source_id }}">{{ record.display_source_id|short_id }}</p>
+              <p class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" data-select-all="record_ids"></th>
+              <th>Block ID</th>
+              <th>Source ID</th>
+              <th>Type</th>
+              <th>Title</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in display_records %}
+            <tr>
+              <td><input type="checkbox" name="record_ids" value="{{ record.block_id }}"></td>
+              <td class="mono">{{ record.block_id|short_id }}</td>
+              <td class="mono"><a href="{% url 'source-detail' record.source_id %}" title="{{ record.display_source_id }}">{{ record.display_source_id|short_id }}</a></td>
+              <td><span class="chip">{{ record.block_type }}</span></td>
+              <td>{{ record.title }}</td>
+              <td class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      {% endif %}
+    {% else %}
+    <p>No records.</p>
+    {% endif %}
+  </div>
+</form>
+<script>
+document.addEventListener("change", function (event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || !target.matches("[data-select-all]")) {
+    return;
+  }
+  const form = target.closest("form");
+  if (!form) {
+    return;
+  }
+  const fieldName = target.dataset.selectAll;
+  form.querySelectorAll(`input[name="${fieldName}"]`).forEach((checkbox) => {
+    if (checkbox !== target) {
+      checkbox.checked = target.checked;
+    }
+  });
+});
+</script>
+{% endblock %}

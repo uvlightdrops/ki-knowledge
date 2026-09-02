@@ -1,0 +1,115 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Sources · KICLI{% endblock %}
+{% block content %}
+<h1>Sources</h1>
+<p class="muted">Filter: {{ source_type }}</p>
+<p class="muted">Domain: <span class="chip">{{ active_domain }}</span></p>
+<p class="muted">
+  Domain sources:
+  <span class="chip">md {{ active_domain_state.has_md_source|yesno:"on,off" }}</span>
+  <span class="chip">jira {{ active_domain_state.has_jira_source|yesno:"on,off" }}</span>
+  <span class="chip">owl {{ active_domain_state.has_owl_source|yesno:"on,off" }}</span>
+</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ sources_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ sources_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="grid section">
+  {% if active_domain_state.has_jira_source %}
+    <div class="card">
+      <h3>Issue / CSV source</h3>
+      <p><strong>Issues:</strong> {{ jira_issues }}</p>
+      <p><strong>CSV:</strong> <span class="mono">{{ jira_csv_path|default:"-" }}</span></p>
+      <p><strong>Cache:</strong> <span class="mono">{{ jira_cache_db }}</span></p>
+      <p><a href="/jira/support-chat/">Open issue source tools</a></p>
+    </div>
+  {% endif %}
+  <div class="card">
+    <h3>Markdown</h3>
+    <p><strong>Files:</strong> {{ markdown_count }}</p>
+    <p><strong>Data dir:</strong> <span class="mono">{{ data_dir }}</span></p>
+    <p><a href="/workspace/">Open workspace</a></p>
+  </div>
+  <div class="card">
+    <h3>Knowledge store</h3>
+    <p><strong>Sources:</strong> {{ source_count }}</p>
+    <p><strong>Artifacts:</strong> {{ artifact_count }}</p>
+    <p><a href="/records/">Browse records</a> · <a href="/jobs/">Jobs</a></p>
+  </div>
+  <div class="card">
+    <h3>OWL</h3>
+    <p><strong>Files:</strong> {{ ontology_count }}</p>
+    <p><a href="/data-sources/">Open OWL source hub</a></p>
+  </div>
+</div>
+
+{% if display_mode == "table" %}
+<div class="section card">
+  <h3>Ontology examples</h3>
+  {% if ontology_examples %}
+    <table>
+      <thead>
+        <tr><th>File</th><th>Path</th></tr>
+      </thead>
+      <tbody>
+        {% for item in ontology_examples %}
+          <tr>
+            <td>{{ item.name }}</td>
+            <td class="mono">{{ item.display_path }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No ontology files found for this domain.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if display_mode == "table" %}
+<div class="section card">
+  <h3>Markdown examples</h3>
+  {% if markdown_examples %}
+    <table>
+      <thead>
+        <tr><th>File</th><th>Path</th></tr>
+      </thead>
+      <tbody>
+        {% for item in markdown_examples %}
+          <tr>
+            <td>{{ item.name }}</td>
+            <td class="mono">{{ item.path }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No Markdown files found in the workspace.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid">
+  {% for source in sources %}
+    <div class="card">
+      <h3><a href="{% url 'source-detail' source.source_id %}">{{ source.title }}</a></h3>
+      <p class="muted"><span class="chip">{{ source.source_type }}</span></p>
+      <p class="mono nowrap">{{ source.location|basename }}</p>
+      <p class="hint mono">{{ source.source_id|short_id }}</p>
+      <details>
+        <summary>Vollständige IDs anzeigen</summary>
+        <p class="mono">{{ source.source_id }}</p>
+        <p class="mono">{{ source.location }}</p>
+      </details>
+    </div>
+  {% empty %}
+    <p>No sources.</p>
+  {% endfor %}
+</div>
+{% endblock %}

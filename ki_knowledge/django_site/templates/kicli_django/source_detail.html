@@ -1,0 +1,111 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}{{ source.title }} · KICLI{% endblock %}
+{% block content %}
+<h1>{{ source.title }}</h1>
+<p class="muted mono" title="{{ display_source_id }}">{{ display_source_id|short_id }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ records_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ records_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>Source info</h3>
+    <p>Type: <span class="chip">{{ source.source_type }}</span></p>
+    <p>File: <span class="mono">{{ source.location|basename }}</span></p>
+    <details>
+      <summary>Volle Source-ID und Pfad</summary>
+      <p class="mono">{{ display_source_id }}</p>
+      <p class="mono">{{ display_location }}</p>
+    </details>
+  </div>
+  <div class="card">
+    <h3>Actions</h3>
+    <form method="post" action="{% url 'generate-action' %}">
+      {% csrf_token %}
+      <input type="hidden" name="source_id" value="{{ source.source_id }}">
+      <input type="number" name="max_items" value="8" min="1" max="20">
+      <button type="submit">Generate all artifacts</button>
+    </form>
+    <p style="margin-top:8px"><a href="{{ graph_url }}">Open 2D graph</a></p>
+    <p><a href="{{ graph_3d_url }}">Open 3D graph</a></p>
+  </div>
+</div>
+
+<div class="section card">
+  <h3>Records</h3>
+  {% if display_records %}
+    {% if display_mode == "cards" %}
+      <div class="grid">
+        {% for record in display_records %}
+          <div class="card">
+            <h3>{{ record.title }}</h3>
+            <p><span class="chip">{{ record.block_type }}</span></p>
+            <p class="mono">{{ record.block_id|short_id }}</p>
+            <p class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="table-wrap">
+      <table>
+        <tr><th>Type</th><th>Title</th><th>Path</th></tr>
+        {% for record in display_records %}
+          <tr>
+            <td><span class="chip">{{ record.block_type }}</span></td>
+            <td>{{ record.title }}</td>
+            <td class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+      </div>
+    {% endif %}
+  {% else %}
+    <p>No records.</p>
+  {% endif %}
+</div>
+
+<div class="section card">
+  <h3>Artifacts</h3>
+  {% if display_artifacts %}
+    {% if display_mode == "cards" %}
+      <div class="grid">
+        {% for artifact in display_artifacts %}
+          <div class="card">
+            <h3>{{ artifact.artifact_type }}</h3>
+            <p class="mono">{{ artifact.artifact_id|short_id }}</p>
+            <p class="mono" title="{{ artifact.display_source_id }}">{{ artifact.display_source_id|short_id }}</p>
+            {% if artifact.display_preview %}
+              <p>{{ artifact.display_preview }}</p>
+            {% endif %}
+            <details>
+              <summary>Content</summary>
+              <pre style="white-space:pre-wrap">{{ artifact.content }}</pre>
+            </details>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="table-wrap">
+      <table>
+        <tr><th>Type</th><th>ID</th><th>Preview</th></tr>
+        {% for artifact in display_artifacts %}
+          <tr>
+            <td>{{ artifact.artifact_type }}</td>
+            <td class="mono">{{ artifact.artifact_id|short_id }}</td>
+            <td>{{ artifact.display_preview|default:"-" }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+      </div>
+    {% endif %}
+  {% else %}
+    <p>No artifacts.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}{{ term.canonical_label }} · Semantic Term{% endblock %}
+{% block content %}
+<h1>{{ term.canonical_label }}</h1>
+<p class="muted mono">{{ term.term_id|short_id }} · status=<span class="chip">{{ term.status }}</span></p>
+<details>
+  <summary>Vollständige Term-ID</summary>
+  <p class="mono">{{ term.term_id }}</p>
+</details>
+
+<div class="section card">
+  <h3>Aktionen</h3>
+  <form method="post" action="{% url 'jira-exclusions' %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="exclude_and_forget">
+    <input type="hidden" name="kind" value="exception">
+    <input type="hidden" name="term" value="{{ term.canonical_label }}">
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit">Zu Exclusions hinzufügen & aus Jira Terms löschen</button>
+  </form>
+</div>
+
+<div class="section card">
+  <h3>Current facts</h3>
+  {% if facts %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Content</th>
+        <th>Confidence</th>
+        <th>Model</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fact in facts %}
+      <tr>
+        <td>{{ fact.fact_type }}</td>
+        <td>{{ fact.content }}</td>
+        <td>{{ fact.confidence }}</td>
+        <td class="mono">{{ fact.model_id|short_id }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>No facts yet.</p>
+  {% endif %}
+</div>
+
+<div class="section card">
+  <h3>Relations</h3>
+  {% if relations %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Relation</th>
+        <th>Target</th>
+        <th>Weight</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for relation in relations %}
+      <tr>
+        <td>{{ relation.relation_type }}</td>
+        <td>{{ relation.target_label }}</td>
+        <td>{{ relation.weight }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>No relations yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

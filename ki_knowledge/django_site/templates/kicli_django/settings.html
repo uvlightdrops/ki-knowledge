@@ -1,0 +1,15 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Settings · KICLI{% endblock %}
+{% block content %}
+  <h1>Settings</h1>
+  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+
+  <div class="section panel-grid panel-grid--auto">
+    {% for label, url, description in quick_links %}
+      <div class="card">
+        <h3><a href="{{ url }}" title="{{ description }}">{{ label }}</a></h3>
+        <p class="muted">{{ description }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

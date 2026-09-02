@@ -1,0 +1,138 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+
+{% block title %}PDF Import Report - KICLI{% endblock %}
+
+{% block content %}
+<h1>PDF Import Report</h1>
+<p class="muted">Domain: <span class="mono">{{ active_domain }}</span> · <a href="{% url 'pdf-import-jobs' %}?domain={{ active_domain }}">Back to jobs</a></p>
+
+<div class="section">
+  <div class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+    <div><strong>Total:</strong> {{ report.counts.total }}</div>
+    <div><strong style="color: #fbbf24;">Pending:</strong> {{ report.counts.pending }}</div>
+    <div><strong style="color: #60a5fa;">Processing:</strong> {{ report.counts.processing }}</div>
+    <div><strong style="color: #34d399;">Done:</strong> {{ report.counts.done }}</div>
+    <div><strong style="color: #f87171;">Failed:</strong> {{ report.counts.failed }}</div>
+  </div>
+</div>
+
+<div class="section grid">
+  <div class="card">
+    <h2>Active Processing</h2>
+    {% if report.processing_jobs %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>File</th>
+              <th>Age</th>
+              <th>Pages</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in report.processing_jobs %}
+              <tr>
+                <td class="mono">{{ job.job_id }}</td>
+                <td class="mono" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+                <td>{% if job.age_minutes is not None %}{{ job.age_minutes }} min{% else %}—{% endif %}</td>
+                <td>{{ job.pages_processed }}/{{ job.pages_total }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No active processing jobs.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Stale / Pending</h2>
+    {% if report.stale_processing %}
+      <p style="color: #fbbf24;">{{ report.stale_processing|length }} stale processing job(s) exceed the timeout threshold.</p>
+    {% endif %}
+    {% if report.pending_jobs %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Age</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in report.pending_jobs %}
+              <tr>
+                <td class="mono" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+                <td>{% if job.age_minutes is not None %}{{ job.age_minutes }} min{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No pending jobs.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section card">
+  <h2>Recent Failures</h2>
+  {% if report.failed_jobs %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>File</th>
+            <th>When</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in report.failed_jobs %}
+            <tr>
+              <td class="mono">{{ job.job_id }}</td>
+              <td class="mono" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+              <td>{% if job.age_minutes is not None %}{{ job.age_minutes }} min ago{% else %}—{% endif %}</td>
+              <td style="color: #f87171;">{{ job.error_message }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">No failed jobs recorded.</p>
+  {% endif %}
+</div>
+
+<div class="section card">
+  <h2>Recent Completed</h2>
+  {% if report.recent_done %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>File</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in report.recent_done %}
+            <tr>
+              <td class="mono">{{ job.job_id }}</td>
+              <td class="mono" title="{{ job.display_pdf_path }}">{{ job.display_pdf_path|basename }}</td>
+              <td class="mono">{{ job.created_at|date:"Y-m-d H:i:s" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">No completed jobs yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

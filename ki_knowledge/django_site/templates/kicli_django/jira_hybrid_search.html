@@ -1,0 +1,75 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Jira Hybrid Search · KICLI{% endblock %}
+{% block content %}
+<h1>Jira Hybrid Search</h1>
+<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span></p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ hybrid_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ hybrid_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" action="">
+    <label>Query</label>
+    <input type="text" name="q" value="{{ query }}" style="width:60%" placeholder="auth login timeout">
+    <label style="margin-left:12px;">limit</label>
+    <input type="number" name="limit" value="{{ limit }}" min="1" max="50">
+    <button type="submit">Suchen</button>
+  </form>
+</div>
+
+{% if result %}
+  <div class="card">
+    <p class="muted">Embedding: {{ result.embedding_model }} · Issues: {{ result.issue_count }}</p>
+    {% if display_mode == "cards" %}
+      <div class="grid">
+        {% for hit in result.hits %}
+          <div class="card">
+            <h3 class="mono">{{ hit.issue.key }}</h3>
+            <p>{{ hit.issue.summary }}</p>
+            <p><span class="chip">{{ hit.combined_score|floatformat:3 }}</span> <span class="chip">lex {{ hit.lexical_score|floatformat:3 }}</span> <span class="chip">sem {{ hit.semantic_score|floatformat:3 }}</span></p>
+          </div>
+        {% empty %}
+          <p>Keine Treffer.</p>
+        {% endfor %}
+      </div>
+    {% else %}
+      {% if result.hits %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Issue</th>
+                <th>Summary</th>
+                <th>Combined</th>
+                <th>Lex</th>
+                <th>Sem</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hit in result.hits %}
+                <tr>
+                  <td class="mono">{{ hit.issue.key }}</td>
+                  <td>{{ hit.issue.summary }}</td>
+                  <td>{{ hit.combined_score|floatformat:3 }}</td>
+                  <td>{{ hit.lexical_score|floatformat:3 }}</td>
+                  <td>{{ hit.semantic_score|floatformat:3 }}</td>
+                  <td class="mono">{{ hit.issue.updated_at|date:"Y-m-d H:i:s" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>Keine Treffer.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

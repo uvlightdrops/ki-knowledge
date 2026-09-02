@@ -1,0 +1,71 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}PDF Job Report · KICLI{% endblock %}
+{% block content %}
+<h1>PDF Job Report</h1>
+<p class="muted"><a href="{{ back_url }}">← Back to jobs</a></p>
+
+<div class="grid">
+  <div class="card">
+    <h3>Job summary</h3>
+    <p><strong>ID:</strong> <code>{{ job.job_id }}</code></p>
+    <p><strong>Domain:</strong> <code>{{ job.domain }}</code></p>
+    <p><strong>Status:</strong> {{ job.status }}</p>
+    <p><strong>PDF:</strong> <span class="mono">{{ job.display_pdf_path }}</span></p>
+    {% if job.source_id %}
+      <p><strong>Source:</strong> <code>{{ job.source_id }}</code> {% if source_url %}<a href="{{ source_url }}">Open source</a>{% endif %}</p>
+    {% endif %}
+    {% if job.artifact_id %}
+      <p><strong>Artifact:</strong> <code>{{ job.artifact_id }}</code></p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Timing</h3>
+    <p><strong>Created:</strong> {{ job.created_at|date:"Y-m-d H:i:s" }}</p>
+    <p><strong>Started:</strong> {{ job.started_at|date:"Y-m-d H:i:s"|default:"—" }}</p>
+    <p><strong>Completed:</strong> {{ job.completed_at|date:"Y-m-d H:i:s"|default:"—" }}</p>
+    <p><strong>Pages:</strong> {{ job.pages_processed }}/{{ job.pages_total }}</p>
+  </div>
+</div>
+
+<div class="section card">
+  <h3>Mini report</h3>
+  {% if report %}
+    <dl>
+      {% for key, value in report.items %}
+        {% if key != "pipeline" and key != "status" %}
+          <div style="display:grid; grid-template-columns: 180px 1fr; gap: 8px; margin-bottom: 8px;">
+            <dt style="font-weight: 600;">{{ key|title }}</dt>
+            <dd style="margin: 0;">{{ value|default:"—" }}</dd>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </dl>
+
+    {% if report.pipeline %}
+      <h4>Processing pipeline</h4>
+      <ol>
+        {% for step in report.pipeline %}
+          <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  {% else %}
+    <p>No compact report payload was stored for this job yet.</p>
+  {% endif %}
+</div>
+
+{% if job.content_preview %}
+  <div class="section card">
+    <h3>Content preview</h3>
+    <pre style="white-space: pre-wrap; margin: 0;">{{ job.content_preview }}</pre>
+  </div>
+{% endif %}
+
+{% if job.error_message %}
+  <div class="section card" style="border-color: #f87171;">
+    <h3>Error</h3>
+    <pre style="white-space: pre-wrap; margin: 0; color: #fca5a5;">{{ job.error_message }}</pre>
+  </div>
+{% endif %}
+{% endblock %}

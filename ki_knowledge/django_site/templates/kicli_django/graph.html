@@ -1,0 +1,24 @@
+{% extends "kicli_django/base.html" %}
+{% load ui_extras %}
+{% block title %}Graph · KICLI{% endblock %}
+{% block content %}
+<h1>Graph</h1>
+<p class="muted mono">Source: {{ source_id|short_id }}</p>
+<div class="grid">
+  <div class="card">
+    <h3>Stats</h3>
+    <p>Nodes: {{ stats.total_nodes }}</p>
+    <p>Edges: {{ stats.total_edges }}</p>
+    <p>Density: {{ stats.density }}</p>
+    <p><a href="{{ graph_3d_url }}">3D-Ansicht öffnen</a></p>
+    <details>
+      <summary>Volle Source-ID</summary>
+      <p class="mono">{{ source_id }}</p>
+    </details>
+  </div>
+  <div class="card">
+    <h3>2D Graph</h3>
+    {{ graph_html|safe }}
+  </div>
+</div>
+{% endblock %}

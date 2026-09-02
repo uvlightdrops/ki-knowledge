@@ -1,0 +1,65 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Jira Daily Timeline · KICLI{% endblock %}
+{% block content %}
+<h1>Jira Daily Timeline</h1>
+<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span> · Issues: {{ issue_count }}</p>
+
+<div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+  <div class="muted">Ansicht</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="chip" href="{{ timeline_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
+    <a class="chip" href="{{ timeline_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" action="">
+    <label>Days</label>
+    <input type="number" name="days" value="{{ days }}" min="1" max="365">
+    <button type="submit">Aktualisieren</button>
+  </form>
+</div>
+
+{% if display_mode == "cards" %}
+  <div class="grid">
+    {% for day in timeline %}
+      <div class="card">
+        <h3 class="mono">{{ day.day }}</h3>
+        <p><span class="chip">{{ day.issue_count }} issues</span></p>
+        <p class="muted">{{ day.topics|join:", " }}</p>
+      </div>
+    {% empty %}
+      <p>Keine Timeline-Daten verfügbar.</p>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card">
+    {% if timeline %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Issue count</th>
+              <th>Topics</th>
+              <th>Keys</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in timeline %}
+              <tr>
+                <td class="mono">{{ day.day }}</td>
+                <td>{{ day.issue_count }}</td>
+                <td>{{ day.topics|join:", " }}</td>
+                <td class="mono">{{ day.issue_keys|join:", " }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>Keine Timeline-Daten verfügbar.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

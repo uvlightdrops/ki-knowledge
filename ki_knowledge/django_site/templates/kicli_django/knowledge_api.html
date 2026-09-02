@@ -1,0 +1,247 @@
+{% extends "kicli_django/base.html" %}
+{% block title %}Knowledge API · KICLI{% endblock %}
+{% block content %}
+<h1>Knowledge API</h1>
+<p class="muted">Browser, Health-Check und URL-Override fuer die Knowledge API.</p>
+
+{% if notice %}
+  <div class="card section">
+    <strong>Aktion:</strong> <span class="mono">{{ notice }}</span>
+  </div>
+{% endif %}
+
+<div class="grid section">
+  <div class="card">
+    <h3>Konfiguration</h3>
+    <p><strong>URL:</strong> <span class="mono">{{ api_url }}</span></p>
+    <p><strong>Default:</strong> <span class="mono">{{ default_api_url }}</span></p>
+    <p><strong>Status:</strong> <span class="chip">{{ status }}</span></p>
+    <form method="post" class="section">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="set">
+      <input type="hidden" name="next" value="{{ current_path }}">
+      <label for="api_url">API URL</label><br>
+      <input id="api_url" name="api_url" type="url" value="{{ api_url }}" style="width:100%;max-width:42rem;">
+      <div class="section">
+        <button type="submit">Speichern</button>
+      </div>
+    </form>
+    <form method="post" class="section">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="clear">
+      <input type="hidden" name="next" value="{{ current_path }}">
+      <button type="submit">Override löschen</button>
+    </form>
+    {% if error_message %}
+      <div class="section card" style="border-color:#ef4444;">
+        <strong>Fehler:</strong> <span class="mono">{{ error_message }}</span>
+      </div>
+    {% endif %}
+    {% if health_json %}
+      <details class="section">
+        <summary>Health payload</summary>
+        <pre>{{ health_json }}</pre>
+      </details>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Browser</h3>
+    <form method="get" class="section">
+      <label for="q">Suche</label><br>
+      <input id="q" name="q" type="search" value="{{ query }}" style="width:100%;">
+      <div class="section">
+        <label for="source_type">Source-Typ</label><br>
+        <select id="source_type" name="source_type" style="width:100%;">
+          <option value="(all)" {% if source_type == "(all)" %}selected{% endif %}>(all)</option>
+          <option value="markdown" {% if source_type == "markdown" %}selected{% endif %}>markdown</option>
+          <option value="iasem_quiz" {% if source_type == "iasem_quiz" %}selected{% endif %}>iasem_quiz</option>
+          <option value="jira_issue" {% if source_type == "jira_issue" %}selected{% endif %}>jira_issue</option>
+          <option value="manual" {% if source_type == "manual" %}selected{% endif %}>manual</option>
+        </select>
+      </div>
+      <div class="section">
+        <label for="limit">Limit</label><br>
+        <input id="limit" name="limit" type="number" min="1" max="50" value="{{ limit }}" style="width:7rem;">
+      </div>
+      <div class="section">
+        <button type="submit">Anzeigen</button>
+      </div>
+    </form>
+
+    <form method="get" class="section">
+      <input type="hidden" name="q" value="{{ query }}">
+      <input type="hidden" name="source_type" value="{{ source_type }}">
+      <input type="hidden" name="limit" value="{{ limit }}">
+      <label for="source_id">Source</label><br>
+      <select id="source_id" name="source_id" style="width:100%;">
+        {% for source in sources %}
+          <option value="{{ source.source_id }}" {% if source.source_id == selected_source_id %}selected{% endif %}>
+            {{ source.title }} [{{ source.source_type }}]
+          </option>
+        {% empty %}
+          <option value="">Keine Sources</option>
+        {% endfor %}
+      </select>
+      <div class="section">
+        <button type="submit">Source laden</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Knowledge base management</h3>
+    <p><strong>Domain:</strong> <span class="chip">{{ active_domain }}</span></p>
+    <div class="section">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="kb_reset_domain">
+        <input type="hidden" name="next" value="{{ current_path }}">
+        <button type="submit" onclick="return confirm('Knowledge-Store der aktiven Domain zurücksetzen?')">Reset KB (active domain)</button>
+      </form>
+    </div>
+    <div class="section">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="kb_clear_artifacts_domain">
+        <input type="hidden" name="next" value="{{ current_path }}">
+        <button type="submit" onclick="return confirm('Nur Artefakte der aktiven Domain löschen?')">Clear artifacts (active domain)</button>
+      </form>
+    </div>
+    <div class="section">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="kb_reset_all">
+        <input type="hidden" name="next" value="{{ current_path }}">
+        <button type="submit" onclick="return confirm('Komplette Knowledge-Base löschen?')">Reset KB (all domains)</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<div class="grid section">
+  <div class="card">
+    <h3>Sources</h3>
+    <table>
+      <thead>
+        <tr><th>Titel</th><th>Typ</th><th>Ort</th></tr>
+      </thead>
+      <tbody>
+        {% for source in sources %}
+          <tr>
+            <td>{{ source.title }}</td>
+            <td class="chip">{{ source.source_type }}</td>
+            <td class="mono">{{ source.location }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="muted">Keine Sources gefunden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Ausgewählte Source</h3>
+    {% if selected_source %}
+      <p><strong>{{ selected_source.title }}</strong></p>
+      <p class="muted mono">{{ selected_source.source_id }}</p>
+      <p><span class="chip">{{ selected_source.source_type }}</span></p>
+      <p class="mono">{{ selected_source.location }}</p>
+      {% if selected_source.metadata %}
+        <details>
+          <summary>Metadaten</summary>
+          <pre>{{ selected_source.metadata }}</pre>
+        </details>
+      {% endif %}
+      <p><strong>Records:</strong> {{ records|length }} · <strong>Artifacts:</strong> {{ artifacts|length }} · <strong>Graph:</strong> {{ graph.nodes|length }} / {{ graph.edges|length }}</p>
+      <form method="post" class="section">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="generate">
+        <input type="hidden" name="next" value="{{ current_path }}">
+        <input type="hidden" name="source_id" value="{{ selected_source_id }}">
+        <label for="artifact_type">Artefakt</label><br>
+        <select id="artifact_type" name="artifact_type" style="width:100%;">
+          <option value="generated_quiz_module">generated_quiz_module</option>
+          <option value="flashcard_set">flashcard_set</option>
+          <option value="summary_note">summary_note</option>
+          <option value="glossary">glossary</option>
+          <option value="study_guide">study_guide</option>
+        </select>
+        <div class="section">
+          <label for="max_items">Max items</label><br>
+          <input id="max_items" name="max_items" type="number" min="1" max="20" value="6" style="width:7rem;">
+        </div>
+        <div class="section">
+          <button type="submit">Artefakt erzeugen</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="muted">Keine Source ausgewählt.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if query %}
+  <div class="card section">
+    <h3>Suchergebnisse</h3>
+    <table>
+      <thead>
+        <tr><th>Quelle</th><th>Typ</th><th>Inhalt</th></tr>
+      </thead>
+      <tbody>
+        {% for item in search_results %}
+          <tr>
+            <td class="mono">{{ item.source_id }}</td>
+            <td>{{ item.block_type }}</td>
+            <td>{{ item.title|default:item.content }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="muted">Keine Treffer.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+<div class="grid section">
+  <div class="card">
+    <h3>Records</h3>
+    <table>
+      <thead>
+        <tr><th>Typ</th><th>Titel</th><th>Pfad</th><th>Source</th></tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+          <tr>
+            <td>{{ record.block_type }}</td>
+            <td>{{ record.title|default:record.content }}</td>
+            <td class="mono">{{ record.path }}</td>
+            <td class="mono"><a href="{% url 'source-detail' record.source_id %}">{{ record.source_id }}</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="muted">Keine Records.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Artifacts</h3>
+    <table>
+      <thead>
+        <tr><th>Typ</th><th>ID</th></tr>
+      </thead>
+      <tbody>
+        {% for artifact in artifacts %}
+          <tr>
+            <td>{{ artifact.artifact_type }}</td>
+            <td class="mono">{{ artifact.artifact_id }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="2" class="muted">Keine Artefakte.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
