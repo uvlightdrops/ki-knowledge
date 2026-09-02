@@ -6,8 +6,8 @@
 <div class="container mt-4">
     <div class="row">
         <div class="col-md-12">
-            <h1>📥 Import Control - {{ project.title }}</h1>
-            <p class="text-muted">Select documents to import from: {{ project.source_directory }}</p>
+            <h1>📥 Import Control</h1>
+            <p class="text-muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
         </div>
     </div>
 
@@ -15,20 +15,60 @@
     <div class="row mt-3">
         <div class="col-md-12">
             {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
+    <!-- Import Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Total Documents</h6>
+                    <h2 class="card-text">{{ stats.total }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Discovered</h6>
+                    <h2 class="card-text"><span class="badge bg-info">{{ stats.discovered }}</span></h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Imported</h6>
+                    <h2 class="card-text"><span class="badge bg-success">{{ stats.imported }}</span></h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Failed</h6>
+                    <h2 class="card-text"><span class="badge bg-danger">{{ stats.failed }}</span></h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Importable Documents -->
+    {% if importable_docs %}
     <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5>📄 Available Files</h5>
+                    <h5 class="mb-0">📄 Available for Import ({{ importable_docs|length }})</h5>
                 </div>
                 <div class="card-body">
-                    {% if available_files %}
                     <form method="post" action="{% url 'infosite:import_selected' project.id %}">
                         {% csrf_token %}
                         
@@ -38,31 +78,43 @@
                                     <th style="width: 40px;">
                                         <input type="checkbox" id="select-all" class="form-check-input">
                                     </th>
-                                    <th>File</th>
+                                    <th>File Path</th>
                                     <th>Type</th>
                                     <th>Size</th>
-                                    <th>Status</th>
+                                    <th>Import Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for file in available_files %}
+                                {% for doc in importable_docs %}
                                 <tr>
                                     <td>
-                                        <input type="checkbox" name="selected_files[]" value="{{ file.path }}" 
+                                        <input type="checkbox" name="selected_files[]" value="{{ doc.id }}" 
                                                class="form-check-input file-checkbox">
                                     </td>
                                     <td>
-                                        <code>{{ file.path }}</code>
+                                        <code class="text-truncate" title="{{ doc.file_path }}" style="max-width: 300px;">
+                                            {{ doc.file_path|truncatechars:50 }}
+                                        </code>
                                     </td>
                                     <td>
-                                        <span class="badge bg-info">{{ file.file_type|upper }}</span>
+                                        <span class="badge bg-info">{{ doc.get_file_type_display }}</span>
                                     </td>
-                                    <td>{{ file.size|filesizeformat }}</td>
                                     <td>
-                                        {% if file.imported %}
-                                        <span class="badge bg-success">✓ Imported</span>
+                                        {% if doc.file_size %}
+                                            {{ doc.file_size|filesizeformat }}
                                         {% else %}
-                                        <span class="badge bg-warning">Pending</span>
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if doc.import_status == 'discovered' %}
+                                            <span class="badge bg-primary">🔍 Discovered</span>
+                                        {% elif doc.import_status == 'pending' %}
+                                            <span class="badge bg-warning">⏳ Pending</span>
+                                        {% elif doc.import_status == 'failed' %}
+                                            <span class="badge bg-danger">✗ Failed</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ doc.get_import_status_display }}</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -72,31 +124,93 @@
 
                         <div class="mt-3">
                             <button type="submit" class="btn btn-primary">
-                                📥 Import Selected Files
+                                📥 Mark Selected as Imported
                             </button>
                             <span id="selected-count" class="ms-3 text-muted">0 files selected</span>
                         </div>
                     </form>
-                    {% else %}
-                    <div class="alert alert-info">
-                        No files found in source directory.
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
+    {% else %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="alert alert-success">
+                ✅ All documents have been imported! No action needed.
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
+    <!-- Already Imported -->
+    {% if stats.imported > 0 %}
     <div class="row mt-4">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5>📊 Import Statistics</h5>
+                    <h5 class="mb-0">✅ Already Imported ({{ stats.imported }})</h5>
                 </div>
                 <div class="card-body">
-                    <p>Total documents: <strong>{{ documents.count }}</strong></p>
-                    <p>Imported: <strong>{{ documents|dictsort:"imported" }}</strong></p>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                {% for doc in documents %}
+                                    {% if doc.import_status == 'imported' %}
+                                    <tr>
+                                        <td>{{ doc.file_path|truncatechars:70 }}</td>
+                                        <td class="text-end">
+                                            {% if doc.imported_at %}
+                                                <small class="text-muted">{{ doc.imported_at|date:"Y-m-d H:i" }}</small>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Back Button -->
+    <div class="row mt-4 mb-4">
+        <div class="col-md-12">
+            <a href="{% url 'infosite:project_detail' project.id %}" class="btn btn-outline-secondary">
+                ← Back to Project
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.file-checkbox');
+    const selectedCount = document.getElementById('selected-count');
+    
+    function updateCount() {
+        const count = document.querySelectorAll('.file-checkbox:checked').length;
+        selectedCount.textContent = count + ' file' + (count !== 1 ? 's' : '') + ' selected';
+    }
+    
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => cb.checked = this.checked);
+            updateCount();
+        });
+    }
+    
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateCount);
+    });
+});
+</script>
+{% endblock %}
+
             </div>
         </div>
     </div>

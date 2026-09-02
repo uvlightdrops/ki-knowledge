@@ -502,9 +502,15 @@ def infosite_import_control(request: HttpRequest, project_id: int):
     imported = project.documents.filter(import_status="imported").count()
     failed = project.documents.filter(import_status="failed").count()
     
+    # Get documents that are NOT yet marked as imported
+    importable_docs = project.documents.filter(
+        import_status__in=["discovered", "pending", "failed"]
+    ).order_by("file_path")
+    
     context = {
         "project": project,
         "documents": project.documents.all(),
+        "importable_docs": importable_docs,
         "stats": {
             "discovered": discovered,
             "pending": pending,
@@ -519,44 +525,40 @@ def infosite_import_control(request: HttpRequest, project_id: int):
 @login_required
 @require_http_methods(["POST"])
 def infosite_import_selected(request: HttpRequest, project_id: int):
-    """Import selected documents."""
+    """Import selected documents by marking them as imported."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
     
-    # Get selected files from POST
-    selected_files = request.POST.getlist("selected_files[]")
+    # Get selected document IDs from POST
+    selected_doc_ids = request.POST.getlist("selected_files[]")
     
-    if not selected_files:
-        messages.warning(request, "No files selected")
+    if not selected_doc_ids:
+        messages.warning(request, "No documents selected")
         return redirect("infosite:import_control", project_id=project.id)
     
-    # Create/update documents
-    source_path = Path(project.source_directory) if project.source_directory else None
+    # Update selected documents
     imported_count = 0
-    
-    for file_path in selected_files:
-        if not source_path:
-            continue
+    try:
+        # Convert strings to integers and update documents
+        for doc_id in selected_doc_ids:
+            try:
+                doc = SourceDocument.objects.get(id=int(doc_id), project=project)
+                if doc.import_status != "imported":
+                    doc.import_status = "imported"
+                    doc.imported = True
+                    doc.imported_at = timezone.now()
+                    doc.save()
+                    imported_count += 1
+            except (ValueError, SourceDocument.DoesNotExist):
+                continue
+        
+        if imported_count > 0:
+            messages.success(request, f"✅ Marked {imported_count} document(s) as imported")
+        else:
+            messages.info(request, "No documents needed updating")
             
-        full_path = source_path / file_path
-        if not full_path.exists():
-            continue
-        
-        doc, created = SourceDocument.objects.get_or_create(
-            project=project,
-            file_path=file_path,
-            defaults={
-                "title": full_path.stem,
-                "file_type": _get_file_type(full_path),
-            }
-        )
-        
-        if not doc.imported:
-            doc.imported = True
-            doc.imported_at = timezone.now()
-            doc.save()
-            imported_count += 1
+    except Exception as e:
+        messages.error(request, f"Error updating documents: {str(e)}")
     
-    messages.success(request, f"Imported {imported_count} document(s)")
     return redirect("infosite:import_control", project_id=project.id)
 
 
