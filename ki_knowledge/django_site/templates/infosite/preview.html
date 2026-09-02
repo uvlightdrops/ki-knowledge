@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Preview - {{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Preview: {{ project.title }}</h1>
+
+    <div class="alert alert-info mb-4">
+        <strong>Output Directory:</strong> <code>{{ output_dir }}</code>
+    </div>
+
+    {% if files %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Generated Files ({{ files|length }})</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Size</th>
+                        <th>Modified</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in files %}
+                    <tr>
+                        <td><code>{{ file.path }}</code></td>
+                        <td><small>{{ file.size|filesizeformat }}</small></td>
+                        <td><small>{{ file.mtime|date:"Y-m-d H:i" }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        No files generated yet. <a href="{% url 'infosite:project_detail' project.id %}">Generate infosite</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

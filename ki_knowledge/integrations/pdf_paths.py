@@ -6,6 +6,7 @@ import os
 import re
 from pathlib import Path
 
+from ki_core.config import Config
 from ki_knowledge.ui.knowledge_api_client import default_markdown_directory
 
 
@@ -13,6 +14,9 @@ def _pdf_type_root() -> Path:
     override = os.getenv("KICLI_PDF_ROOT", "").strip()
     if override:
         return Path(override).expanduser()
+    config = Config.from_env()
+    if config.knowledge_data_root:
+        return Path(config.knowledge_data_root).expanduser() / "pdf"
     data_root = os.getenv("KICLI_DATA_ROOT", "").strip()
     if data_root:
         return Path(data_root).expanduser()

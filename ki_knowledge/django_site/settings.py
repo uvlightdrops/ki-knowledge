@@ -3,10 +3,19 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from ki_core.config import Config
+
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+_CONFIG = Config.from_env()
 DATA_DIR = Path(
-    os.getenv("KICLI_DATA_ROOT", os.getenv("KNOWLEDGE_MARKDOWN_DIR", str(Path.home() / "dev_data" / "ki-knowledge")))
+    os.getenv(
+        "KICLI_DATA_ROOT",
+        os.getenv(
+            "KNOWLEDGE_MARKDOWN_DIR",
+            _CONFIG.knowledge_data_root or str(Path.home() / "dev_data" / "ki-knowledge"),
+        ),
+    )
 ).expanduser()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 KNOWLEDGE_DB_PATH = os.getenv("KNOWLEDGE_DB_PATH", str(DATA_DIR / "knowledge.db"))

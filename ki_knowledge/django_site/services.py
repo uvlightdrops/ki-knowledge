@@ -47,6 +47,9 @@ class ImportResult:
 
 
 def data_root() -> Path:
+    config = Config.from_env()
+    if config.knowledge_data_root:
+        return Path(config.knowledge_data_root).expanduser()
     override = os.getenv("KICLI_DATA_ROOT", "").strip()
     if override:
         return Path(override).expanduser()
@@ -1530,7 +1533,12 @@ def jira_reimport_data(domain: str | None = None) -> dict[str, Any]:
     graph_db = jira_graph_db_path(domain)
     cypher_path = str(domain_db_paths(domain).get("cypher_path") or "")
     # Support both generic KI and legacy JIRA env vars
-    embed_model = os.getenv("KI_EMBED_MODEL") or os.getenv("JIRA_EMBED_MODEL", "nomic-embed-text")
+    embed_model = (
+        os.getenv("KI_EMBED_MODEL")
+        or os.getenv("JIRA_EMBED_MODEL")
+        or config.knowledge_embed_model
+        or "nomic-embed-text"
+    )
     embed_model = embed_model.strip()
     use_hybrid = os.getenv("KI_USE_HYBRID_SEARCH") or os.getenv("JIRA_USE_HYBRID_SEARCH", "true")
     use_hybrid = use_hybrid.lower() in {"1", "true", "yes"}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ project.title }} - Infosite Project{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ project.title }}</h1>
+        <a href="/admin/django_site/infositeproject/{{ project.id }}/change/" class="btn btn-sm btn-outline-secondary">
+            Edit
+        </a>
+    </div>
+
+    {% if messages %}
+    <div class="alert alert-info alert-dismissible fade show">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Domain</h6>
+                    <p><code>{{ project.domain }}</code></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Total Documents</h6>
+                    <h3>{{ stats.total }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Imported</h6>
+                    <h3>{{ stats.imported }}<small>/{{ stats.total }}</small></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Actions</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" class="d-flex gap-2">
+                {% csrf_token %}
+                <button type="submit" formaction="{% url 'infosite:discover' project.id %}" 
+                        class="btn btn-primary">
+                    Discover Documents
+                </button>
+                <button type="submit" formaction="{% url 'infosite:generate' project.id %}" 
+                        class="btn btn-success">
+                    Generate Infosite
+                </button>
+                <a href="{% url 'infosite:preview' project.id %}" class="btn btn-info">
+                    Preview
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Source Documents</h5>
+        </div>
+        <div class="card-body">
+            {% if documents %}
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Imported</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr>
+                        <td><code>{{ doc.file_path }}</code></td>
+                        <td><span class="badge bg-secondary">{{ doc.get_file_type_display }}</span></td>
+                        <td>
+                            {% if doc.imported %}
+                            <span style="color: green;">✓</span>
+                            {% else %}
+                            <span style="color: orange;">⚠</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if doc.imported_at %}
+                            <small>{{ doc.imported_at|date:"Y-m-d H:i" }}</small>
+                            {% else %}
+                            <small class="text-muted">-</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">No documents discovered. Click "Discover Documents" to scan the source directory.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

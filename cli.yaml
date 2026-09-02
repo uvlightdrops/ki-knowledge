@@ -1,0 +1,66 @@
+# CLI Configuration for Ki-Knowledge
+# Define the command hierarchy here - it will be auto-loaded by the CLI framework
+
+cli:
+  # Top-level commands and groups
+  commands:
+    infosite:
+      help: "Knowledge Presentation (Infosite) Management"
+      commands:
+        init:
+          help: "Initialize a new infosite project"
+          callback: "ki_knowledge.cli.commands.infosite:init_project"
+        generate:
+          help: "Generate infosite from source documents"
+          callback: "ki_knowledge.cli.commands.infosite:generate_infosite"
+        list:
+          help: "List infosite projects"
+          callback: "ki_knowledge.cli.commands.infosite:list_projects"
+        discover:
+          help: "Discover source documents"
+          callback: "ki_knowledge.cli.commands.infosite:discover_documents"
+
+    knowledge:
+      help: "Knowledge Base Management"
+      commands:
+        import:
+          help: "Import knowledge documents (PDF, Markdown, etc)"
+        search:
+          help: "Search knowledge base"
+        graph:
+          help: "Visualize knowledge graph"
+
+    config:
+      help: "Configuration Management"
+      commands:
+        show:
+          help: "Show current configuration"
+        validate:
+          help: "Validate configuration"
+        init:
+          help: "Initialize configuration file"
+
+    dev:
+      help: "Development Tools"
+      commands:
+        django:
+          help: "Django Development Server"
+          commands:
+            start:
+              help: "Start Django development server"
+              callback: "ki_knowledge.cli.commands.dev:django_start"
+            migrate:
+              help: "Run Django migrations"
+              callback: "ki_knowledge.cli.commands.dev:django_migrate"
+            shell:
+              help: "Open Django shell"
+              callback: "ki_knowledge.cli.commands.dev:django_shell"
+            createsuperuser:
+              help: "Create Django superuser"
+              callback: "ki_knowledge.cli.commands.dev:django_createsuperuser"
+        test:
+          help: "Run tests"
+          callback: "ki_knowledge.cli.commands.dev:run_tests"
+        lint:
+          help: "Run linter (ruff)"
+          callback: "ki_knowledge.cli.commands.dev:run_lint"

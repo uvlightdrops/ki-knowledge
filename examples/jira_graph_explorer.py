@@ -16,13 +16,29 @@ from ki_knowledge.integrations.jira_csv import JiraCSVImporter
 from ki_knowledge.integrations.jira_graph import JiraKnowledgeGraph
 
 
-def run_graph_explorer(sample_issue_key: str | None = None) -> None:
-    Config.from_env()  # load .env
+def _knowledge_root(config: Config) -> Path:
+    if config.knowledge_data_root:
+        return Path(config.knowledge_data_root).expanduser()
+    legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
+    if legacy_root:
+        return Path(legacy_root).expanduser()
+    return Path.home() / "dev_data" / "ki-knowledge"
 
-    csv_path = os.getenv("JIRA_CSV_PATH", "").strip()
+
+def _jira_csv_path(config: Config) -> str:
+    return os.getenv("JIRA_CSV_PATH", str(_knowledge_root(config) / "jira" / "default" / "issues.csv")).strip()
+
+
+def run_graph_explorer(sample_issue_key: str | None = None) -> None:
+    config = Config.from_env()
+
+    csv_path = _jira_csv_path(config)
     csv_encoding = os.getenv("JIRA_CSV_ENCODING", "utf-8-sig").strip() or "utf-8-sig"
     csv_delimiter = os.getenv("JIRA_CSV_DELIMITER", "").strip() or None
-    cache_db = os.getenv("JIRA_CACHE_DB", str(PROJECT_ROOT / ".jira_cache.sqlite")).strip()
+    cache_db = os.getenv(
+        "JIRA_CACHE_DB",
+        config.knowledge_cache_db or str(_knowledge_root(config) / ".jira_cache.sqlite"),
+    ).strip()
     refresh_cache = os.getenv("JIRA_CACHE_REFRESH", "true").lower() in ("1", "true", "yes")
     export_cypher_path = os.getenv("JIRA_GRAPH_CYPHER_PATH", "").strip()
     sample_issue_key = (sample_issue_key or os.getenv("JIRA_GRAPH_ISSUE_KEY", "")).strip()

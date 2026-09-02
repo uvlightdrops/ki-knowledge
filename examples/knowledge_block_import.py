@@ -7,6 +7,8 @@ import os
 import sys
 from pathlib import Path
 
+from ki_core.config import Config
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -19,9 +21,12 @@ from ki_knowledge.knowledge.ingest import KnowledgeIngestService
 
 
 def default_knowledge_db_path() -> str:
+    config = Config.from_env()
     raw = os.getenv("KNOWLEDGE_DB_PATH", "").strip()
     if raw:
         return str(Path(raw).expanduser())
+    if config.knowledge_data_root:
+        return str(Path(config.knowledge_data_root).expanduser() / "knowledge.db")
     data_root = os.getenv("KICLI_DATA_ROOT", "").strip()
     if data_root:
         return str(Path(data_root).expanduser() / "knowledge.db")

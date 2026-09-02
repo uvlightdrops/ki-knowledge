@@ -9,6 +9,7 @@ from typing import Any, Optional
 from urllib.parse import urljoin
 
 import requests
+from ki_core.config import Config
 
 
 def default_knowledge_api_url() -> str:
@@ -18,10 +19,22 @@ def default_knowledge_api_url() -> str:
 
 def default_markdown_directory() -> str:
     """Return the default data directory used for markdown discovery in the UI."""
+    config = Config.from_env()
     override = os.getenv("KNOWLEDGE_MARKDOWN_DIR", "").strip()
     if override:
         return str(Path(override).expanduser())
-    
+
+    if config.knowledge_data_root:
+        return str(Path(config.knowledge_data_root).expanduser())
+
+    legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
+    if legacy_root:
+        return str(Path(legacy_root).expanduser())
+
+    legacy_default_root = Path.home() / "dev_data" / "kicli"
+    if legacy_default_root.exists() and legacy_default_root.is_dir():
+        return str(legacy_default_root)
+
     default_root = Path.home() / "dev_data" / "ki-knowledge"
     if default_root.exists() and default_root.is_dir():
         return str(default_root)

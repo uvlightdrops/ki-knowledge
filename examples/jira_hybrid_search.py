@@ -16,6 +16,23 @@ from ki_knowledge.integrations.jira_cache import JiraIssueCache
 from ki_knowledge.integrations.jira_csv import JiraCSVImporter
 
 
+def _knowledge_root(config: Config) -> Path:
+    if config.knowledge_data_root:
+        return Path(config.knowledge_data_root).expanduser()
+    legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
+    if legacy_root:
+        return Path(legacy_root).expanduser()
+    return Path.home() / "dev_data" / "ki-knowledge"
+
+
+def _jira_csv_path(config: Config) -> str:
+    return os.getenv("JIRA_CSV_PATH", str(_knowledge_root(config) / "jira" / "default" / "issues.csv")).strip()
+
+
+def _jira_cache_db(config: Config) -> str:
+    return os.getenv("JIRA_CACHE_DB", config.knowledge_cache_db or str(_knowledge_root(config) / ".jira_cache.sqlite")).strip()
+
+
 def build_embedder(cache: JiraIssueCache, ollama_url: str, embed_model: str):
     """Build embedding backend; fall back to TF-IDF if Ollama model missing."""
     try:
@@ -32,15 +49,15 @@ def build_embedder(cache: JiraIssueCache, ollama_url: str, embed_model: str):
 
 
 def run_queries(queries: list[str], limit: int) -> None:
-    Config.from_env()
+    config = Config.from_env()
 
-    csv_path = os.getenv("JIRA_CSV_PATH", "").strip()
+    csv_path = _jira_csv_path(config)
     csv_encoding = os.getenv("JIRA_CSV_ENCODING", "utf-8-sig").strip() or "utf-8-sig"
     csv_delimiter = os.getenv("JIRA_CSV_DELIMITER", "").strip() or None
-    cache_db = os.getenv("JIRA_CACHE_DB", str(PROJECT_ROOT / ".jira_cache.sqlite")).strip()
+    cache_db = _jira_cache_db(config)
     refresh_cache = os.getenv("JIRA_CACHE_REFRESH", "false").lower() in ("1", "true", "yes")
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    embed_model = os.getenv("JIRA_EMBED_MODEL", "nomic-embed-text").strip()
+    ollama_url = os.getenv("OLLAMA_BASE_URL", config.ollama_base_url or "http://localhost:11434")
+    embed_model = os.getenv("JIRA_EMBED_MODEL", config.knowledge_embed_model or "nomic-embed-text").strip()
 
     if not csv_path:
         print("CSV path missing! Set JIRA_CSV_PATH in .env")
