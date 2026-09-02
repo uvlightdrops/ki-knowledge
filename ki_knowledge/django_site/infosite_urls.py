@@ -28,6 +28,10 @@ urlpatterns = [
     path("project/<int:project_id>/import/", infosite_views.infosite_import_control, name="import_control"),
     path("project/<int:project_id>/import/selected/", infosite_views.infosite_import_selected, name="import_selected"),
     
+    # Document preview
+    path("project/<int:project_id>/documents/", infosite_views.infosite_document_preview, name="documents"),
+    path("api/document/<int:project_id>/<path:doc_path>/", infosite_views.infosite_document_preview_api, name="document_api"),
+    
     # AI refinement
     path("project/<int:project_id>/refine/", infosite_views.infosite_ai_refine, name="ai_refine"),
     path("project/<int:project_id>/refine/apply/", infosite_views.infosite_ai_refine_apply, name="ai_refine_apply"),

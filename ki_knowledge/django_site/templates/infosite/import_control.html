@@ -210,38 +210,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-document.getElementById("select-all").addEventListener("change", function(e) {
-    const checkboxes = document.querySelectorAll(".file-checkbox");
-    checkboxes.forEach(cb => cb.checked = e.target.checked);
-    updateSelectedCount();
-});
-
-document.querySelectorAll(".file-checkbox").forEach(cb => {
-    cb.addEventListener("change", updateSelectedCount);
-});
-
-function updateSelectedCount() {
-    const count = document.querySelectorAll(".file-checkbox:checked").length;
-    document.getElementById("selected-count").textContent = `${count} file(s) selected`;
-}
-</script>
-
-<style>
-.card {
-    border-left: 4px solid #007bff;
-}
-.badge {
-    padding: 0.5em 0.75em;
-}
-table {
-    margin-bottom: 0;
-}
-</style>
-{% endblock %}

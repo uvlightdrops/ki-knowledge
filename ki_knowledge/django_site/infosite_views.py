@@ -676,6 +676,117 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
 
 
 # ============================================================================
+# DOCUMENT PREVIEW
+# ============================================================================
+
+@login_required
+def infosite_document_preview(request: HttpRequest, project_id: int):
+    """Document preview browser with flying preview."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    
+    try:
+        config = Config.from_yaml()
+        infosite_config = InfoSiteConfig(
+            enabled=True,
+            title=project.title,
+            domain=project.domain,
+            output_base_dir=config.infosite_output_base_dir,
+        )
+        
+        output_dir = infosite_config.get_output_dir()
+        
+        # Collect all documents
+        documents = []
+        if output_dir.exists():
+            for file_path in sorted(output_dir.rglob("*")):
+                if file_path.is_file() and "_originals" not in file_path.parts:
+                    file_type = _get_file_type(file_path)
+                    rel_path = file_path.relative_to(output_dir)
+                    
+                    documents.append({
+                        "id": str(rel_path),
+                        "name": file_path.name,
+                        "path": str(rel_path),
+                        "type": file_type,
+                        "size": file_path.stat().st_size,
+                        "size_display": _format_file_size(file_path.stat().st_size),
+                        "url": f"/api/document/{project_id}/{str(rel_path)}/",
+                    })
+        
+        # Convert to JSON for JavaScript
+        import json
+        documents_json = json.dumps(documents)
+        
+        context = {
+            "project": project,
+            "document_count": len(documents),
+            "documents": documents,
+            "documents_json": documents_json,
+        }
+        return render(request, "document_preview.html", context)
+        
+    except Exception as e:
+        messages.error(request, f"Error loading documents: {str(e)}")
+        return redirect("infosite:project_detail", project_id=project.id)
+
+
+@login_required
+def infosite_document_preview_api(request: HttpRequest, project_id: int, doc_path: str):
+    """API endpoint to get document preview content."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    
+    try:
+        config = Config.from_yaml()
+        infosite_config = InfoSiteConfig(
+            enabled=True,
+            title=project.title,
+            domain=project.domain,
+            output_base_dir=config.infosite_output_base_dir,
+        )
+        
+        output_dir = infosite_config.get_output_dir()
+        file_path = output_dir / doc_path
+        
+        # Security: prevent directory traversal
+        if not file_path.exists() or not file_path.is_file():
+            return JsonResponse({"error": "File not found"}, status=404)
+        
+        if "_originals" in file_path.parts or not file_path.is_relative_to(output_dir):
+            return JsonResponse({"error": "Access denied"}, status=403)
+        
+        file_type = _get_file_type(file_path)
+        
+        if file_type in ["markdown", "text"]:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            return JsonResponse({
+                "id": str(doc_path),
+                "name": file_path.name,
+                "type": file_type,
+                "content": content,
+                "size": file_path.stat().st_size,
+                "lines": len(content.split("\n")),
+            })
+        
+        elif file_type == "pdf":
+            # For PDF, return base64 encoded or a download URL
+            return JsonResponse({
+                "id": str(doc_path),
+                "name": file_path.name,
+                "type": "pdf",
+                "size": file_path.stat().st_size,
+                "url": f"/media/{project_id}/{doc_path}",
+            })
+        
+        else:
+            return JsonResponse({"error": "Unsupported file type"}, status=400)
+    
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+# ============================================================================
 # UTILITIES
 # ============================================================================
 
@@ -689,3 +800,12 @@ def _get_file_type(file_path: Path) -> str:
     elif suffix == ".txt":
         return "text"
     return "other"
+
+
+def _format_file_size(size_bytes: int) -> str:
+    """Format file size in human-readable format."""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
