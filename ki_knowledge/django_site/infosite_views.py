@@ -685,19 +685,37 @@ def infosite_document_preview(request: HttpRequest, project_id: int):
     project = get_object_or_404(InfoSiteProject, id=project_id)
     
     try:
-        config = Config.from_yaml()
+        # Try to get config, but use sensible defaults
+        try:
+            config = Config.from_yaml()
+            base_dir = config.infosite_output_base_dir or "data_out"
+        except:
+            base_dir = "data_out"
+        
         infosite_config = InfoSiteConfig(
             enabled=True,
             title=project.title,
             domain=project.domain,
-            output_base_dir=config.infosite_output_base_dir,
+            output_base_dir=base_dir,
         )
         
         output_dir = infosite_config.get_output_dir()
         
-        # Collect all documents
+        # Collect all documents from synced SourceDocuments
         documents = []
-        if output_dir.exists():
+        for doc in project.documents.filter(imported=True).order_by("file_path"):
+            documents.append({
+                "id": str(doc.id),
+                "name": doc.file_path.split("/")[-1] if "/" in doc.file_path else doc.file_path,
+                "path": doc.file_path,
+                "type": "pdf" if doc.file_path.endswith(".pdf") else "markdown",
+                "size": doc.file_size or 0,
+                "size_display": f"{doc.file_size_display}" if doc.file_size else "unknown",
+                "url": f"/api/document/{project_id}/{doc.id}/",
+            })
+        
+        if not documents and output_dir.exists():
+            # Fallback: scan output directory
             for file_path in sorted(output_dir.rglob("*")):
                 if file_path.is_file() and "_originals" not in file_path.parts:
                     file_type = _get_file_type(file_path)
