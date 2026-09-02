@@ -270,54 +270,85 @@ def infosite_discover_documents(request: HttpRequest, project_id: int):
 @permission_required("django_site.change_infositeproject")
 @require_http_methods(["POST"])
 def infosite_generate(request: HttpRequest, project_id: int):
-    """Generate infosite for project."""
+    """Generate infosite for project using InfoSiteGeneratorService."""
+    from django.conf import settings
+    from ki_knowledge.services.generator import InfoSiteGeneratorService
+    
     project = get_object_or_404(InfoSiteProject, id=project_id)
 
     try:
-        # Load configuration
-        config = Config.from_yaml()
-
-        # Get output directory
-        if not config.infosite_output_base_dir:
-            messages.error(request, "infosite_output_base_dir not configured in ki.yaml")
+        # Check prerequisites
+        if not project.working_title:
+            messages.error(request, "working_title must be configured first")
+            return redirect("infosite:project_edit", project_id=project.id)
+        
+        if project.sync_status != "completed":
+            messages.warning(
+                request,
+                "Please sync documents first before generating"
+            )
             return redirect("infosite:project_detail", project_id=project.id)
-
-        # Create infosite config
-        infosite_config = InfoSiteConfig(
-            enabled=True,
-            title=project.title,
+        
+        # Get all synced documents
+        docs = project.documents.all()
+        if not docs.exists():
+            messages.warning(request, "No documents to generate from")
+            return redirect("infosite:project_detail", project_id=project.id)
+        
+        # Convert Django models to FileInfo objects for generator
+        from ki_knowledge.services.discovery import FileInfo
+        file_infos = [
+            FileInfo(
+                path=Path(doc.file_path),
+                file_type=doc.file_type,
+                file_size=doc.file_size,
+                modified_at=doc.modified_at,
+            )
+            for doc in docs
+        ]
+        
+        # Update status to generating
+        project.generation_status = "generating"
+        project.save(update_fields=["generation_status"])
+        
+        # Generate using service
+        generator = InfoSiteGeneratorService(settings.KI_CONFIG.knowledge_data_root)
+        result = generator.generate_infosite(
             domain=project.domain,
-            output_base_dir=config.infosite_output_base_dir,
+            working_title=project.working_title,
+            source_docs=file_infos,
         )
-
-        # Create generator
-        generator = InfoSiteGenerator(infosite_config)
-
-        # Generate from source documents if available
-        if project.source_directory:
-            source_path = Path(project.source_directory)
-            if source_path.exists():
-                output_dir = generator.generate_from_documents(source_path)
-            else:
-                messages.warning(request, f"Source directory not found: {source_path}")
-                output_dir = generator.generate(
-                    generator.create_default_pages(project.title)
-                )
+        
+        if result.success:
+            # Update project with generation results
+            project.generation_status = "completed"
+            project.output_dir = str(result.output_dir)
+            project.generated_at = timezone.now()
+            project.generation_error = ""
+            project.version_count = len(generator.list_versions(project.domain, project.working_title))
+            project.save()
+            
+            messages.success(
+                request,
+                f"Generated infosite: {result.files_created} files created"
+            )
         else:
-            output_dir = generator.generate(generator.create_default_pages(project.title))
-
-        # Update project
-        project.last_generated = timezone.now()
-        project.save()
-
-        # Mark documents as imported
-        project.documents.all().update(imported=True, imported_at=timezone.now())
-
-        messages.success(request, f"Infosite generated: {output_dir}")
+            # Generation failed
+            project.generation_status = "failed"
+            project.generation_error = result.message
+            project.save(update_fields=["generation_status", "generation_error"])
+            
+            messages.error(request, f"Generation failed: {result.message}")
+        
         return redirect("infosite:project_detail", project_id=project.id)
 
     except Exception as e:
-        messages.error(request, f"Error generating infosite: {e}")
+        # Handle unexpected errors
+        project.generation_status = "failed"
+        project.generation_error = str(e)
+        project.save(update_fields=["generation_status", "generation_error"])
+        
+        messages.error(request, f"Error generating infosite: {str(e)}")
         return redirect("infosite:project_detail", project_id=project.id)
 
 

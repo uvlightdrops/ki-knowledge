@@ -13,6 +13,13 @@ class InfoSiteProject(models.Model):
         ("completed", "Completed"),
         ("failed", "Failed"),
     ]
+    
+    GENERATION_STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("generating", "Generating"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
 
     title = models.CharField(max_length=255, help_text="Display title for the knowledge base")
     domain = models.CharField(max_length=100, default="default", help_text="Domain/namespace for content")
@@ -48,6 +55,32 @@ class InfoSiteProject(models.Model):
     last_sync_error = models.TextField(
         blank=True,
         help_text="Error message from last failed sync"
+    )
+    
+    # Generation fields (Phase 2)
+    generation_status = models.CharField(
+        max_length=20,
+        choices=GENERATION_STATUS_CHOICES,
+        default="pending",
+        help_text="Status of the last generation attempt"
+    )
+    output_dir = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Path to generated output directory"
+    )
+    generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of last successful generation"
+    )
+    generation_error = models.TextField(
+        blank=True,
+        help_text="Error message from last failed generation"
+    )
+    version_count = models.IntegerField(
+        default=0,
+        help_text="Number of versions in _originals/ directory"
     )
     
     created_at = models.DateTimeField(auto_now_add=True)

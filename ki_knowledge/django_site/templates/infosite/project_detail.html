@@ -82,6 +82,73 @@
         </div>
     </div>
 
+    <!-- Generation Status Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Generation Status</h6>
+                    <p class="card-text">
+                        {% if project.generation_status == 'completed' %}
+                            <span class="badge bg-success">✓ Generated</span>
+                        {% elif project.generation_status == 'generating' %}
+                            <span class="badge bg-info">⟳ Generating...</span>
+                        {% elif project.generation_status == 'failed' %}
+                            <span class="badge bg-danger">✗ Failed</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ project.generation_status }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Generated At</h6>
+                    {% if project.generated_at %}
+                        <p class="card-text">
+                            <small>{{ project.generated_at|date:"Y-m-d H:i" }}</small>
+                        </p>
+                    {% else %}
+                        <p class="card-text text-muted">—</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Versions</h6>
+                    <h3 class="card-text">{{ project.version_count|default:"0" }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Output Dir</h6>
+                    {% if project.output_dir %}
+                        <p class="card-text">
+                            <small class="font-monospace" title="{{ project.output_dir }}">
+                                ...{{ project.output_dir|truncatechars:30 }}
+                            </small>
+                        </p>
+                    {% else %}
+                        <p class="card-text text-muted">—</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if project.generation_error %}
+    <div class="alert alert-danger" role="alert">
+        <strong>Generation Error:</strong>
+        <code>{{ project.generation_error }}</code>
+    </div>
+    {% endif %}
+
     <!-- Actions -->
     <div class="card mb-4">
         <div class="card-header">
