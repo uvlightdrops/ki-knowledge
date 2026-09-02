@@ -92,8 +92,8 @@ class SourceDocumentAdmin(admin.ModelAdmin):
             return "-"
         kb = obj.file_size / 1024
         if kb < 1024:
-            return format_html("<small>{:.1f} KB</small>", kb)
+            return format_html("<small>{} KB</small>", f"{kb:.1f}")
         mb = kb / 1024
-        return format_html("<small>{:.1f} MB</small>", mb)
+        return format_html("<small>{} MB</small>", f"{mb:.1f}")
 
     file_size_display.short_description = "Size"
