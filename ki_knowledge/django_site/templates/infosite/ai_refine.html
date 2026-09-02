@@ -1,0 +1,179 @@
+{% extends "infosite/base.html" %}
+
+{% block title %}AI Refinement - {{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>✨ AI Content Refinement - {{ project.title }}</h1>
+            <p class="text-muted">Enhance markdown files with AI assistance</p>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="row mt-3">
+        <div class="col-md-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>🎯 Refinement Modes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for mode in refinement_modes %}
+                        <div class="col-md-6 mb-3">
+                            <div class="refinement-mode-card" data-mode="{{ mode.id }}">
+                                <h6>{{ mode.label }}</h6>
+                                <p class="text-muted">{{ mode.description }}</p>
+                                <input type="radio" name="refinement_mode" value="{{ mode.id }}" 
+                                       class="form-check-input">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📄 Markdown Files</h5>
+                </div>
+                <div class="card-body">
+                    {% if markdown_files %}
+                    <form method="post" action="{% url 'infosite:ai_refine_apply' project.id %}">
+                        {% csrf_token %}
+                        
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="select-all" class="form-check-input">
+                                    </th>
+                                    <th>File</th>
+                                    <th>Lines</th>
+                                    <th>Preview</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in markdown_files %}
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" name="selected_files[]" value="{{ file.file_path }}" 
+                                               class="form-check-input file-checkbox">
+                                    </td>
+                                    <td>
+                                        <code>{{ file.path }}</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ file.lines }}</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ file.preview }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        <div class="mt-4">
+                            <div class="mb-3">
+                                <label class="form-label">Select Refinement Mode:</label>
+                                <div>
+                                    {% for mode in refinement_modes %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="refinement_mode" 
+                                               id="mode-{{ mode.id }}" value="{{ mode.id }}" 
+                                               {% if mode.id == "all" %}checked{% endif %}>
+                                        <label class="form-check-label" for="mode-{{ mode.id }}">
+                                            <strong>{{ mode.label }}</strong> - {{ mode.description }}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                ✨ Apply AI Refinements
+                            </button>
+                            <span id="selected-count" class="ms-3 text-muted">0 files selected</span>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info">
+                        No markdown files generated yet. 
+                        <a href="{% url 'infosite:generate' project.id %}">Generate infosite first</a>.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <strong>⚠️ Note:</strong> AI refinement will overwrite your existing markdown files. 
+                Make sure to backup important content before applying refinements.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById("select-all").addEventListener("change", function(e) {
+    const checkboxes = document.querySelectorAll(".file-checkbox");
+    checkboxes.forEach(cb => cb.checked = e.target.checked);
+    updateSelectedCount();
+});
+
+document.querySelectorAll(".file-checkbox").forEach(cb => {
+    cb.addEventListener("change", updateSelectedCount);
+});
+
+function updateSelectedCount() {
+    const count = document.querySelectorAll(".file-checkbox:checked").length;
+    document.getElementById("selected-count").textContent = `${count} file(s) selected`;
+}
+</script>
+
+<style>
+.refinement-mode-card {
+    border: 2px solid #e0e0e0;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.refinement-mode-card:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.refinement-mode-card input[type="radio"]:checked {
+    border-color: #007bff;
+    background-color: #e7f3ff;
+}
+
+.card {
+    border-left: 4px solid #007bff;
+}
+
+table {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}

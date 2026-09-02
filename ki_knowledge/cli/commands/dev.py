@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -56,6 +58,79 @@ def django_start(host: str, port: int, no_migrate: bool) -> None:
         cwd=project_root,
     )
     sys.exit(result.returncode)
+
+
+@click.command()
+@click.option("--port", default=8000, type=int, help="Server port (default: 8000)")
+def django_stop(port: int) -> None:
+    """Stop Django development server.
+
+    Examples:
+        kictl dev django stop
+        kictl dev django stop --port 8001
+    """
+    click.echo(f"🛑 Stopping Django server on port {port}...", err=True)
+
+    # Try to find and kill process on the given port
+    if sys.platform == "win32":
+        # Windows: Use netstat and taskkill
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            for line in result.stdout.split("\n"):
+                if f":{port}" in line and "LISTENING" in line:
+                    pid = line.split()[-1]
+                    subprocess.run(
+                        ["taskkill", "/PID", pid, "/F"],
+                        capture_output=True,
+                        check=False,
+                    )
+                    click.echo(f"✓ Killed process {pid}", err=True)
+                    return
+        except Exception as e:
+            click.echo(f"⚠️  Could not stop server: {e}", err=True)
+    else:
+        # Unix/Linux/macOS: Use lsof
+        try:
+            result = subprocess.run(
+                ["lsof", "-i", f":{port}", "-t"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            pids = result.stdout.strip().split("\n")
+            for pid in pids:
+                if pid:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                        click.echo(f"✓ Killed process {pid}", err=True)
+                    except ProcessLookupError:
+                        pass
+            if not pids or not pids[0]:
+                click.echo(f"ℹ️  No process found on port {port}", err=True)
+                return
+        except FileNotFoundError:
+            # Fallback: try using fuser (more portable)
+            try:
+                subprocess.run(
+                    ["fuser", "-k", f"{port}/tcp"],
+                    capture_output=True,
+                    check=False,
+                )
+                click.echo(f"✓ Killed process on port {port}", err=True)
+            except FileNotFoundError:
+                click.echo(
+                    "⚠️  Could not find lsof or fuser. Install them or kill the process manually.",
+                    err=True,
+                )
+                sys.exit(1)
+        except Exception as e:
+            click.echo(f"⚠️  Error stopping server: {e}", err=True)
+            sys.exit(1)
 
 
 @click.command()

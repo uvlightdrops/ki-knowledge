@@ -27,14 +27,17 @@ class InfoSiteProjectAdmin(admin.ModelAdmin):
         """Display number of associated documents."""
         count = obj.documents.count()
         imported = obj.documents.filter(imported=True).count()
-        return format_html(f"{imported}/{count} imported")
+        return format_html("{}/{} imported", imported, count)
 
     document_count.short_description = "Documents"
 
     def last_generated_display(self, obj: InfoSiteProject) -> str:
         """Display last generation time."""
         if obj.last_generated:
-            return format_html(f"<small>{obj.last_generated.strftime('%Y-%m-%d %H:%M')}</small>")
+            return format_html(
+                "<small>{}</small>",
+                obj.last_generated.strftime("%Y-%m-%d %H:%M"),
+            )
         return "Never"
 
     last_generated_display.short_description = "Last Generated"

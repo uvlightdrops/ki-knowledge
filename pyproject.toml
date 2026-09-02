@@ -36,5 +36,8 @@ dev = [
 ]
 audit = ["pip-audit>=2.7.0"]
 
+[project.scripts]
+kictl = "ki_knowledge.cli.main:main"
+
 [tool.setuptools]
 packages = ["ki_knowledge"]

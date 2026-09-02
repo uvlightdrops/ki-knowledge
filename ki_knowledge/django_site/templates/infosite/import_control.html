@@ -1,0 +1,133 @@
+{% extends "infosite/base.html" %}
+
+{% block title %}Import Control - {{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>📥 Import Control - {{ project.title }}</h1>
+            <p class="text-muted">Select documents to import from: {{ project.source_directory }}</p>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="row mt-3">
+        <div class="col-md-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📄 Available Files</h5>
+                </div>
+                <div class="card-body">
+                    {% if available_files %}
+                    <form method="post" action="{% url 'infosite:import_selected' project.id %}">
+                        {% csrf_token %}
+                        
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="select-all" class="form-check-input">
+                                    </th>
+                                    <th>File</th>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in available_files %}
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" name="selected_files[]" value="{{ file.path }}" 
+                                               class="form-check-input file-checkbox">
+                                    </td>
+                                    <td>
+                                        <code>{{ file.path }}</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ file.file_type|upper }}</span>
+                                    </td>
+                                    <td>{{ file.size|filesizeformat }}</td>
+                                    <td>
+                                        {% if file.imported %}
+                                        <span class="badge bg-success">✓ Imported</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                📥 Import Selected Files
+                            </button>
+                            <span id="selected-count" class="ms-3 text-muted">0 files selected</span>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info">
+                        No files found in source directory.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📊 Import Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <p>Total documents: <strong>{{ documents.count }}</strong></p>
+                    <p>Imported: <strong>{{ documents|dictsort:"imported" }}</strong></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById("select-all").addEventListener("change", function(e) {
+    const checkboxes = document.querySelectorAll(".file-checkbox");
+    checkboxes.forEach(cb => cb.checked = e.target.checked);
+    updateSelectedCount();
+});
+
+document.querySelectorAll(".file-checkbox").forEach(cb => {
+    cb.addEventListener("change", updateSelectedCount);
+});
+
+function updateSelectedCount() {
+    const count = document.querySelectorAll(".file-checkbox:checked").length;
+    document.getElementById("selected-count").textContent = `${count} file(s) selected`;
+}
+</script>
+
+<style>
+.card {
+    border-left: 4px solid #007bff;
+}
+.badge {
+    padding: 0.5em 0.75em;
+}
+table {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}

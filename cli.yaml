@@ -49,6 +49,9 @@ cli:
             start:
               help: "Start Django development server"
               callback: "ki_knowledge.cli.commands.dev:django_start"
+            stop:
+              help: "Stop Django development server"
+              callback: "ki_knowledge.cli.commands.dev:django_stop"
             migrate:
               help: "Run Django migrations"
               callback: "ki_knowledge.cli.commands.dev:django_migrate"

@@ -1,10 +1,14 @@
-from django.urls import path
+from django.urls import path, include
+from django.contrib import admin
 
 from . import views
 
-
 urlpatterns = [
+    path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
+    # Infosite Management
+    path("infosite/", include("ki_knowledge.django_site.infosite_urls")),
+    # ... rest of URLs
     path("data-sources/", views.data_sources_view, name="data-sources"),
     path("knowledge/", views.knowledge_landing_view, name="knowledge"),
     path("semantic/", views.semantic_landing_view, name="semantic"),

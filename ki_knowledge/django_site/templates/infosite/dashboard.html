@@ -1,11 +1,11 @@
-{% extends "base.html" %}
+{% extends "infosite/base.html" %}
 {% load static %}
 
 {% block title %}Infosite Dashboard{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1>Knowledge Presentation (Infosite)</h1>
+    <h1>📚 Knowledge Presentation (Infosite)</h1>
 
     <div class="row mb-4">
         <div class="col-md-3">
@@ -44,9 +44,9 @@
 
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Projects</h5>
+            <h5 class="mb-0">📋 Projects & Management</h5>
             <a href="/admin/django_site/infositeproject/add/" class="btn btn-sm btn-primary">
-                New Project
+                ➕ New Project
             </a>
         </div>
         <div class="card-body">
@@ -56,31 +56,29 @@
                     <tr>
                         <th>Title</th>
                         <th>Domain</th>
-                        <th>Documents</th>
+                        <th style="text-align: center;">Docs</th>
                         <th>Status</th>
                         <th>Last Generated</th>
-                        <th>Actions</th>
+                        <th style="text-align: center;">Quick Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for project in projects %}
                     <tr>
                         <td>
-                            <a href="{% url 'infosite:project_detail' project.id %}">
-                                {{ project.title }}
-                            </a>
+                            <strong>{{ project.title }}</strong>
                         </td>
                         <td><code>{{ project.domain }}</code></td>
-                        <td>
+                        <td style="text-align: center;">
                             <span class="badge bg-info">
                                 {{ project.documents.all|length }}
                             </span>
                         </td>
                         <td>
                             {% if project.enabled %}
-                            <span class="badge bg-success">Enabled</span>
+                            <span class="badge bg-success">✓ Enabled</span>
                             {% else %}
-                            <span class="badge bg-secondary">Disabled</span>
+                            <span class="badge bg-secondary">✗ Disabled</span>
                             {% endif %}
                         </td>
                         <td>
@@ -90,19 +88,80 @@
                             <small class="text-muted">Never</small>
                             {% endif %}
                         </td>
-                        <td>
-                            <a href="{% url 'infosite:project_detail' project.id %}" class="btn btn-sm btn-outline-primary">
-                                View
-                            </a>
+                        <td style="text-align: center;">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{% url 'infosite:import_control' project.id %}" 
+                                   class="btn btn-outline-primary" title="Import Documents">
+                                   📥
+                                </a>
+                                <a href="{% url 'infosite:ai_refine' project.id %}" 
+                                   class="btn btn-outline-warning" title="AI Refinement">
+                                   ✨
+                                </a>
+                                <a href="{% url 'infosite:project_detail' project.id %}" 
+                                   class="btn btn-outline-info" title="Full Management">
+                                   ⚙️
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            
+            <div class="alert alert-info mt-3 mb-0">
+                <strong>💡 Quick Navigation:</strong>
+                <ul class="mb-0">
+                    <li>📥 Icon: Import Control Panel (Manage input documents)</li>
+                    <li>✨ Icon: AI Refinement (Improve markdown content with AI)</li>
+                    <li>⚙️ Icon: Full Management (All project options)</li>
+                </ul>
+            </div>
             {% else %}
             <p class="text-muted">No projects yet. <a href="/admin/django_site/infositeproject/add/">Create one</a></p>
             {% endif %}
         </div>
     </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📥 Document Import Workflow</h5>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>Click <strong>📥</strong> button to open Import Control</li>
+                        <li>Select files from source directory</li>
+                        <li>Click "Import Selected Files"</li>
+                        <li>Documents are now in your project</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">✨ AI Refinement Workflow</h5>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>Click <strong>✨</strong> button to open AI Refinement</li>
+                        <li>Select markdown files to improve</li>
+                        <li>Choose refinement mode (Improve/Restructure/Summarize/All)</li>
+                        <li>Click "Apply AI Refinements"</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<style>
+.btn-group-sm .btn {
+    font-size: 1.2rem;
+    padding: 0.25rem 0.5rem;
+}
+</style>
 {% endblock %}
