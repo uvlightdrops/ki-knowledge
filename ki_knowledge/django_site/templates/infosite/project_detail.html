@@ -4,16 +4,30 @@
 {% block title %}{{ project.title }} - Infosite Project{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>{{ project.title }}</h1>
-        <a href="/admin/django_site/infositeproject/{{ project.id }}/change/" class="btn btn-sm btn-outline-secondary">
-            ⚙️ Edit
-        </a>
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1>{{ project.title }}</h1>
+            <p class="text-muted">
+                <code>{{ project.domain }}/{{ project.working_title }}</code>
+                {% if not project.enabled %}
+                <span class="badge bg-secondary ms-2">Disabled</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="col-auto">
+            {% if perms.django_site.change_infositeproject %}
+            <a href="{% url 'infosite:project_edit' project.id %}" class="btn btn-outline-secondary">
+                ✏️ Edit
+            </a>
+            {% endif %}
+        </div>
     </div>
 
+    <!-- Messages -->
     {% if messages %}
-    <div class="alert alert-info alert-dismissible fade show">
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
         {% for message in messages %}
         <div>{{ message }}</div>
         {% endfor %}
@@ -21,110 +35,208 @@
     </div>
     {% endif %}
 
+    <!-- Stats Cards -->
     <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card">
+        <div class="col-md-3">
+            <div class="card text-center">
                 <div class="card-body">
-                    <h6 class="card-title">Domain</h6>
-                    <p><code>{{ project.domain }}</code></p>
+                    <h6 class="card-title text-muted">Total Documents</h6>
+                    <h2 class="card-text">{{ stats.total }}</h2>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
+        <div class="col-md-3">
+            <div class="card text-center">
                 <div class="card-body">
-                    <h6 class="card-title">Total Documents</h6>
-                    <h3>{{ stats.total }}</h3>
+                    <h6 class="card-title text-muted">Discovered</h6>
+                    <h2 class="card-text"><span class="badge bg-info">{{ stats.discovered }}</span></h2>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
+        <div class="col-md-3">
+            <div class="card text-center">
                 <div class="card-body">
-                    <h6 class="card-title">Imported</h6>
-                    <h3>{{ stats.imported }}<small>/{{ stats.total }}</small></h3>
+                    <h6 class="card-title text-muted">Imported</h6>
+                    <h2 class="card-text"><span class="badge bg-success">{{ stats.imported }}</span></h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Sync Status</h6>
+                    <p class="card-text">
+                        {% if project.sync_status == 'completed' %}
+                            <span class="badge bg-success">✓ OK</span>
+                        {% elif project.sync_status == 'failed' %}
+                            <span class="badge bg-danger">✗ Failed</span>
+                        {% else %}
+                            <span class="badge bg-warning">{{ project.sync_status }}</span>
+                        {% endif %}
+                    </p>
+                    {% if project.last_sync_at %}
+                    <small class="text-muted">{{ project.last_sync_at|date:"Y-m-d H:i" }}</small>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Actions -->
     <div class="card mb-4">
         <div class="card-header">
-            <h5 class="mb-0">📋 Actions</h5>
+            <h5 class="mb-0">🎯 Actions</h5>
         </div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="btn-group" role="group">
-                        <a href="{% url 'infosite:import_control' project.id %}" class="btn btn-primary">
-                            📥 Import Control
-                        </a>
-                        <form method="post" style="display: inline;">
-                            {% csrf_token %}
-                            <button type="submit" formaction="{% url 'infosite:discover' project.id %}" 
-                                    class="btn btn-info">
-                                🔍 Discover Documents
-                            </button>
-                        </form>
-                        <form method="post" style="display: inline;">
-                            {% csrf_token %}
-                            <button type="submit" formaction="{% url 'infosite:generate' project.id %}" 
-                                    class="btn btn-success">
-                                ⚙️ Generate Infosite
-                            </button>
-                        </form>
-                        <a href="{% url 'infosite:ai_refine' project.id %}" class="btn btn-warning">
-                            ✨ AI Refinement
-                        </a>
-                        <a href="{% url 'infosite:preview' project.id %}" class="btn btn-secondary">
-                            👁️ Preview
-                        </a>
-                    </div>
-                </div>
+            <div class="btn-group" role="group">
+                {% if perms.django_site.add_infositeproject %}
+                <form method="post" action="{% url 'infosite:sync' project.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary" title="Manually sync documents">
+                        🔄 Sync Documents
+                    </button>
+                </form>
+                {% endif %}
+                <a href="{% url 'infosite:import_control' project.id %}" class="btn btn-info">
+                    📥 Import Control
+                </a>
+                <form method="post" action="{% url 'infosite:generate' project.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">
+                        ⚙️ Generate
+                    </button>
+                </form>
+                <a href="{% url 'infosite:ai_refine' project.id %}" class="btn btn-warning">
+                    ✨ AI Refine
+                </a>
+                <a href="{% url 'infosite:preview' project.id %}" class="btn btn-secondary">
+                    👁️ Preview
+                </a>
             </div>
         </div>
     </div>
 
-    <div class="card">
+    <!-- Description -->
+    {% if project.description %}
+    <div class="card mb-4">
         <div class="card-header">
-            <h5 class="mb-0">📄 Source Documents</h5>
+            <h5 class="mb-0">📝 Description</h5>
         </div>
         <div class="card-body">
+            {{ project.description }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Documents Filter -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-2">
+                <div class="col-auto">
+                    <select name="status" class="form-select form-select-sm">
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        🔍 Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Documents Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">📄 Documents ({{ total_documents }} total)</h5>
+        </div>
+        <div class="table-responsive">
             {% if documents %}
-            <table class="table table-sm table-hover">
-                <thead>
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
                     <tr>
                         <th>File</th>
                         <th>Type</th>
+                        <th>Size</th>
                         <th>Status</th>
-                        <th>Imported</th>
+                        <th>Modified</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for doc in documents %}
                     <tr>
-                        <td><code>{{ doc.file_path }}</code></td>
-                        <td><span class="badge bg-secondary">{{ doc.get_file_type_display }}</span></td>
                         <td>
-                            {% if doc.imported %}
-                            <span style="color: green;">✓ Imported</span>
+                            <code style="font-size: 0.85rem;">{{ doc.file_path }}</code>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ doc.get_file_type_display|default:"other" }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if doc.file_size %}
+                                <small>{{ doc.file_size|filesizeformat }}</small>
                             {% else %}
-                            <span style="color: orange;">⚠ Pending</span>
+                                <small class="text-muted">-</small>
                             {% endif %}
                         </td>
                         <td>
-                            {% if doc.imported_at %}
-                            <small>{{ doc.imported_at|date:"Y-m-d H:i" }}</small>
+                            {% if doc.import_status == 'imported' %}
+                                <span class="badge bg-success">✓ Imported</span>
+                            {% elif doc.import_status == 'pending' %}
+                                <span class="badge bg-warning">⏳ Pending</span>
+                            {% elif doc.import_status == 'discovered' %}
+                                <span class="badge bg-info">🔷 Discovered</span>
+                            {% elif doc.import_status == 'failed' %}
+                                <span class="badge bg-danger">✗ Failed</span>
                             {% else %}
-                            <small class="text-muted">-</small>
+                                <span class="badge bg-secondary">{{ doc.get_import_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if doc.modified_at %}
+                                <small>{{ doc.modified_at|date:"Y-m-d H:i" }}</small>
+                            {% else %}
+                                <small class="text-muted">-</small>
                             {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <nav class="d-flex justify-content-center p-3">
+                <ul class="pagination pagination-sm">
+                    {% for page_num in range %}
+                        <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ page_num }}&status={{ status_filter }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+            {% endif %}
             {% else %}
-            <p class="text-muted">No documents discovered. Click "Discover Documents" or "Import Control" to add files.</p>
+            <div class="card-body">
+                <p class="text-muted mb-0">
+                    No documents found. 
+                    <form method="post" action="{% url 'infosite:sync' project.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-link">
+                            Sync documents
+                        </button>
+                    </form>
+                    to discover files.
+                </p>
+            </div>
             {% endif %}
         </div>
     </div>

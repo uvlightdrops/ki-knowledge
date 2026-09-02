@@ -7,12 +7,51 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.db.models import Count, Q
 from ki_core.config import Config
 
 from .infosite_models import InfoSiteProject, SourceDocument
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
 from ki_knowledge.infosite.importer import DocumentImporterRegistry
 
+
+# ============================================================================
+# PROJECT LIST & DASHBOARD
+# ============================================================================
+
+@login_required
+def infosite_project_list(request: HttpRequest):
+    """List all infosite projects with stats."""
+    projects = InfoSiteProject.objects.annotate(
+        doc_count=Count('documents'),
+        imported_count=Count('documents', filter=Q(documents__imported=True)),
+    )
+    
+    # Filter by status if requested
+    status_filter = request.GET.get('status', 'all')
+    if status_filter != 'all':
+        projects = projects.filter(sync_status=status_filter)
+    
+    # Filter by enabled if requested
+    show_disabled = request.GET.get('show_disabled', 'false').lower() == 'true'
+    if not show_disabled:
+        projects = projects.filter(enabled=True)
+    
+    projects = projects.order_by('-updated_at')
+    
+    context = {
+        'projects': projects,
+        'status_filter': status_filter,
+        'show_disabled': show_disabled,
+        'status_choices': [
+            ('all', 'All'),
+            ('pending', 'Pending'),
+            ('completed', 'Completed'),
+            ('syncing', 'Syncing'),
+            ('failed', 'Failed'),
+        ],
+    }
+    return render(request, 'infosite/project_list.html', context)
 
 
 @login_required
@@ -33,22 +72,169 @@ def infosite_dashboard(request: HttpRequest):
     return render(request, "infosite/dashboard.html", context)
 
 
+# ============================================================================
+# PROJECT MANAGEMENT (CREATE, EDIT, DELETE)
+# ============================================================================
+
+@login_required
+@permission_required('django_site.add_infositeproject', raise_exception=True)
+def infosite_project_create(request: HttpRequest):
+    """Create new infosite project."""
+    if request.method == 'POST':
+        # Get form data
+        title = request.POST.get('title')
+        domain = request.POST.get('domain')
+        working_title = request.POST.get('working_title')
+        description = request.POST.get('description', '')
+        auto_discover = request.POST.get('auto_discover', 'on') == 'on'
+        
+        if not title or not domain:
+            messages.error(request, 'Title and domain are required')
+            return render(request, 'infosite/project_form.html', {
+                'action': 'Create',
+                'is_create': True,
+            })
+        
+        project = InfoSiteProject.objects.create(
+            title=title,
+            domain=domain,
+            working_title=working_title or domain,
+            description=description,
+            auto_discover=auto_discover,
+        )
+        
+        messages.success(request, f'Project "{title}" created')
+        return redirect('infosite:project_detail', project_id=project.id)
+    
+    return render(request, 'infosite/project_form.html', {
+        'action': 'Create',
+        'is_create': True,
+    })
+
+
 @login_required
 def infosite_project_detail(request: HttpRequest, project_id: int):
     """Show project details and management interface."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
-    documents = project.documents.all()
-
+    documents = project.documents.all().order_by('file_path')
+    
+    # Filter by status if requested
+    status_filter = request.GET.get('status', 'all')
+    if status_filter != 'all':
+        documents = documents.filter(import_status=status_filter)
+    
+    # Pagination
+    page = int(request.GET.get('page', 1))
+    per_page = 25
+    total = documents.count()
+    pages = (total + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    
+    docs_page = documents[start:end]
+    
     context = {
-        "project": project,
-        "documents": documents,
-        "stats": {
-            "total": documents.count(),
-            "imported": documents.filter(imported=True).count(),
-            "pending": documents.filter(imported=False).count(),
+        'project': project,
+        'documents': docs_page,
+        'total_documents': total,
+        'current_page': page,
+        'total_pages': pages,
+        'range': range(1, pages + 1),
+        'status_filter': status_filter,
+        'status_choices': [
+            ('all', 'All'),
+            ('discovered', 'Discovered'),
+            ('pending', 'Pending'),
+            ('imported', 'Imported'),
+            ('failed', 'Failed'),
+        ],
+        'stats': {
+            'total': total,
+            'discovered': documents.filter(import_status='discovered').count(),
+            'pending': documents.filter(import_status='pending').count(),
+            'imported': documents.filter(import_status='imported').count(),
+            'failed': documents.filter(import_status='failed').count(),
         },
     }
-    return render(request, "infosite/project_detail.html", context)
+    return render(request, 'infosite/project_detail.html', context)
+
+
+@login_required
+@permission_required('django_site.change_infositeproject', raise_exception=True)
+def infosite_project_edit(request: HttpRequest, project_id: int):
+    """Edit project settings."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    
+    if request.method == 'POST':
+        # Update project
+        project.title = request.POST.get('title', project.title)
+        project.domain = request.POST.get('domain', project.domain)
+        project.working_title = request.POST.get('working_title', project.working_title)
+        project.description = request.POST.get('description', '')
+        project.auto_discover = request.POST.get('auto_discover', 'off') == 'on'
+        project.enabled = request.POST.get('enabled', 'off') == 'on'
+        project.save()
+        
+        messages.success(request, f'Project "{project.title}" updated')
+        return redirect('infosite:project_detail', project_id=project.id)
+    
+    context = {
+        'project': project,
+        'action': 'Edit',
+        'is_create': False,
+    }
+    return render(request, 'infosite/project_form.html', context)
+
+
+@login_required
+@permission_required('django_site.delete_infositeproject', raise_exception=True)
+@require_http_methods(['POST'])
+def infosite_project_delete(request: HttpRequest, project_id: int):
+    """Delete project and its documents."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    title = project.title
+    project.delete()
+    messages.success(request, f'Project "{title}" deleted')
+    return redirect('infosite:project_list')
+
+
+# ============================================================================
+# DOCUMENT SYNCHRONIZATION & DISCOVERY
+# ============================================================================
+
+@login_required
+@permission_required('django_site.add_infositeproject', raise_exception=True)
+@require_http_methods(['POST'])
+def infosite_sync_documents(request: HttpRequest, project_id: int):
+    """Manually sync documents for a project."""
+    from django.conf import settings
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    
+    if not project.working_title:
+        messages.error(request, 'working_title must be configured first')
+        return redirect('infosite:project_edit', project_id=project.id)
+    
+    # Use DocumentSyncService for unified discovery
+    from ki_knowledge.services.sync import DocumentSyncService
+    
+    project.sync_status = 'syncing'
+    project.save()
+    
+    sync_service = DocumentSyncService(settings.KI_CONFIG)
+    discovered, updated, error = sync_service.sync_project_documents(project)
+    
+    if error:
+        messages.error(request, f'Sync failed: {error}')
+    else:
+        if discovered > 0:
+            messages.success(
+                request,
+                f'Sync complete: {discovered} documents ({updated} new)'
+            )
+        else:
+            messages.info(request, 'Sync complete: No new documents found')
+    
+    return redirect('infosite:project_detail', project_id=project.id)
 
 
 @login_required
@@ -76,6 +262,10 @@ def infosite_discover_documents(request: HttpRequest, project_id: int):
     return redirect("infosite:project_detail", project_id=project.id)
 
 
+# ============================================================================
+# GENERATION & PREVIEW
+# ============================================================================
+
 @login_required
 @permission_required("django_site.change_infositeproject")
 @require_http_methods(["POST"])
@@ -90,7 +280,7 @@ def infosite_generate(request: HttpRequest, project_id: int):
         # Get output directory
         if not config.infosite_output_base_dir:
             messages.error(request, "infosite_output_base_dir not configured in ki.yaml")
-            return redirect("infosite_project_detail", project_id=project.id)
+            return redirect("infosite:project_detail", project_id=project.id)
 
         # Create infosite config
         infosite_config = InfoSiteConfig(
@@ -117,8 +307,6 @@ def infosite_generate(request: HttpRequest, project_id: int):
             output_dir = generator.generate(generator.create_default_pages(project.title))
 
         # Update project
-        from django.utils import timezone
-
         project.last_generated = timezone.now()
         project.save()
 
@@ -126,11 +314,11 @@ def infosite_generate(request: HttpRequest, project_id: int):
         project.documents.all().update(imported=True, imported_at=timezone.now())
 
         messages.success(request, f"Infosite generated: {output_dir}")
-        return redirect("infosite_project_detail", project_id=project.id)
+        return redirect("infosite:project_detail", project_id=project.id)
 
     except Exception as e:
         messages.error(request, f"Error generating infosite: {e}")
-        return redirect("infosite_project_detail", project_id=project.id)
+        return redirect("infosite:project_detail", project_id=project.id)
 
 
 @login_required
@@ -172,20 +360,12 @@ def infosite_preview(request: HttpRequest, project_id: int):
 
     except Exception as e:
         messages.error(request, f"Error loading preview: {e}")
-        return redirect("infosite_project_detail", project_id=project.id)
+        return redirect("infosite:project_detail", project_id=project.id)
 
 
-def _get_file_type(file_path: Path) -> str:
-    """Get file type from extension."""
-    suffix = file_path.suffix.lower()
-    if suffix == ".pdf":
-        return "pdf"
-    elif suffix in {".md", ".markdown"}:
-        return "markdown"
-    elif suffix == ".txt":
-        return "text"
-    return "other"
-
+# ============================================================================
+# IMPORT CONTROL
+# ============================================================================
 
 @login_required
 def infosite_import_control(request: HttpRequest, project_id: int):
@@ -223,7 +403,7 @@ def infosite_import_selected(request: HttpRequest, project_id: int):
     
     if not selected_files:
         messages.warning(request, "No files selected")
-        return redirect("infosite_import_control", project_id=project.id)
+        return redirect("infosite:import_control", project_id=project.id)
     
     # Create/update documents
     source_path = Path(project.source_directory) if project.source_directory else None
@@ -253,8 +433,12 @@ def infosite_import_selected(request: HttpRequest, project_id: int):
             imported_count += 1
     
     messages.success(request, f"Imported {imported_count} document(s)")
-    return redirect("infosite_import_control", project_id=project.id)
+    return redirect("infosite:import_control", project_id=project.id)
 
+
+# ============================================================================
+# AI REFINEMENT
+# ============================================================================
 
 @login_required
 def infosite_ai_refine(request: HttpRequest, project_id: int):
@@ -303,7 +487,7 @@ def infosite_ai_refine(request: HttpRequest, project_id: int):
     
     except Exception as e:
         messages.error(request, f"Error loading refinement interface: {e}")
-        return redirect("infosite_project_detail", project_id=project.id)
+        return redirect("infosite:project_detail", project_id=project.id)
 
 
 @login_required
@@ -318,7 +502,7 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
     
     if not selected_files:
         messages.warning(request, "No files selected")
-        return redirect("infosite_ai_refine", project_id=project.id)
+        return redirect("infosite:ai_refine", project_id=project.id)
     
     try:
         from ki_core.client import AIClient
@@ -358,9 +542,24 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
             refined_count += 1
         
         messages.success(request, f"Refined {refined_count} file(s) with AI")
-        return redirect("infosite_ai_refine", project_id=project.id)
+        return redirect("infosite:ai_refine", project_id=project.id)
     
     except Exception as e:
         messages.error(request, f"Error during AI refinement: {e}")
-        return redirect("infosite_ai_refine", project_id=project.id)
+        return redirect("infosite:ai_refine", project_id=project.id)
 
+
+# ============================================================================
+# UTILITIES
+# ============================================================================
+
+def _get_file_type(file_path: Path) -> str:
+    """Get file type from extension."""
+    suffix = file_path.suffix.lower()
+    if suffix == ".pdf":
+        return "pdf"
+    elif suffix in {".md", ".markdown"}:
+        return "markdown"
+    elif suffix == ".txt":
+        return "text"
+    return "other"

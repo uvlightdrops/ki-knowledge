@@ -1,0 +1,160 @@
+{% extends "infosite/base.html" %}
+
+{% block title %}Infosite Projects{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1>📚 Infosite Projects</h1>
+            <p class="text-muted">Manage your knowledge bases</p>
+        </div>
+        <div class="col-auto">
+            {% if perms.django_site.add_infositeproject %}
+            <a href="{% url 'infosite:project_create' %}" class="btn btn-primary">
+                ➕ New Project
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="show_disabled" name="show_disabled" value="true" {% if show_disabled %}checked{% endif %}>
+                        <label class="form-check-label" for="show_disabled">
+                            Show disabled projects
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-outline-secondary w-100">
+                        🔍 Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Projects Table -->
+    {% if projects %}
+    <div class="card">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Title</th>
+                    <th>Domain</th>
+                    <th>Working Title</th>
+                    <th>Documents</th>
+                    <th>Status</th>
+                    <th>Last Sync</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr>
+                    <td>
+                        <strong>{{ project.title }}</strong>
+                        {% if not project.enabled %}
+                        <span class="badge bg-secondary">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <code>{{ project.domain }}</code>
+                    </td>
+                    <td>
+                        <code>{{ project.working_title }}</code>
+                    </td>
+                    <td>
+                        <span class="badge bg-info">
+                            {{ project.doc_count }} docs
+                        </span>
+                        {% if project.imported_count > 0 %}
+                        <span class="badge bg-success">
+                            {{ project.imported_count }} imported
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if project.sync_status == 'completed' %}
+                            <span class="badge bg-success">✓ Completed</span>
+                        {% elif project.sync_status == 'syncing' %}
+                            <span class="badge bg-warning">⟳ Syncing</span>
+                        {% elif project.sync_status == 'failed' %}
+                            <span class="badge bg-danger">✗ Failed</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ project.sync_status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if project.last_sync_at %}
+                            <small>{{ project.last_sync_at|date:"Y-m-d H:i" }}</small>
+                        {% else %}
+                            <small class="text-muted">Never</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'infosite:project_detail' project.id %}" class="btn btn-outline-primary" title="View">
+                                👁️
+                            </a>
+                            {% if perms.django_site.change_infositeproject %}
+                            <a href="{% url 'infosite:project_edit' project.id %}" class="btn btn-outline-secondary" title="Edit">
+                                ✏️
+                            </a>
+                            <form method="post" action="{% url 'infosite:sync' project.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-info btn-sm" title="Sync">
+                                    🔄
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if perms.django_site.delete_infositeproject %}
+                            <form method="post" action="{% url 'infosite:project_delete' project.id %}" style="display:inline;" onsubmit="return confirm('Delete this project?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                    🗑️
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="alert">
+        No projects found. <a href="{% url 'infosite:project_create' %}">Create one now!</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

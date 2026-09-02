@@ -1,0 +1,125 @@
+{% extends "infosite/base.html" %}
+
+{% block title %}{{ action }} Project{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 600px;">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>{{ action }} Project</h1>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Title -->
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title *</label>
+                    <input type="text" class="form-control" id="title" name="title" 
+                           value="{% if project %}{{ project.title }}{% endif %}" required>
+                    <small class="form-text text-muted">Display name for this knowledge base</small>
+                </div>
+
+                <!-- Domain -->
+                <div class="mb-3">
+                    <label for="domain" class="form-label">Domain *</label>
+                    <input type="text" class="form-control" id="domain" name="domain" 
+                           value="{% if project %}{{ project.domain }}{% endif %}" required>
+                    <small class="form-text text-muted">
+                        Namespace (e.g., "anthro", "psychology")
+                        <br>Used in discovery path: md/&lt;domain&gt;/&lt;working_title&gt;/
+                    </small>
+                </div>
+
+                <!-- Working Title -->
+                <div class="mb-3">
+                    <label for="working_title" class="form-label">Working Title *</label>
+                    <input type="text" class="form-control" id="working_title" name="working_title" 
+                           value="{% if project %}{{ project.working_title }}{% else %}{{ project.domain }}{% endif %}" required>
+                    <small class="form-text text-muted">
+                        Project code (e.g., "sstk", "psychology-101")
+                        <br>Used in discovery path: md/&lt;domain&gt;/&lt;working_title&gt;/
+                    </small>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea class="form-control" id="description" name="description" rows="4">{% if project %}{{ project.description }}{% endif %}</textarea>
+                    <small class="form-text text-muted">Optional description of this knowledge base</small>
+                </div>
+
+                <!-- Auto Discovery -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="auto_discover" name="auto_discover" value="on"
+                               {% if project and project.auto_discover %}checked{% elif is_create %}checked{% endif %}>
+                        <label class="form-check-label" for="auto_discover">
+                            <strong>Auto-discover documents</strong>
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Automatically discover documents from md/&lt;domain&gt;/&lt;working_title&gt;/ directory
+                    </small>
+                </div>
+
+                {% if not is_create %}
+                <!-- Enabled -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="enabled" name="enabled" value="on"
+                               {% if project.enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="enabled">
+                            <strong>Enabled</strong>
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Disable to temporarily hide this project
+                    </small>
+                </div>
+
+                <!-- Info -->
+                <div class="alert alert-info" role="alert">
+                    <strong>Last Sync:</strong>
+                    {% if project.last_sync_at %}
+                        {{ project.last_sync_at|date:"Y-m-d H:i:s" }}
+                    {% else %}
+                        Never
+                    {% endif %}
+                    <br>
+                    <strong>Status:</strong> {{ project.get_sync_status_display }}
+                    {% if project.last_sync_error %}
+                    <br>
+                    <strong>Error:</strong> {{ project.last_sync_error }}
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Buttons -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% if is_create %}{% url 'infosite:project_list' %}{% else %}{% url 'infosite:project_detail' project.id %}{% endif %}" 
+                       class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        {% if is_create %}Create Project{% else %}Save Changes{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
