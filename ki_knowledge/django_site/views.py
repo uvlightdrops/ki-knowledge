@@ -11,6 +11,7 @@ from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirec
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods
+from django.contrib.auth.decorators import login_required
 from requests import RequestException
 
 from .services import (
@@ -178,6 +179,7 @@ def _format_task_message(result: dict[str, object]) -> str:
     return "; ".join(parts)
 
 
+@login_required
 @require_GET
 def dashboard(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -241,6 +243,7 @@ def dashboard(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def knowledge_landing_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -265,6 +268,7 @@ def knowledge_landing_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def semantic_landing_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -285,6 +289,7 @@ def semantic_landing_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def settings_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -300,6 +305,7 @@ def settings_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def layout_settings_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -322,6 +328,7 @@ def layout_settings_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def data_sources_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -377,6 +384,7 @@ def data_sources_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def knowledge_api_view(request: HttpRequest):
     if request.method == "GET":
@@ -473,11 +481,13 @@ def knowledge_api_view(request: HttpRequest):
         return HttpResponseBadRequest("action missing")
 
 
+@login_required
 @require_GET
 def dashboard_monitoring(request: HttpRequest):
     return JsonResponse(semantic_monitoring_snapshot(_active_semantic_domain(request)))
 
 
+@login_required
 @require_http_methods(["POST"])
 def dashboard_task_action(request: HttpRequest):
     task_name = request.POST.get("task_name", "").strip()
@@ -508,6 +518,7 @@ def dashboard_task_action(request: HttpRequest):
     return HttpResponseRedirect(f"{reverse('dashboard')}?{query}")
 
 
+@login_required
 @require_GET
 def workspace(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -544,6 +555,7 @@ def workspace(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def sources(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -594,6 +606,7 @@ def sources(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def source_detail(request: HttpRequest, source_id: str):
     active_domain = _active_semantic_domain(request)
@@ -643,6 +656,7 @@ def source_detail(request: HttpRequest, source_id: str):
     )
 
 
+@login_required
 @require_GET
 def source_graph(request: HttpRequest, source_id: str):
     active_domain = _active_semantic_domain(request)
@@ -664,6 +678,7 @@ def source_graph(request: HttpRequest, source_id: str):
     )
 
 
+@login_required
 @require_GET
 def source_graph_3d(request: HttpRequest, source_id: str):
     active_domain = _active_semantic_domain(request)
@@ -687,6 +702,7 @@ def source_graph_3d(request: HttpRequest, source_id: str):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def artifacts(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -752,6 +768,7 @@ def artifacts(request: HttpRequest):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def records(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -833,6 +850,7 @@ def records(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def jobs_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -858,6 +876,7 @@ def jobs_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def job_detail_view(request: HttpRequest, job_id: str):
     detail = semantic_job_detail(job_id, domain=_active_semantic_domain(request))
@@ -875,6 +894,7 @@ def job_detail_view(request: HttpRequest, job_id: str):
     )
 
 
+@login_required
 @require_GET
 def jira_domain_terms_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -907,6 +927,7 @@ def jira_domain_terms_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def jira_exclusions_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -941,6 +962,7 @@ def jira_exclusions_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def jira_support_chat_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -982,11 +1004,13 @@ def jira_support_chat_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def support_chat_view(request: HttpRequest):
     return jira_support_chat_view(request)
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def prompt_backlog_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1078,6 +1102,7 @@ def prompt_backlog_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def ollama_chat_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1286,6 +1311,7 @@ def ollama_chat_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def jira_hybrid_search_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1311,6 +1337,7 @@ def jira_hybrid_search_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def jira_daily_timeline_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1330,6 +1357,7 @@ def jira_daily_timeline_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def jira_graph_explorer_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1353,6 +1381,7 @@ def jira_graph_explorer_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def jira_domain_analysis_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1381,6 +1410,7 @@ def jira_domain_analysis_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def semantic_terms_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
@@ -1403,6 +1433,7 @@ def semantic_terms_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def semantic_term_detail_view(request: HttpRequest, term_id: str):
     detail = semantic_term_detail(term_id, domain=_active_semantic_domain(request))
@@ -1493,6 +1524,7 @@ def generate_action(request: HttpRequest):
     return HttpResponseRedirect(reverse("source-detail", args=[source_id]))
 
 
+@login_required
 @require_http_methods(["GET", "POST"])
 def pdf_import_jobs_view(request: HttpRequest):
     """View PDF import jobs dashboard. Also handles new job enqueuing via POST."""
@@ -1603,6 +1635,7 @@ def pdf_import_jobs_view(request: HttpRequest):
     )
 
 
+@login_required
 @require_GET
 def pdf_job_detail_view(request: HttpRequest, job_id: str):
     """Display a compact report for a completed PDF import job."""
@@ -1646,6 +1679,7 @@ def pdf_job_detail_view(request: HttpRequest, job_id: str):
     )
 
 
+@login_required
 @require_GET
 def pdf_import_jobs_json(request: HttpRequest):
     """Return JSON with PDF import job status (for auto-refresh)."""
@@ -1664,6 +1698,7 @@ def pdf_import_jobs_json(request: HttpRequest):
     return JsonResponse({"jobs": jobs, "summary": summary})
 
 
+@login_required
 @require_GET
 def pdf_import_report_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
