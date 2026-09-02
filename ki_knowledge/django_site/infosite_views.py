@@ -710,7 +710,7 @@ def infosite_document_preview(request: HttpRequest, project_id: int):
                 "path": doc.file_path,
                 "type": "pdf" if doc.file_path.endswith(".pdf") else "markdown",
                 "size": doc.file_size or 0,
-                "size_display": f"{doc.file_size_display}" if doc.file_size else "unknown",
+                "size_display": doc.file_size_display,
                 "url": f"/api/document/{project_id}/{doc.id}/",
             })
         

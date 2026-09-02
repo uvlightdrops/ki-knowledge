@@ -146,3 +146,16 @@ class SourceDocument(models.Model):
     def __str__(self) -> str:
         """Return string representation."""
         return self.title or self.file_path
+    
+    @property
+    def file_size_display(self) -> str:
+        """Return human-readable file size."""
+        if not self.file_size:
+            return "unknown"
+        
+        size = self.file_size
+        for unit in ["B", "KB", "MB", "GB"]:
+            if size < 1024:
+                return f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} TB"
