@@ -187,19 +187,48 @@ class MarkdownBlockParser:
 class InfoSiteBlockExtractor:
     """Extract knowledge blocks from an InfoSite project."""
     
-    def __init__(self, domain: str, working_title: str):
-        """Initialize extractor for a specific domain/project."""
-        self.domain = domain
-        self.working_title = working_title
-        self.source_id = f"infosite_{working_title}_{domain}".lower()
-        self.parser = MarkdownBlockParser(self.source_id, domain)
+    def __init__(self, project_or_domain, working_title: str = None):
+        """Initialize extractor for a specific domain/project.
+        
+        Args:
+            project_or_domain: Either an InfoSiteProject object or a domain string
+            working_title: Required if first arg is a domain string
+        """
+        # Support both InfoSiteProject objects and (domain, working_title) args
+        try:
+            from ki_knowledge.django_site.infosite_models import InfoSiteProject
+            if isinstance(project_or_domain, InfoSiteProject):
+                self.project = project_or_domain
+                self.domain = project_or_domain.domain
+                self.working_title = project_or_domain.working_title
+            else:
+                self.project = None
+                self.domain = project_or_domain
+                self.working_title = working_title
+        except ImportError:
+            # Fallback if Django models not available
+            self.project = None
+            self.domain = project_or_domain
+            self.working_title = working_title
+        
+        self.source_id = f"infosite_{self.working_title}_{self.domain}".lower()
+        self.parser = MarkdownBlockParser(self.source_id, self.domain)
     
-    def extract_from_directory(self, directory: Path) -> dict[str, list[KnowledgeBlockData]]:
+    def extract_from_directory(self, directory: Path = None) -> dict[str, list[KnowledgeBlockData]]:
         """Extract blocks from all markdown files in directory.
+        
+        Args:
+            directory: Path to scan. If None and project provided, auto-detect.
         
         Returns:
             Dict mapping file paths to block lists
         """
+        if directory is None:
+            if self.project:
+                directory = Path(self.project.get_output_path())
+            else:
+                directory = Path("datadir/md") / self.domain / self.working_title
+        
         blocks_by_file = {}
         
         if not directory.exists():
@@ -239,15 +268,20 @@ class InfoSiteBlockExtractor:
         
         return hierarchy
     
-    def get_statistics(self, blocks_by_file: dict[str, list[KnowledgeBlockData]]) -> dict:
+    def get_statistics(self, blocks_by_file: dict[str, list[KnowledgeBlockData]] = None) -> dict:
         """Calculate statistics about extracted blocks.
+        
+        Args:
+            blocks_by_file: Dict of blocks. If None, extracts from directory first.
         
         Returns:
             Dict with counts and summaries
         """
+        if blocks_by_file is None:
+            blocks_by_file = self.extract_from_directory()
+        
         total_files = len(blocks_by_file)
         total_blocks = sum(len(b) for b in blocks_by_file.values())
-        
         sections = sum(1 for blocks in blocks_by_file.values() for b in blocks if b.level == 1)
         subsections = sum(1 for blocks in blocks_by_file.values() for b in blocks if b.level == 2)
         paragraphs = sum(1 for blocks in blocks_by_file.values() for b in blocks if b.level >= 3)

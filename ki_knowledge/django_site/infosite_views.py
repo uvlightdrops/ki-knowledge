@@ -835,38 +835,21 @@ def _format_file_size(size_bytes: int) -> str:
 
 @login_required
 def infosite_extract_knowledge_blocks(request: HttpRequest, project_id: int):
-    """Extract knowledge blocks from imported documents."""
+    """Extract knowledge blocks from imported documents and display them."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
     
     from ki_knowledge.services.block_extractor import InfoSiteBlockExtractor
-    from pathlib import Path
     
     try:
-        # Determine source directory
-        source_dir = Path("datadir/md") / project.domain / project.working_title
-        if not source_dir.exists():
-            messages.warning(request, f"Source directory not found: {source_dir}")
-            return redirect("infosite:project_detail", project_id=project.id)
-        
         # Extract blocks
-        extractor = InfoSiteBlockExtractor(project.domain, project.working_title)
-        blocks_by_file = extractor.extract_from_directory(source_dir)
-        stats = extractor.get_statistics(blocks_by_file)
-        
-        # Flatten for display
-        all_blocks = []
-        for file_path, blocks in blocks_by_file.items():
-            for block in blocks:
-                all_blocks.append({
-                    "file": file_path,
-                    "block": block,
-                })
+        extractor = InfoSiteBlockExtractor(project)
+        blocks_by_file = extractor.extract_from_directory()
+        stats = extractor.get_statistics()
         
         context = {
             "project": project,
             "stats": stats,
             "blocks_by_file": blocks_by_file,
-            "all_blocks": all_blocks,
         }
         
         return render(request, "infosite/knowledge_blocks.html", context)
@@ -874,4 +857,31 @@ def infosite_extract_knowledge_blocks(request: HttpRequest, project_id: int):
     except Exception as e:
         messages.error(request, f"Error extracting blocks: {str(e)}")
         return redirect("infosite:project_detail", project_id=project.id)
+
+
+@login_required
+def infosite_publish_knowledge_blocks(request: HttpRequest, project_id: int):
+    """Publish extracted blocks to knowledge store."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=400)
+    
+    from ki_knowledge.services.block_storage import InfoSiteBlockStorage
+    
+    try:
+        storage = InfoSiteBlockStorage(project)
+        results = storage.extract_and_store()
+        storage.update_document_status()
+        
+        messages.success(
+            request,
+            f"Published {results['blocks_stored']} blocks from {results['files_processed']} files "
+            f"to knowledge store '{results['source_id']}'",
+        )
+        
+        return JsonResponse(results)
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 

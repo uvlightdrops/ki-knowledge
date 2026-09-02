@@ -179,6 +179,9 @@
                 <a href="{% url 'infosite:preview' project.id %}" class="btn btn-secondary">
                     👁️ Preview
                 </a>
+                <a href="{% url 'infosite:knowledge_blocks' project.id %}" class="btn btn-outline-success" title="Extract and view knowledge blocks">
+                    📚 Knowledge Blocks
+                </a>
                 {% if project.generation_status == 'completed' %}
                 <a href="{% url 'infosite:download' project.id %}" class="btn btn-outline-primary">
                     ⬇️ Download ZIP

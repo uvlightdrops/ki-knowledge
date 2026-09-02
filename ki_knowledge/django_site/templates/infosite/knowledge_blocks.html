@@ -244,8 +244,41 @@
 </div>
 
 <script>
-function publishBlocks() {
-  alert("🚀 Knowledge Blocks will be published to the Knowledge Store.\n\nThis feature is coming soon!");
+const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                  document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+
+async function publishBlocks() {
+  if (confirm('Publish all extracted blocks to the Knowledge Store?')) {
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Publishing...';
+    
+    try {
+      const response = await fetch('{% url "infosite:publish_blocks" project.id %}', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Published ${data.blocks_stored} blocks from ${data.files_processed} files!\n\nSource: ${data.source_id}`);
+        // Refresh page after 1 second
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        alert(`❌ Error: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Failed to publish: ${error.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
 }
 
 function exportJSON() {
