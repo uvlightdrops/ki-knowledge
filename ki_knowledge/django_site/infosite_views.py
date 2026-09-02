@@ -55,39 +55,25 @@ def infosite_project_detail(request: HttpRequest, project_id: int):
 @permission_required("django_site.add_infositeproject")
 @require_http_methods(["POST"])
 def infosite_discover_documents(request: HttpRequest, project_id: int):
-    """Discover documents in source directory."""
+    """Discover documents in source directory using DocumentDiscoveryService."""
+    from django.conf import settings
     project = get_object_or_404(InfoSiteProject, id=project_id)
 
-    if not project.source_directory:
-        messages.error(request, "Source directory not configured")
-        return redirect("infosite_project_detail", project_id=project.id)
-
-    source_path = Path(project.source_directory)
-    if not source_path.exists():
-        messages.error(request, f"Source directory not found: {source_path}")
-        return redirect("infosite_project_detail", project_id=project.id)
-
-    # Discover documents
-    registry = DocumentImporterRegistry()
-    found = 0
-
-    for file_path in source_path.rglob("*"):
-        if file_path.is_file():
-            if registry.find_importer(file_path):
-                rel_path = str(file_path.relative_to(source_path))
-                doc, created = SourceDocument.objects.get_or_create(
-                    project=project,
-                    file_path=rel_path,
-                    defaults={
-                        "title": file_path.stem,
-                        "file_type": _get_file_type(file_path),
-                    },
-                )
-                if created:
-                    found += 1
-
-    messages.success(request, f"Discovered {found} document(s)")
-    return redirect("infosite_project_detail", project_id=project.id)
+    # Use new DocumentSyncService for unified discovery
+    from ki_knowledge.services.sync import DocumentSyncService
+    
+    sync_service = DocumentSyncService(settings.KI_CONFIG)
+    discovered, updated, error = sync_service.sync_project_documents(project)
+    
+    if error:
+        messages.error(request, f"Discovery failed: {error}")
+    else:
+        messages.success(
+            request,
+            f"Discovered {discovered} documents ({updated} new)"
+        )
+    
+    return redirect("infosite:project_detail", project_id=project.id)
 
 
 @login_required
@@ -203,31 +189,25 @@ def _get_file_type(file_path: Path) -> str:
 
 @login_required
 def infosite_import_control(request: HttpRequest, project_id: int):
-    """Import control panel for documents."""
+    """Import control panel for documents with import status tracking."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
     
-    # Get all potential documents from source directory
-    available_files = []
-    if project.source_directory:
-        source_path = Path(project.source_directory)
-        if source_path.exists():
-            registry = DocumentImporterRegistry()
-            for file_path in sorted(source_path.rglob("*")):
-                if file_path.is_file() and registry.find_importer(file_path):
-                    rel_path = str(file_path.relative_to(source_path))
-                    doc = project.documents.filter(file_path=rel_path).first()
-                    available_files.append({
-                        "path": rel_path,
-                        "file_type": _get_file_type(file_path),
-                        "size": file_path.stat().st_size,
-                        "imported": doc.imported if doc else False,
-                        "doc_id": doc.id if doc else None,
-                    })
+    # Get all discovered and imported documents
+    discovered = project.documents.filter(import_status="discovered").count()
+    pending = project.documents.filter(import_status="pending").count()
+    imported = project.documents.filter(import_status="imported").count()
+    failed = project.documents.filter(import_status="failed").count()
     
     context = {
         "project": project,
-        "available_files": available_files,
         "documents": project.documents.all(),
+        "stats": {
+            "discovered": discovered,
+            "pending": pending,
+            "imported": imported,
+            "failed": failed,
+            "total": project.documents.count(),
+        },
     }
     return render(request, "infosite/import_control.html", context)
 

@@ -85,3 +85,5 @@ LOGIN_URL = "admin:login"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
+# Ki-core configuration for services
+KI_CONFIG = Config(knowledge_data_root=str(DATA_DIR))

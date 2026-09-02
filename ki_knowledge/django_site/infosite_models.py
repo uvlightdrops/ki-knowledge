@@ -7,8 +7,20 @@ from django.utils import timezone
 class InfoSiteProject(models.Model):
     """Project configuration for infosite generation."""
 
+    SYNC_STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("syncing", "Syncing"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
     title = models.CharField(max_length=255, help_text="Display title for the knowledge base")
     domain = models.CharField(max_length=100, default="default", help_text="Domain/namespace for content")
+    working_title = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Working title/project code (used in discovery: md/<domain>/<working_title>)"
+    )
     description = models.TextField(blank=True, help_text="Description of this knowledge base")
     source_directory = models.CharField(
         max_length=500,
@@ -16,6 +28,28 @@ class InfoSiteProject(models.Model):
         help_text="Path to source documents directory",
     )
     enabled = models.BooleanField(default=True)
+    
+    # Auto-discovery fields
+    auto_discover = models.BooleanField(
+        default=True,
+        help_text="Automatically discover documents from source directory"
+    )
+    sync_status = models.CharField(
+        max_length=20,
+        choices=SYNC_STATUS_CHOICES,
+        default="pending",
+        help_text="Status of the last document sync"
+    )
+    last_sync_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the last document discovery/sync"
+    )
+    last_sync_error = models.TextField(
+        blank=True,
+        help_text="Error message from last failed sync"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_generated = models.DateTimeField(null=True, blank=True)
@@ -39,13 +73,34 @@ class SourceDocument(models.Model):
         ("text", "Text"),
         ("other", "Other"),
     ]
+    
+    IMPORT_STATUS = [
+        ("discovered", "Discovered"),
+        ("pending", "Pending Import"),
+        ("imported", "Imported"),
+        ("failed", "Failed"),
+    ]
 
     project = models.ForeignKey(InfoSiteProject, on_delete=models.CASCADE, related_name="documents")
     file_path = models.CharField(max_length=500, help_text="Path to the document file")
     file_type = models.CharField(max_length=20, choices=FILE_TYPES, default="other")
     title = models.CharField(max_length=255, blank=True)
+    
+    # Size and metadata
+    file_size = models.IntegerField(null=True, blank=True, help_text="File size in bytes")
+    modified_at = models.DateTimeField(null=True, blank=True, help_text="File modification time")
+    
+    # Import tracking
+    import_status = models.CharField(
+        max_length=20,
+        choices=IMPORT_STATUS,
+        default="discovered",
+        help_text="Current import status"
+    )
     imported = models.BooleanField(default=False)
     imported_at = models.DateTimeField(null=True, blank=True)
+    import_error = models.TextField(blank=True, help_text="Error message from last failed import")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
