@@ -1,7 +1,12 @@
 """Django models for Infosite management."""
 
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.utils import timezone
+
+from taggit.managers import TaggableManager
+
+from wagtail.models import DraftStateMixin, RevisionMixin, WorkflowMixin
 
 
 class InfoSiteProject(models.Model):
@@ -97,8 +102,14 @@ class InfoSiteProject(models.Model):
         return f"{self.title} ({self.domain})"
 
 
-class SourceDocument(models.Model):
-    """Source document for infosite generation."""
+class SourceDocument(WorkflowMixin, DraftStateMixin, RevisionMixin, models.Model):
+    """Source document for infosite generation.
+
+    Also registered as a Wagtail snippet (see wagtail_cms/wagtail_hooks.py) so
+    editors get a searchable/filterable listing UI plus optional moderation
+    workflow (draft/live state, revisions, GroupApprovalTask) on top of the
+    canonical discovery/import data below - without duplicating it.
+    """
 
     FILE_TYPES = [
         ("pdf", "PDF"),
@@ -112,6 +123,13 @@ class SourceDocument(models.Model):
         ("pending", "Pending Import"),
         ("imported", "Imported"),
         ("failed", "Failed"),
+    ]
+
+    REVIEW_STATUS = [
+        ("none", "Nicht bewertet"),
+        ("in_review", "In Prüfung"),
+        ("approved", "Freigegeben"),
+        ("rejected", "Abgelehnt"),
     ]
 
     project = models.ForeignKey(InfoSiteProject, on_delete=models.CASCADE, related_name="documents")
@@ -133,9 +151,36 @@ class SourceDocument(models.Model):
     imported = models.BooleanField(default=False)
     imported_at = models.DateTimeField(null=True, blank=True)
     import_error = models.TextField(blank=True, help_text="Error message from last failed import")
-    
+
+    # Editorial fields (Wagtail-Snippet-Layer, additive to the pipeline state above)
+    review_status = models.CharField(
+        max_length=20,
+        choices=REVIEW_STATUS,
+        default="none",
+        help_text="Editorial review/approval status (independent of import_status).",
+    )
+    editor_notes = models.TextField(blank=True, help_text="Freitext-Notizen der Redaktion zu dieser Quelle.")
+    tags = TaggableManager(blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Required for WorkflowMixin/RevisionMixin so moderation history and
+    # revisions are queryable/generic-related back to this model.
+    workflow_states = GenericRelation(
+        "wagtailcore.WorkflowState",
+        content_type_field="base_content_type",
+        object_id_field="object_id",
+        related_query_name="source_document",
+        for_concrete_model=False,
+    )
+    revisions = GenericRelation(
+        "wagtailcore.Revision",
+        content_type_field="base_content_type",
+        object_id_field="object_id",
+        related_query_name="source_document",
+        for_concrete_model=False,
+    )
 
     class Meta:
         verbose_name = "Source Document"
