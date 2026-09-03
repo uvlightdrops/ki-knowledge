@@ -5,6 +5,9 @@ a durable, idempotent SQLite job table that decouples pipeline execution from th
 request/response cycle of Django views. Views only create/read job records; the
 actual extraction+storage work is executed by a separate runner function that can
 be invoked from a view, a management command, or a cron job identically.
+
+The generic connection/schema/status-transition boilerplate lives in
+SqliteJobStoreBase (job_store_base.py), shared with DocumentImportJobStore.
 """
 
 from __future__ import annotations
@@ -14,8 +17,9 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Optional
+
+from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 
 
 @dataclass
@@ -44,43 +48,32 @@ class KnowledgeExtractionJob:
             return {}
 
 
-class KnowledgeExtractionJobStore:
+class KnowledgeExtractionJobStore(SqliteJobStoreBase):
     """SQLite-backed store for knowledge extraction jobs."""
 
-    def __init__(self, db_path: str | Path):
-        self.db_path = Path(db_path).expanduser()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
+    table_name = "knowledge_extraction_jobs"
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _create_table_sql(self) -> str:
+        return f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                job_id TEXT PRIMARY KEY,
+                project_id INTEGER NOT NULL,
+                source_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                files_processed INTEGER DEFAULT 0,
+                blocks_stored INTEGER DEFAULT 0,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                result_json TEXT
+            )
+        """
 
-    def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS knowledge_extraction_jobs (
-                    job_id TEXT PRIMARY KEY,
-                    project_id INTEGER NOT NULL,
-                    source_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    files_processed INTEGER DEFAULT 0,
-                    blocks_stored INTEGER DEFAULT 0,
-                    error_message TEXT,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    completed_at TEXT,
-                    result_json TEXT
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_knowledge_extraction_jobs_project "
-                "ON knowledge_extraction_jobs(project_id)"
-            )
-            conn.commit()
+    def _index_sql(self) -> list[str]:
+        return [
+            f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_project ON {self.table_name}(project_id)"
+        ]
 
     @staticmethod
     def make_job_id(project_id: int, source_id: str) -> str:
@@ -95,7 +88,7 @@ class KnowledgeExtractionJobStore:
 
         with self._connect() as conn:
             existing = conn.execute(
-                "SELECT job_id FROM knowledge_extraction_jobs "
+                f"SELECT job_id FROM {self.table_name} "
                 "WHERE project_id = ? AND status IN ('pending', 'processing') LIMIT 1",
                 (project_id,),
             ).fetchone()
@@ -103,8 +96,8 @@ class KnowledgeExtractionJobStore:
                 return existing["job_id"]
 
             conn.execute(
-                """
-                INSERT INTO knowledge_extraction_jobs (
+                f"""
+                INSERT INTO {self.table_name} (
                     job_id, project_id, source_id, status, created_at
                 ) VALUES (?, ?, ?, 'pending', ?)
                 ON CONFLICT(job_id) DO UPDATE SET
@@ -120,71 +113,27 @@ class KnowledgeExtractionJobStore:
             conn.commit()
         return job_id
 
-    def mark_started(self, job_id: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE knowledge_extraction_jobs SET status = 'processing', started_at = ? WHERE job_id = ?",
-                (now, job_id),
-            )
-            conn.commit()
-
     def mark_done(self, job_id: str, files_processed: int, blocks_stored: int, result: dict[str, Any]) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE knowledge_extraction_jobs
-                SET status = 'done', files_processed = ?, blocks_stored = ?,
-                    completed_at = ?, result_json = ?
-                WHERE job_id = ?
-                """,
-                (files_processed, blocks_stored, now, json.dumps(result, ensure_ascii=False, default=str), job_id),
-            )
-            conn.commit()
-
-    def mark_failed(self, job_id: str, error_message: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE knowledge_extraction_jobs SET status = 'failed', error_message = ?, completed_at = ? "
-                "WHERE job_id = ?",
-                (error_message, now, job_id),
-            )
-            conn.commit()
-
-    def get_job(self, job_id: str) -> Optional[KnowledgeExtractionJob]:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM knowledge_extraction_jobs WHERE job_id = ?", (job_id,)
-            ).fetchone()
-        return self._row_to_job(row) if row else None
+        self._update_fields(
+            job_id,
+            {
+                "status": "done",
+                "files_processed": files_processed,
+                "blocks_stored": blocks_stored,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "result_json": json.dumps(result, ensure_ascii=False, default=str),
+            },
+        )
 
     def list_jobs(
         self, project_id: Optional[int] = None, status: Optional[str] = None, limit: int = 200
     ) -> list[KnowledgeExtractionJob]:
-        query = "SELECT * FROM knowledge_extraction_jobs"
-        clauses = []
-        params: list[Any] = []
-        if project_id is not None:
-            clauses.append("project_id = ?")
-            params.append(project_id)
-        if status:
-            clauses.append("status = ?")
-            params.append(status)
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        with self._connect() as conn:
-            rows = conn.execute(query, params).fetchall()
-        return [self._row_to_job(row) for row in rows]
+        return self._list_jobs({"project_id": project_id, "status": status}, limit=limit)
 
     def list_pending(self, limit: int = 50) -> list[KnowledgeExtractionJob]:
         return self.list_jobs(status="pending", limit=limit)
 
-    @staticmethod
-    def _row_to_job(row: sqlite3.Row) -> KnowledgeExtractionJob:
+    def _row_to_job(self, row: sqlite3.Row) -> KnowledgeExtractionJob:
         return KnowledgeExtractionJob(
             job_id=row["job_id"],
             project_id=row["project_id"],

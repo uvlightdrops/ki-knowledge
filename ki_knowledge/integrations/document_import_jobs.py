@@ -13,6 +13,9 @@ Unlike KnowledgeExtractionJobStore's per-project idempotent job_id, import
 jobs are *not* idempotent by design: each "Import-Job starten" click is a
 distinct, user-initiated batch operation over an explicit document selection,
 so job_id is derived from a random token rather than a stable hash of inputs.
+
+The generic connection/schema/status-transition boilerplate lives in
+SqliteJobStoreBase (job_store_base.py), shared with KnowledgeExtractionJobStore.
 """
 
 from __future__ import annotations
@@ -22,8 +25,9 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
+
+from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 
 
 @dataclass
@@ -49,50 +53,39 @@ class DocumentImportJob:
             return []
 
 
-class DocumentImportJobStore:
+class DocumentImportJobStore(SqliteJobStoreBase):
     """SQLite-backed store for document import jobs."""
 
-    def __init__(self, db_path: str | Path):
-        self.db_path = Path(db_path).expanduser()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
+    table_name = "document_import_jobs"
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _create_table_sql(self) -> str:
+        return f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                job_id TEXT PRIMARY KEY,
+                project_id INTEGER NOT NULL,
+                document_ids_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                documents_requested INTEGER DEFAULT 0,
+                documents_imported INTEGER DEFAULT 0,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT
+            )
+        """
 
-    def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS document_import_jobs (
-                    job_id TEXT PRIMARY KEY,
-                    project_id INTEGER NOT NULL,
-                    document_ids_json TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    documents_requested INTEGER DEFAULT 0,
-                    documents_imported INTEGER DEFAULT 0,
-                    error_message TEXT,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    completed_at TEXT
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_document_import_jobs_project "
-                "ON document_import_jobs(project_id)"
-            )
-            conn.commit()
+    def _index_sql(self) -> list[str]:
+        return [
+            f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_project ON {self.table_name}(project_id)"
+        ]
 
     def create_job(self, project_id: int, document_ids: list[int]) -> str:
         now = datetime.now(timezone.utc).isoformat()
         job_id = f"dimp_{uuid.uuid4().hex[:16]}"
         with self._connect() as conn:
             conn.execute(
-                """
-                INSERT INTO document_import_jobs (
+                f"""
+                INSERT INTO {self.table_name} (
                     job_id, project_id, document_ids_json, status,
                     documents_requested, created_at
                 ) VALUES (?, ?, ?, 'pending', ?, ?)
@@ -102,59 +95,20 @@ class DocumentImportJobStore:
             conn.commit()
         return job_id
 
-    def mark_started(self, job_id: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE document_import_jobs SET status = 'processing', started_at = ? WHERE job_id = ?",
-                (now, job_id),
-            )
-            conn.commit()
-
     def mark_done(self, job_id: str, documents_imported: int) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE document_import_jobs
-                SET status = 'done', documents_imported = ?, completed_at = ?
-                WHERE job_id = ?
-                """,
-                (documents_imported, now, job_id),
-            )
-            conn.commit()
-
-    def mark_failed(self, job_id: str, error_message: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE document_import_jobs SET status = 'failed', error_message = ?, completed_at = ? "
-                "WHERE job_id = ?",
-                (error_message, now, job_id),
-            )
-            conn.commit()
-
-    def get_job(self, job_id: str) -> Optional[DocumentImportJob]:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM document_import_jobs WHERE job_id = ?", (job_id,)
-            ).fetchone()
-        return self._row_to_job(row) if row else None
+        self._update_fields(
+            job_id,
+            {
+                "status": "done",
+                "documents_imported": documents_imported,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
     def list_jobs(self, project_id: Optional[int] = None, limit: int = 200) -> list[DocumentImportJob]:
-        query = "SELECT * FROM document_import_jobs"
-        params: list[Any] = []
-        if project_id is not None:
-            query += " WHERE project_id = ?"
-            params.append(project_id)
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        with self._connect() as conn:
-            rows = conn.execute(query, params).fetchall()
-        return [self._row_to_job(row) for row in rows]
+        return self._list_jobs({"project_id": project_id}, limit=limit)
 
-    @staticmethod
-    def _row_to_job(row: sqlite3.Row) -> DocumentImportJob:
+    def _row_to_job(self, row: sqlite3.Row) -> DocumentImportJob:
         return DocumentImportJob(
             job_id=row["job_id"],
             project_id=row["project_id"],

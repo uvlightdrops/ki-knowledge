@@ -1,4 +1,12 @@
-"""Batch processing for PDF imports with job tracking."""
+"""Batch processing for PDF imports with job tracking.
+
+Shares its generic SQLite connection/schema/status-transition boilerplate
+with KnowledgeExtractionJobStore and DocumentImportJobStore via
+SqliteJobStoreBase (job_store_base.py). `start_job`/`fail_job`/`complete_job`
+are this module's original (pre-unification) method names, kept as thin
+wrappers around the shared base so existing callers (views, CLI commands,
+tests) don't need to change.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from ki_core.config import Config
+from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf
 from ki_knowledge.integrations.pdf_paths import pdf_relative_source_path, pdf_source_id
@@ -37,45 +46,39 @@ class PDFImportJob:
     result_json: str | None = None
 
 
-class PDFBatchProcessor:
+class PDFBatchProcessor(SqliteJobStoreBase):
     """Manages PDF import jobs with progress tracking."""
 
-    def __init__(self, db_path: str | Path):
-        self.db_path = Path(db_path).expanduser()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
+    table_name = "pdf_import_jobs"
 
-    def _init_db(self):
-        """Create tables if they don't exist."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS pdf_import_jobs (
-                    job_id TEXT PRIMARY KEY,
-                    pdf_path TEXT NOT NULL,
-                    domain TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    pages_total INTEGER DEFAULT 0,
-                    pages_processed INTEGER DEFAULT 0,
-                    error_message TEXT,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    completed_at TEXT,
-                    source_id TEXT,
-                    artifact_id TEXT,
-                    content_preview TEXT,
-                    result_json TEXT
-                )
-            """)
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(pdf_import_jobs)").fetchall()}
-            for column_name, column_sql in {
-                "source_id": "TEXT",
-                "artifact_id": "TEXT",
-                "content_preview": "TEXT",
-                "result_json": "TEXT",
-            }.items():
-                if column_name not in columns:
-                    conn.execute(f"ALTER TABLE pdf_import_jobs ADD COLUMN {column_name} {column_sql}")
-            conn.commit()
+    def _create_table_sql(self) -> str:
+        return f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                job_id TEXT PRIMARY KEY,
+                pdf_path TEXT NOT NULL,
+                domain TEXT NOT NULL,
+                status TEXT NOT NULL,
+                pages_total INTEGER DEFAULT 0,
+                pages_processed INTEGER DEFAULT 0,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                source_id TEXT,
+                artifact_id TEXT,
+                content_preview TEXT,
+                result_json TEXT
+            )
+        """
+
+    def _extra_columns(self) -> dict[str, str]:
+        # Additive columns for on-disk databases created before these existed.
+        return {
+            "source_id": "TEXT",
+            "artifact_id": "TEXT",
+            "content_preview": "TEXT",
+            "result_json": "TEXT",
+        }
 
     def create_job(self, pdf_path: str | Path, domain: str = "default") -> str:
         """Create a new PDF import job. Returns job_id."""
@@ -99,13 +102,13 @@ class PDFBatchProcessor:
         except Exception:
             pages_total = 0
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             existing = conn.execute(
                 "SELECT job_id FROM pdf_import_jobs WHERE domain = ? AND pdf_path = ? AND status IN ('pending', 'processing') LIMIT 1",
                 (normalized_domain, normalized_path),
             ).fetchone()
             if existing:
-                return existing[0]
+                return existing["job_id"]
 
             conn.execute(
                 """
@@ -119,17 +122,6 @@ class PDFBatchProcessor:
 
         return job_id
 
-    def get_job(self, job_id: str) -> PDFImportJob | None:
-        """Retrieve job status."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM pdf_import_jobs WHERE job_id = ?", (job_id,)
-            ).fetchone()
-            if row:
-                return self._row_to_job(row)
-        return None
-
     def list_jobs(self, domain: str | None = None, status: str | None = None) -> list[PDFImportJob]:
         """List all jobs, optionally filtered by domain and/or status."""
         query = "SELECT * FROM pdf_import_jobs WHERE 1=1"
@@ -142,42 +134,23 @@ class PDFBatchProcessor:
             params.append(status)
         query += " ORDER BY created_at DESC"
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
             return [self._row_to_job(row) for row in rows]
 
+    # -- status transitions (original method names, delegating to the shared base) --
+
     def start_job(self, job_id: str) -> None:
         """Mark job as processing."""
-        now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                UPDATE pdf_import_jobs
-                SET status = 'processing', started_at = ?
-                WHERE job_id = ?
-            """, (now, job_id))
-            conn.commit()
+        self.mark_started(job_id)
 
     def update_progress(self, job_id: str, pages_processed: int) -> None:
         """Update page processing progress."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                UPDATE pdf_import_jobs
-                SET pages_processed = ?
-                WHERE job_id = ?
-            """, (pages_processed, job_id))
-            conn.commit()
+        self._update_fields(job_id, {"pages_processed": pages_processed})
 
     def complete_job(self, job_id: str) -> None:
         """Mark job as completed."""
-        now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                UPDATE pdf_import_jobs
-                SET status = 'done', completed_at = ?
-                WHERE job_id = ?
-            """, (now, job_id))
-            conn.commit()
+        self._update_fields(job_id, {"status": "done", "completed_at": datetime.now(timezone.utc).isoformat()})
 
     def update_result_metadata(
         self,
@@ -189,39 +162,17 @@ class PDFBatchProcessor:
         result_json: str | None = None,
     ) -> None:
         """Persist the source/artifact details for a job."""
-        updates: list[str] = []
-        params: list[str] = []
-        if source_id is not None:
-            updates.append("source_id = ?")
-            params.append(source_id)
-        if artifact_id is not None:
-            updates.append("artifact_id = ?")
-            params.append(artifact_id)
-        if content_preview is not None:
-            updates.append("content_preview = ?")
-            params.append(content_preview)
-        if result_json is not None:
-            updates.append("result_json = ?")
-            params.append(result_json)
-        if not updates:
-            return
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                f"UPDATE pdf_import_jobs SET {', '.join(updates)} WHERE job_id = ?",
-                [*params, job_id],
-            )
-            conn.commit()
+        fields = {
+            "source_id": source_id,
+            "artifact_id": artifact_id,
+            "content_preview": content_preview,
+            "result_json": result_json,
+        }
+        self._update_fields(job_id, {k: v for k, v in fields.items() if v is not None})
 
     def fail_job(self, job_id: str, error_message: str) -> None:
         """Mark job as failed."""
-        now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                UPDATE pdf_import_jobs
-                SET status = 'failed', error_message = ?, completed_at = ?
-                WHERE job_id = ?
-            """, (error_message, now, job_id))
-            conn.commit()
+        self.mark_failed(job_id, error_message)
 
     def process_job(
         self,
@@ -340,7 +291,7 @@ class PDFBatchProcessor:
         now = datetime.now(timezone.utc)
         threshold_seconds = max(0, int(timeout_seconds))
         timed_out = 0
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             rows = conn.execute(
                 "SELECT job_id, started_at FROM pdf_import_jobs WHERE status = 'processing' AND (? - strftime('%s', started_at)) > ?",
                 (now.timestamp(), threshold_seconds),
@@ -366,8 +317,6 @@ class PDFBatchProcessor:
                     keep = job_ids[0]
                     for stale_job_id in job_ids[1:]:
                         conn.execute("DELETE FROM pdf_import_jobs WHERE job_id = ?", (stale_job_id,))
-        conn = sqlite3.connect(self.db_path)
-        conn.close()
         return {"timed_out": timed_out, "duplicate_pending_removed": 0}
 
     def process_pending_jobs(self, domain: str | None = None, timeout_seconds: int = 600, callback: callable | None = None) -> dict[str, int]:
@@ -406,8 +355,7 @@ class PDFBatchProcessor:
         skipped_missing = 0
         normalized_domain = (domain or "").strip() or None
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self._connect() as conn:
             for job_id in job_ids:
                 row = conn.execute("SELECT job_id, domain, status FROM pdf_import_jobs WHERE job_id = ?", (job_id,)).fetchone()
                 if row is None:
