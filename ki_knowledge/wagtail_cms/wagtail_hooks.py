@@ -11,11 +11,37 @@ editorial view/workflow on top.
 
 from __future__ import annotations
 
+from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
+
+from wagtail import hooks
+from wagtail.admin.menu import MenuItem
 from wagtail.admin.panels import FieldPanel
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet
 
 from ki_knowledge.django_site.infosite_models import GeneratedDocument, SourceDocument
+
+
+@hooks.register("register_admin_menu_item")
+def register_back_to_main_site_menu_item():
+    """Add an explicit "back to main site" link at the top of the Wagtail
+    admin menu.
+
+    The ki-knowledge main site (dashboard, data sources, knowledge, output
+    areas) is a separate Django app mounted alongside Wagtail, not served
+    through the Wagtail page tree - so Wagtail has no built-in "view site"
+    link that makes sense here. Without this, editors have no obvious way
+    back to the main app from inside /cms-admin/.
+    """
+
+    return MenuItem(
+        _("🏠 Zur Hauptseite"),
+        reverse("dashboard"),
+        name="back-to-main-site",
+        icon_name="home",
+        order=-100,
+    )
 
 
 class SourceDocumentViewSet(SnippetViewSet):
