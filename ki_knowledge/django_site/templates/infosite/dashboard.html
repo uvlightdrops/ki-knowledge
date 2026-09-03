@@ -3,165 +3,162 @@
 
 {% block title %}Infosite Dashboard{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-    <h1>📚 Knowledge Presentation (Infosite)</h1>
-
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="card-title">Total Projects</h6>
-                    <h2>{{ stats.total_projects }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="card-title">Enabled</h6>
-                    <h2>{{ stats.enabled_projects }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="card-title">Total Documents</h6>
-                    <h2>{{ stats.total_documents }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="card-title">Imported</h6>
-                    <h2>{{ stats.imported_documents }}</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">📋 Projects & Management</h5>
-            <a href="/admin/django_site/infositeproject/add/" class="btn btn-sm btn-primary">
-                ➕ New Project
-            </a>
-        </div>
-        <div class="card-body">
-            {% if projects %}
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Title</th>
-                        <th>Domain</th>
-                        <th style="text-align: center;">Docs</th>
-                        <th>Status</th>
-                        <th>Last Generated</th>
-                        <th style="text-align: center;">Quick Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for project in projects %}
-                    <tr>
-                        <td>
-                            <strong>{{ project.title }}</strong>
-                        </td>
-                        <td><code>{{ project.domain }}</code></td>
-                        <td style="text-align: center;">
-                            <span class="badge bg-info">
-                                {{ project.documents.all|length }}
-                            </span>
-                        </td>
-                        <td>
-                            {% if project.enabled %}
-                            <span class="badge bg-success">✓ Enabled</span>
-                            {% else %}
-                            <span class="badge bg-secondary">✗ Disabled</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if project.last_generated %}
-                            <small>{{ project.last_generated|date:"Y-m-d H:i" }}</small>
-                            {% else %}
-                            <small class="text-muted">Never</small>
-                            {% endif %}
-                        </td>
-                        <td style="text-align: center;">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <a href="{% url 'infosite:import_control' project.id %}" 
-                                   class="btn btn-outline-primary" title="Import Documents">
-                                   📥
-                                </a>
-                                <a href="{% url 'infosite:ai_refine' project.id %}" 
-                                   class="btn btn-outline-warning" title="AI Refinement">
-                                   ✨
-                                </a>
-                                <a href="{% url 'infosite:project_detail' project.id %}" 
-                                   class="btn btn-outline-info" title="Full Management">
-                                   ⚙️
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            
-            <div class="alert alert-info mt-3 mb-0">
-                <strong>💡 Quick Navigation:</strong>
-                <ul class="mb-0">
-                    <li>📥 Icon: Import Control Panel (Manage input documents)</li>
-                    <li>✨ Icon: AI Refinement (Improve markdown content with AI)</li>
-                    <li>⚙️ Icon: Full Management (All project options)</li>
-                </ul>
-            </div>
-            {% else %}
-            <p class="text-muted">No projects yet. <a href="/admin/django_site/infositeproject/add/">Create one</a></p>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">📥 Document Import Workflow</h5>
-                </div>
-                <div class="card-body">
-                    <ol>
-                        <li>Click <strong>📥</strong> button to open Import Control</li>
-                        <li>Select files from source directory</li>
-                        <li>Click "Import Selected Files"</li>
-                        <li>Documents are now in your project</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">✨ AI Refinement Workflow</h5>
-                </div>
-                <div class="card-body">
-                    <ol>
-                        <li>Click <strong>✨</strong> button to open AI Refinement</li>
-                        <li>Select markdown files to improve</li>
-                        <li>Choose refinement mode (Improve/Restructure/Summarize/All)</li>
-                        <li>Click "Apply AI Refinements"</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
+{% block extra_css %}
 <style>
-.btn-group-sm .btn {
-    font-size: 1.2rem;
-    padding: 0.25rem 0.5rem;
-}
+  .stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--kicli-panel);
+    border: 1px solid var(--kicli-border);
+    border-radius: var(--kicli-radius-md);
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card .value { font-size: 1.8em; font-weight: bold; color: #60a5fa; }
+  .stat-card .label { font-size: 0.85rem; color: var(--kicli-text-soft); margin-top: 4px; }
+
+  .card-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 8px 14px;
+    border: 1px solid var(--kicli-border);
+    background: var(--kicli-panel-alt);
+    color: var(--kicli-text);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  .btn:hover { border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+  .btn-primary { background: rgba(96, 165, 250, 0.2); border-color: #60a5fa; color: #93c5fd; }
+  .btn-primary:hover { background: rgba(96, 165, 250, 0.3); }
+  .btn-sm { padding: 4px 8px; font-size: 1rem; }
+
+  .quick-actions { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+
+  .workflow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+  <h1>📚 Knowledge Presentation (Infosite)</h1>
+
+  <div class="stats-cards">
+    <div class="stat-card"><div class="value">{{ stats.total_projects }}</div><div class="label">Projekte</div></div>
+    <div class="stat-card"><div class="value">{{ stats.enabled_projects }}</div><div class="label">Aktiviert</div></div>
+    <div class="stat-card"><div class="value">{{ stats.total_documents }}</div><div class="label">Dokumente</div></div>
+    <div class="stat-card"><div class="value">{{ stats.imported_documents }}</div><div class="label">Importiert</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header card-header-row">
+      <span>📋 Projekte & Verwaltung</span>
+      <a href="/admin/django_site/infositeproject/add/" class="btn btn-primary">➕ Neues Projekt</a>
+    </div>
+
+    {% if projects %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Titel</th>
+            <th>Domain</th>
+            <th style="text-align: center;">Docs</th>
+            <th>Status</th>
+            <th>Zuletzt generiert</th>
+            <th style="text-align: center;">Schnellzugriff</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for project in projects %}
+          <tr>
+            <td><strong>{{ project.title }}</strong></td>
+            <td><code>{{ project.domain }}</code></td>
+            <td style="text-align: center;">
+              <span class="chip">{{ project.documents.all|length }}</span>
+            </td>
+            <td>
+              {% if project.enabled %}
+                <span class="badge badge-success">✓ Aktiviert</span>
+              {% else %}
+                <span class="badge">✗ Deaktiviert</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if project.last_generated %}
+                <span class="muted">{{ project.last_generated|date:"Y-m-d H:i" }}</span>
+              {% else %}
+                <span class="muted">Nie</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="quick-actions">
+                <a href="{% url 'infosite:project_detail' project.id %}?status=discovered"
+                   class="btn btn-sm" title="Zu den gefundenen Dokumenten">🔍</a>
+                <a href="{% url 'infosite:import_control' project.id %}"
+                   class="btn btn-sm" title="Import-Kontrolle">📥</a>
+                <a href="{% url 'infosite:ai_refine' project.id %}"
+                   class="btn btn-sm" title="KI-Verfeinerung">✨</a>
+                <a href="{% url 'infosite:project_detail' project.id %}"
+                   class="btn btn-sm" title="Vollständige Verwaltung">⚙️</a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="alert alert-info section">
+      <strong>💡 Schnellnavigation:</strong>
+      <ul style="margin: 8px 0 0 0;">
+        <li>🔍 Zu den gefundenen Dokumenten (Discovery-Status im Projekt)</li>
+        <li>📥 Import-Kontrolle (Quelldokumente auswählen & Import-Job starten)</li>
+        <li>✨ KI-Verfeinerung (Markdown-Inhalte mit KI verbessern)</li>
+        <li>⚙️ Vollständige Verwaltung (Alle Projektoptionen)</li>
+      </ul>
+    </div>
+    {% else %}
+    <p class="muted">Noch keine Projekte. <a href="/admin/django_site/infositeproject/add/">Eines erstellen</a></p>
+    {% endif %}
+  </div>
+
+  <div class="workflow-grid">
+    <div class="card">
+      <div class="card-header">📥 Dokument-Import-Workflow</div>
+      <ol>
+        <li>🔍 <strong>Zu den gefundenen Dokumenten</strong> öffnen, um den Discovery-Status zu prüfen</li>
+        <li>📥 <strong>Import-Kontrolle</strong> öffnen und Dateien auswählen</li>
+        <li>"▶️ Import-Job starten" klicken</li>
+        <li>Job-Historie einsehen, um den Verlauf zu prüfen</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-header">✨ KI-Verfeinerungs-Workflow</div>
+      <ol>
+        <li>✨ Button öffnet die KI-Verfeinerung</li>
+        <li>Markdown-Dateien zur Verbesserung auswählen</li>
+        <li>Modus wählen (Improve/Restructure/Summarize/All)</li>
+        <li>"Refinements anwenden" klicken</li>
+      </ol>
+    </div>
+  </div>
+</div>
 {% endblock %}

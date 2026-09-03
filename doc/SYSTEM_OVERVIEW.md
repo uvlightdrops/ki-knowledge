@@ -143,38 +143,51 @@
 
 ---
 
-### 4. **InfoSite** (Knowledge Presentation) 🚀 **CURRENTLY REFACTORING**
+### 4. **InfoSite** (Knowledge Presentation) ✅ **Implemented, Wagtail migration in progress**
 
 **Purpose:** Generate browsable, markdown-based knowledge presentations
 
-**Input:** Source documents from `md/<domain>/<working_title>/`  
+**Input:** Source documents from `md/<domain>/<working_title>/`, abstracted behind a canonical
+`DataSource`/`InfoSiteSourceAdapter` layer (`ki_knowledge/knowledge/adapters.py`) so markdown, PDF,
+and future source kinds share one discovery/import/path-resolution implementation.
 **Output:** Structured markdown in `data_out/<domain>/<working_title>/`
 
-**Phases:**
+**Phases (completed, in migration order):**
 
-**Phase 1: Foundation (NOW - Ready to implement)**
+**Phase 1: Foundation** ✅
 - [x] Auto-discover source documents
-- [x] Track in Django DB (models created)
-- [ ] Display discovered documents in UI
-- [ ] Implement project management views
-- [ ] Link import workflow
+- [x] Track in Django DB (`SourceDocument`, `InfoSiteProject`)
+- [x] Display discovered documents in UI (`project_detail` view, `?status=discovered` filter)
+- [x] Implement project management views (list/detail/create/edit/delete)
+- [x] Link import workflow (Import Control panel)
 
-**Phase 2: Generation (Next)**
-- [ ] Run InfoSiteGenerator service
-- [ ] Track generation status
-- [ ] Preview generated output
-- [ ] Versioning (v1-original baseline)
+**Phase 2: Generation** ✅
+- [x] Run `InfoSiteGenerator` service
+- [x] Track generation status
+- [x] Preview generated output (`document_preview.html`)
+- [x] Versioning (`infosite_versions` view)
 
-**Phase 3: AI Refinement (Later)**
-- [ ] Integrate ki-core AIClient
-- [ ] Implement refinement modes
-- [ ] Store refined versions
+**Phase 3: AI Refinement** ✅
+- [x] Integrate ki-core `AIClient`
+- [x] Implement refinement modes (Improve/Restructure/Summarize/All)
+- [x] Store refined versions
 
-**Phase 4: Advanced (Future)**
-- [ ] Link to knowledge blocks
+**Phase 4: Advanced / Ongoing Hardening**
+- [x] Link to knowledge blocks (semantic extraction → `KnowledgeBlock` publish pipeline, domain "anthro")
+- [x] Canonical `DataSource` abstraction unifying md/PDF handling
+- [x] Wagtail CMS parallel layer (page models mirror `InfoSiteProject`/`SourceDocument` for gradual cutover)
+- [x] Decoupled, job-tracked pipelines: `pipeline_runner.py` (knowledge extraction) and
+      `import_runner.py` (document import), both backed by SQLite job-history stores
+      (`~/.ki-knowledge/pipeline_jobs.db`), mirroring each other's `enqueue_*`/`run_*_job`/`enqueue_and_run_*` API
+- [x] `generate_test_corpus` management command for procedurally generating large synthetic markdown
+      corpora (no copyright risk) for volume/UI testing
+- [x] Import workflow UX pass: relative (data-root-based) path display, explicit
+      "Import-Job starten" action with job history page, hover/arrow-key preview panel reading raw
+      source documents (distinct from the generated-output preview), dashboard "🔍 Zu den gefundenen
+      Dokumenten" quick link
 - [ ] Graph-based navigation
 - [ ] Collaborative editing
-- [ ] Version history viewing
+- [ ] Full Wagtail cutover (currently a parallel/opt-in layer, not yet the primary write path)
 
 **Key Files:**
 - `ki_knowledge/django_site/infosite_models.py` - Models
@@ -182,9 +195,12 @@
 - `ki_knowledge/django_site/infosite_urls.py` - Routing
 - `ki_knowledge/django_site/infosite_admin.py` - Admin
 - `ki_knowledge/infosite/` - Core generator logic
+- `ki_knowledge/knowledge/adapters.py` - Canonical `DataSource`/path-resolution adapter
+- `ki_knowledge/services/pipeline_runner.py`, `ki_knowledge/services/import_runner.py` - Job-tracked pipelines
+- `ki_knowledge/django_site/management/commands/generate_test_corpus.py` - Synthetic test-corpus generator
 - URL: `/infosite/`
 
-**Status:** 🚧 Under refactoring (see INFOSITE_ARCHITECTURE.md)
+**Status:** ✅ Implemented and in active use; Wagtail cutover and content-model matrix work ongoing.
 
 ---
 
@@ -361,87 +377,49 @@ commands:
 
 ## Infosite Roadmap
 
-### Phase 1: Architecture & Auto-Discovery ✅ Ready to implement
+> **Status:** Phases 1–3 below are complete; see [Feature Taxonomy → InfoSite](#4-infosite-knowledge-presentation--implemented-wagtail-migration-in-progress)
+> for the up-to-date phase-by-phase checklist. This section is kept as a historical record of the
+> original plan plus the follow-on architecture work that has since landed.
 
-**Goals:**
-- Unify document discovery logic (reusable for Data Sources + Infosite)
-- Auto-find source documents in `md/<domain>/<working_title>/`
-- Display discovered documents in UI with sync status
+### Phase 1: Architecture & Auto-Discovery ✅ Done
 
-**Tasks:**
-1. Create `DocumentDiscoveryService` (unified file finder)
-   - `find_infosite_documents(domain, working_title)`
-   - Returns: list of `FileInfo(path, name, type, size, mtime)`
+Delivered as planned: `DocumentDiscoveryService`/`DocumentSyncService` (`ki_knowledge/services/discovery.py`,
+`ki_knowledge/services/sync.py`), `SourceDocument`/`InfoSiteProject` models, project list/detail/edit views,
+and the import workflow (discover → select → import).
 
-2. Update `SourceDocument` model
-   - Add `source_file_path` field
-   - Add `last_sync_at` timestamp
-   - Add `auto_discovered` boolean
+### Phase 2: Generation & Versioning ✅ Done
 
-3. Implement InfoSite project views
-   - Dashboard (project list)
-   - Project detail (with discovered documents)
-   - Project edit (name, domain, description)
+`InfoSiteGenerator` is wired into the web UI (`infosite_generate`/`infosite_preview`/`infosite_versions`
+views); output lands in `data_out/<domain>/<working_title>/` with version tracking.
 
-4. Create import workflow
-   - Display discovered files
-   - Select files to import
-   - Run import → sync to SourceDocument
+### Phase 3: AI Refinement ✅ Done
 
-**Files to create/modify:**
-- `ki_knowledge/services/discovery.py` (new)
-- `ki_knowledge/django_site/infosite_models.py` (update)
-- `ki_knowledge/django_site/infosite_views.py` (expand)
-- `ki_knowledge/django_site/templates/infosite/project_list.html` (new)
-- `ki_knowledge/django_site/templates/infosite/project_detail.html` (new)
+ki-core `AIClient` integration, refinement modes (Improve/Restructure/Summarize/All), and refined-version
+storage are implemented (`infosite_ai_refine`, `infosite_ai_refine_apply`).
 
-**Test case:**
-- Domain: `anthro`
-- Working title: `sstk`
-- Source directory: `md/anthro/sstk/bg/` (symlinked)
-- Expected files: ~8 directories with .md content
+### Phase 4: Advanced Features — partially done, ongoing
 
----
+Completed beyond the original scope:
+- **Canonical `DataSource` abstraction** (`ki_knowledge/knowledge/adapters.py`) — markdown and PDF
+  sources share one discovery/path-resolution/import implementation instead of format-specific code paths.
+- **Knowledge block linking** — semantic extraction pipeline publishes `KnowledgeBlock` records
+  (domain `anthro`) from InfoSite source documents; see `knowledge_blocks.md`.
+- **Wagtail CMS parallel layer** — Wagtail page models mirror the InfoSite project/document
+  structure to enable a gradual, low-risk cutover to Wagtail-native content workflows rather than a
+  big-bang rewrite.
+- **Decoupled, job-tracked pipelines** — both knowledge extraction (`pipeline_runner.py`) and
+  document import (`import_runner.py`) run as tracked jobs with SQLite-backed history and dedicated
+  job-list UI pages, instead of synchronous, un-auditable inline operations.
+- **Import workflow UX hardening** — relative path display, explicit "Import-Job starten" action,
+  hover/arrow-key source preview panel, dashboard quick-links to discovered documents.
+- **`generate_test_corpus` tool** — procedurally generates synthetic markdown corpora for
+  volume/UI testing without copyright risk.
 
-### Phase 2: Generation & Versioning
-
-**Goals:**
-- Run InfoSiteGenerator from web UI
-- Create output in `data_out/<domain>/<working_title>/`
-- Track generation status and versions
-
-**Tasks:**
-- Integrate `ki_knowledge.infosite.InfoSiteGenerator`
-- Add generation workflow view
-- Track output status in DB
-- Implement version management
-
----
-
-### Phase 3: AI Refinement
-
-**Goals:**
-- Enhance generated markdown with AI
-- Support multiple refinement modes
-
-**Tasks:**
-- Integrate ki-core AIClient
-- Implement refinement UI
-- Store refined versions
-
----
-
-### Phase 4: Advanced Features
-
-**Goals:**
-- Link to knowledge blocks
-- Graph-based navigation
-- Version history & diff viewing
-
-**Tasks:**
-- Create knowledge block linker
-- Build graph visualization
-- Implement diff viewer
+Still open / not yet done:
+- Graph-based navigation across knowledge blocks
+- Collaborative editing
+- Full Wagtail cutover (currently opt-in/parallel, not the primary write path)
+- Broader rollout of the content-model matrix across all domains
 
 ---
 
@@ -484,21 +462,26 @@ commands:
 - Database migrations
 - Authentication (Login via Admin)
 - Menu integration (Infosite link in nav)
-- InfoSiteGenerator service (ki_knowledge.infosite)
-- AI refinement modes (Improve, Restructure, Summarize)
+- Document auto-discovery & sync services (`discovery.py`, `sync.py`)
+- Project management views (list/detail/edit/delete, discovered-status filter)
+- Import workflow with job tracking (`import_runner.py`, import job history UI)
+- InfoSiteGenerator service (ki_knowledge.infosite) + generation/preview/versioning views
+- AI refinement modes (Improve, Restructure, Summarize, All)
+- Knowledge block extraction & publishing pipeline (job-tracked, domain `anthro`)
+- Canonical `DataSource`/`InfoSiteSourceAdapter` abstraction (unifies md/PDF handling)
+- Wagtail CMS parallel layer (page models mirroring InfoSite structures)
+- `generate_test_corpus` management command for synthetic test data
+- Import-control UI overhaul: relative path display, hover/arrow-key source preview,
+  dashboard "discovered documents" quick link
 
-### 🚧 In Progress (Phase 1)
-- Document auto-discovery service
-- Project management views
-- Document display in UI
-- Import workflow integration
+### 🚧 In Progress
+- Gradual Wagtail cutover (parallel layer exists; not yet the primary write path)
+- Content-model matrix rollout across domains beyond `anthro`
 
-### ⏳ Pending (Phase 2+)
-- Generation workflow
-- Output preview
-- Version tracking
-- Knowledge block linking
-- Advanced versioning
+### ⏳ Pending
+- Graph-based navigation across knowledge blocks
+- Collaborative editing
+- Diff viewer for versioned content
 
 ---
 
