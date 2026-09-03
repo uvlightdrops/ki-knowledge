@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from ki_core.adapters.ollama import OllamaClient
 from ki_core.config import Config
+from ki_knowledge.config_runtime import jira_cache_db_path, jira_csv_path, jira_graph_db_path, knowledge_data_root
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFEmbeddingProvider
 from ki_knowledge.integrations.jira_assistant import JiraSupportAssistant
 from ki_knowledge.integrations.jira_cache import JiraIssueCache
@@ -19,24 +20,19 @@ from ki_knowledge.integrations.jira_graph import JiraKnowledgeGraph
 
 
 def _knowledge_root(config: Config) -> Path:
-    if config.knowledge_data_root:
-        return Path(config.knowledge_data_root).expanduser()
-    legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
-    if legacy_root:
-        return Path(legacy_root).expanduser()
-    return Path.home() / "dev_data" / "ki-knowledge"
+    return knowledge_data_root(config)
 
 
 def _jira_csv_path(config: Config) -> str:
-    return os.getenv("JIRA_CSV_PATH", str(_knowledge_root(config) / "jira" / "default" / "issues.csv")).strip()
+    return str(jira_csv_path(config)).strip()
 
 
 def _jira_cache_db(config: Config) -> str:
-    return os.getenv("JIRA_CACHE_DB", config.knowledge_cache_db or str(_knowledge_root(config) / ".jira_cache.sqlite")).strip()
+    return str(jira_cache_db_path(config)).strip()
 
 
 def _jira_graph_db(config: Config) -> str:
-    return os.getenv("JIRA_GRAPH_DB", config.knowledge_graph_db or str(_knowledge_root(config) / ".jira_graph.sqlite")).strip()
+    return str(jira_graph_db_path(config)).strip()
 
 
 def _jira_embed_model(config: Config) -> str:
@@ -46,7 +42,7 @@ def _jira_embed_model(config: Config) -> str:
 def run_support_chat() -> None:
     config = Config.from_env()
     use_ollama = (
-        os.getenv("USE_OLLAMA", "").lower() in ("1", "true", "yes")
+        os.getenv("KI_LLM_USE_OLLAMA", "").lower() in ("1", "true", "yes")
         or not config.ki_api_key
         or not config.ki_base_url
         or config.ki_api_key in ("your-api-key-here", "dummy", "fake")

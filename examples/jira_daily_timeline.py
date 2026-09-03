@@ -12,19 +12,15 @@ if str(PROJECT_ROOT) not in sys.path:
 from ki_knowledge.integrations.jira_cache import JiraIssueCache
 from ki_knowledge.integrations.jira_csv import JiraCSVImporter
 from ki_core.config import Config
+from ki_knowledge.config_runtime import jira_cache_db_path, jira_csv_path, knowledge_data_root
 
 
 def _knowledge_root(config: Config) -> Path:
-    if config.knowledge_data_root:
-        return Path(config.knowledge_data_root).expanduser()
-    legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
-    if legacy_root:
-        return Path(legacy_root).expanduser()
-    return Path.home() / "dev_data" / "ki-knowledge"
+    return knowledge_data_root(config)
 
 
 def _jira_csv_path(config: Config) -> str:
-    return os.getenv("JIRA_CSV_PATH", str(_knowledge_root(config) / "jira" / "default" / "issues.csv")).strip()
+    return str(jira_csv_path(config)).strip()
 
 
 def build_daily_timeline() -> None:
@@ -32,10 +28,7 @@ def build_daily_timeline() -> None:
     csv_path = _jira_csv_path(config)
     csv_encoding = os.getenv("JIRA_CSV_ENCODING", "utf-8-sig").strip() or "utf-8-sig"
     csv_delimiter = os.getenv("JIRA_CSV_DELIMITER", "").strip() or None
-    cache_db = os.getenv(
-        "JIRA_CACHE_DB",
-        config.knowledge_cache_db or str(_knowledge_root(config) / ".jira_cache.sqlite"),
-    ).strip()
+    cache_db = str(jira_cache_db_path(config)).strip()
     limit_days = int(os.getenv("JIRA_TIMELINE_DAYS", "14"))
 
     if not csv_path:

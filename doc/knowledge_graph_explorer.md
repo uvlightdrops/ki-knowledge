@@ -13,9 +13,9 @@ Build and inspect the knowledge graph from imported sources (CSV, Markdown, PDFs
 
 ## Environment Variables
 
-- `KI_DATA_ROOT` – Data directory
-- `KI_CACHE_DB` – SQLite cache path
-- `KI_GRAPH_DB` – Graph database path
+- `KNOWLEDGE_DATA_ROOT` – Data directory
+- `KNOWLEDGE_CACHE_DB` – SQLite cache path
+- `KNOWLEDGE_GRAPH_DB` – Graph database path
 - Optional: `KI_GRAPH_CYPHER_PATH` – Export location
 
 ## Usage

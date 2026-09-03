@@ -60,7 +60,7 @@ def test_default_markdown_directory_prefers_existing_data_dirs(monkeypatch, tmp_
     home_dir = tmp_path / "home"
     data_dir = home_dir / "dev_data" / "kicli"
     data_dir.mkdir(parents=True)
-    monkeypatch.delenv("KNOWLEDGE_MARKDOWN_DIR", raising=False)
+    monkeypatch.delenv("KNOWLEDGE_MARKDOWN_ROOT", raising=False)
     monkeypatch.setenv("HOME", str(home_dir))
 
     from ki_knowledge.ui.knowledge_api_client import default_markdown_directory

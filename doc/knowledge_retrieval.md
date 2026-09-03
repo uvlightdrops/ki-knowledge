@@ -93,14 +93,14 @@ All tools use the same base configuration:
 # ~/.env or export these:
 
 # Data location
-KICLI_DATA_ROOT=~/dev_data/ki-knowledge
+KNOWLEDGE_DATA_ROOT=~/dev_data/ki-knowledge
 
 # Cache and graph databases
-KI_CACHE_DB=~/.ki_cache.sqlite
-KI_GRAPH_DB=~/.ki_graph.sqlite
+KNOWLEDGE_CACHE_DB=~/.ki_cache.sqlite
+KNOWLEDGE_GRAPH_DB=~/.ki_graph.sqlite
 
 # Embeddings (optional, fallback to TF-IDF)
-KI_EMBED_MODEL=nomic-embed-text
+KNOWLEDGE_EMBED_MODEL=nomic-embed-text
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 

@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from ki_core.config import Config
+from ki_knowledge.config_runtime import jira_cache_db_path, jira_graph_db_path, knowledge_db_path
 
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
@@ -20,12 +21,7 @@ from ki_knowledge.knowledge.ingest import KnowledgeIngestService
 from ki_knowledge.knowledge.ontology_ingest import import_ontology_to_store
 
 _CONFIG = Config.from_env()
-_DEFAULT_DATA_ROOT = (
-    Path(_CONFIG.knowledge_data_root).expanduser()
-    if _CONFIG.knowledge_data_root
-    else Path.home() / "dev_data" / "ki-knowledge"
-)
-_DB_PATH = os.getenv("KNOWLEDGE_DB_PATH", str(_DEFAULT_DATA_ROOT / "knowledge.db"))
+_DB_PATH = str(knowledge_db_path(_CONFIG))
 
 app = FastAPI(title="Knowledge API", version="0.1.0")
 _cache = None
@@ -88,14 +84,8 @@ def _graph() -> KnowledgeGraph:
 def _get_components():
     global _cache, _graph_runtime, _assistant
     if _cache is None:
-        cache_db = os.getenv(
-            "KI_CACHE_DB",
-            _CONFIG.knowledge_cache_db or str(Path(_DB_PATH).with_name(".ki_cache.sqlite")),
-        )
-        graph_db = os.getenv(
-            "KI_GRAPH_DB",
-            _CONFIG.knowledge_graph_db or str(Path(_DB_PATH).with_name(".ki_graph.sqlite")),
-        )
+        cache_db = str(jira_cache_db_path(_CONFIG))
+        graph_db = str(jira_graph_db_path(_CONFIG))
         _cache = JiraIssueCache(cache_db)
         _graph_runtime = JiraKnowledgeGraph(graph_db)
         tfidf = TFIDFEmbeddingProvider()

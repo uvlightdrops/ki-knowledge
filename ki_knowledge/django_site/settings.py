@@ -4,19 +4,12 @@ import os
 from pathlib import Path
 
 from ki_core.config import Config
+from ki_knowledge.config_runtime import config as runtime_config, knowledge_data_root
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-_CONFIG = Config.from_env()
-DATA_DIR = Path(
-    os.getenv(
-        "KICLI_DATA_ROOT",
-        os.getenv(
-            "KNOWLEDGE_MARKDOWN_DIR",
-            _CONFIG.knowledge_data_root or str(Path.home() / "dev_data" / "ki-knowledge"),
-        ),
-    )
-).expanduser()
+_CONFIG = runtime_config()
+DATA_DIR = knowledge_data_root(_CONFIG)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 KNOWLEDGE_DB_PATH = os.getenv("KNOWLEDGE_DB_PATH", str(DATA_DIR / "knowledge.db"))
 DJANGO_DB_PATH = os.getenv("DJANGO_DB_PATH", str(DATA_DIR / "django.sqlite3"))

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from ki_core.config import Config
+from ki_knowledge.config_runtime import knowledge_db_path
 from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf
@@ -272,16 +273,7 @@ class PDFBatchProcessor(SqliteJobStoreBase):
             }
 
     def _knowledge_db_path(self) -> Path:
-        raw = os.getenv("KNOWLEDGE_DB_PATH", "").strip()
-        if raw:
-            return Path(raw).expanduser()
-        config = Config.from_env()
-        if config.knowledge_data_root:
-            return Path(config.knowledge_data_root).expanduser() / "knowledge.db"
-        data_root = os.getenv("KICLI_DATA_ROOT", "").strip()
-        if data_root:
-            return Path(data_root).expanduser() / "knowledge.db"
-        return Path.home() / "dev_data" / "ki-knowledge" / "knowledge.db"
+        return knowledge_db_path(Config.from_env())
 
     def _knowledge_store(self) -> KnowledgeStore:
         return KnowledgeStore(self._knowledge_db_path())

@@ -91,7 +91,7 @@ def test_store_deletes_records_and_artifacts(tmp_path: Path):
 def test_source_in_domain_includes_pdf_sources(tmp_path: Path, monkeypatch):
     domain = "demo-domain"
     data_root = tmp_path / "data"
-    monkeypatch.setenv("KICLI_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("KNOWLEDGE_DATA_ROOT", str(data_root))
     domain_root = data_root / "pdf" / domain
     domain_root.mkdir(parents=True)
     pdf_path = domain_root / "sample.pdf"

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 from ki_core.config import Config
+from ki_knowledge.config_runtime import knowledge_db_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -21,16 +21,7 @@ from ki_knowledge.knowledge.ontology_ingest import (
 
 
 def default_knowledge_db_path() -> str:
-    config = Config.from_env()
-    raw = os.getenv("KNOWLEDGE_DB_PATH", "").strip()
-    if raw:
-        return str(Path(raw).expanduser())
-    if config.knowledge_data_root:
-        return str(Path(config.knowledge_data_root).expanduser() / "knowledge.db")
-    data_root = os.getenv("KICLI_DATA_ROOT", "").strip()
-    if data_root:
-        return str(Path(data_root).expanduser() / "knowledge.db")
-    return str(Path.home() / "dev_data" / "ki-knowledge" / "knowledge.db")
+    return str(knowledge_db_path(Config.from_env()))
 
 
 def main() -> None:

@@ -38,6 +38,13 @@ from ki_knowledge.ui.knowledge_api_client import (
 )
 from ki_knowledge.ui.knowledge_graph_viz import create_pyvis_network, graph_dict_to_networkx, graph_statistics
 from ki_knowledge.ui.knowledge_workspace import build_markdown_tree
+from ki_knowledge.config_runtime import (
+    knowledge_data_root,
+    knowledge_jira_root,
+    knowledge_markdown_root,
+    knowledge_ontology_root,
+    knowledge_pdf_root,
+)
 
 
 @dataclass
@@ -47,41 +54,23 @@ class ImportResult:
 
 
 def data_root() -> Path:
-    config = Config.from_env()
-    if config.knowledge_data_root:
-        return Path(config.knowledge_data_root).expanduser()
-    override = os.getenv("KICLI_DATA_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-    return Path(default_markdown_directory()).expanduser()
+    return knowledge_data_root(Config.from_env())
 
 
 def markdown_type_root() -> Path:
-    override = os.getenv("KICLI_MD_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-    return data_root() / "md"
+    return knowledge_markdown_root(Config.from_env())
 
 
 def jira_type_root() -> Path:
-    override = os.getenv("KICLI_JIRA_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-    return data_root() / "jira"
+    return knowledge_jira_root(Config.from_env())
 
 
 def ontology_type_root() -> Path:
-    override = os.getenv("KICLI_OWL_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-    return data_root() / "owl"
+    return knowledge_ontology_root(Config.from_env())
 
 
 def pdf_type_root() -> Path:
-    override = os.getenv("KICLI_PDF_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-    return data_root() / "pdf"
+    return knowledge_pdf_root(Config.from_env())
 
 
 def _resolve_existing_domain_dir(base: Path, normalized_domain: str) -> Path:
@@ -769,7 +758,7 @@ def _register_domains(slugs: list[str]) -> None:
 
 
 def default_semantic_domain() -> str:
-    env_override = os.getenv("KICLI_SEMANTIC_DOMAIN", "").strip()
+    env_override = os.getenv("KNOWLEDGE_DEFAULT_DOMAIN", "").strip()
     if env_override:
         return normalize_semantic_domain(env_override)
     domains = available_data_domains()
@@ -785,7 +774,7 @@ def normalize_semantic_domain(value: str | None) -> str:
 
 
 def domain_storage_root() -> Path:
-    raw = os.getenv("KICLI_DOMAIN_DB_ROOT", "").strip()
+    raw = os.getenv("KNOWLEDGE_JIRA_ROOT", "").strip()
     if raw:
         return Path(raw).expanduser()
     return jira_type_root()
@@ -942,14 +931,10 @@ def _domain_env(domain: str | None):
     cache_path = str(paths["cache_db"])
     graph_path = str(paths["graph_db"])
     cypher_path = str(paths["cypher_path"]) if paths.get("cypher_path") else ""
-    # Support both old Jira-specific and new generic KI env vars
     previous = {
         k: os.environ.get(k) 
-        for k in ("JIRA_CACHE_DB", "JIRA_GRAPH_DB", "JIRA_GRAPH_CYPHER_PATH", "KI_CACHE_DB", "KI_GRAPH_DB")
+        for k in ("JIRA_CACHE_DB", "JIRA_GRAPH_DB", "JIRA_GRAPH_CYPHER_PATH")
     }
-    os.environ["KI_CACHE_DB"] = cache_path
-    os.environ["KI_GRAPH_DB"] = graph_path
-    # Keep legacy vars for backward compatibility
     os.environ["JIRA_CACHE_DB"] = cache_path
     os.environ["JIRA_GRAPH_DB"] = graph_path
     if cypher_path:
@@ -1589,9 +1574,8 @@ def jira_reimport_data(domain: str | None = None) -> dict[str, Any]:
     cache_db = jira_cache_db_path(domain)
     graph_db = jira_graph_db_path(domain)
     cypher_path = str(domain_db_paths(domain).get("cypher_path") or "")
-    # Support both generic KI and legacy JIRA env vars
     embed_model = (
-        os.getenv("KI_EMBED_MODEL")
+        os.getenv("KNOWLEDGE_EMBED_MODEL")
         or os.getenv("JIRA_EMBED_MODEL")
         or config.knowledge_embed_model
         or "nomic-embed-text"

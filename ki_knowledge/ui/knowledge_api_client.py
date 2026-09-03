@@ -9,36 +9,26 @@ from typing import Any, Optional
 from urllib.parse import urljoin
 
 import requests
-from ki_core.config import Config
+
+from ki_knowledge.config_runtime import knowledge_api_url, knowledge_data_root
 
 
 def default_knowledge_api_url() -> str:
     """Return the configured knowledge API base URL."""
-    return os.getenv("KNOWLEDGE_API_URL", "http://localhost:8090/api/knowledge").rstrip("/")
+    return knowledge_api_url()
 
 
 def default_markdown_directory() -> str:
     """Return the default data directory used for markdown discovery in the UI."""
-    config = Config.from_env()
-    override = os.getenv("KNOWLEDGE_MARKDOWN_DIR", "").strip()
+    override = os.getenv("KNOWLEDGE_MARKDOWN_ROOT", "").strip()
     if override:
         return str(Path(override).expanduser())
-
-    if config.knowledge_data_root:
-        return str(Path(config.knowledge_data_root).expanduser())
-
-    legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
-    if legacy_root:
-        return str(Path(legacy_root).expanduser())
 
     legacy_default_root = Path.home() / "dev_data" / "kicli"
     if legacy_default_root.exists() and legacy_default_root.is_dir():
         return str(legacy_default_root)
 
-    default_root = Path.home() / "dev_data" / "ki-knowledge"
-    if default_root.exists() and default_root.is_dir():
-        return str(default_root)
-    return str(default_root)
+    return str(knowledge_data_root())
 
 
 def discover_markdown_files(directory: str | Path) -> list[Path]:
