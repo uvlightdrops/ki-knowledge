@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
+
+from django.utils import timezone
 import logging
 
 from ki_core.config import Config
@@ -184,7 +186,7 @@ class DocumentDiscoveryService:
                 name=file_path.name,
                 file_type=file_type,
                 size=stat.st_size,
-                modified_at=datetime.fromtimestamp(stat.st_mtime),
+                modified_at=timezone.make_aware(datetime.fromtimestamp(stat.st_mtime)),
             )
         except Exception as e:
             logger.error(f"Error reading file info for {file_path}: {e}")

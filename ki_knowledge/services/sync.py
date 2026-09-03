@@ -2,6 +2,8 @@
 
 import logging
 from datetime import datetime
+
+from django.utils import timezone
 from typing import Optional, Tuple
 from pathlib import Path
 
@@ -59,7 +61,7 @@ class DocumentSyncService:
             if not discovered:
                 project.sync_status = "completed"
                 project.last_sync_error = ""
-                project.last_sync_at = datetime.now()
+                project.last_sync_at = timezone.now()
                 project.save()
                 return 0, 0, None
             
@@ -73,7 +75,7 @@ class DocumentSyncService:
             # Mark sync as successful
             project.sync_status = "completed"
             project.last_sync_error = ""
-            project.last_sync_at = datetime.now()
+            project.last_sync_at = timezone.now()
             project.save()
             
             return len(discovered), updated_count, None
@@ -85,7 +87,7 @@ class DocumentSyncService:
             # Mark sync as failed
             project.sync_status = "failed"
             project.last_sync_error = error_msg
-            project.last_sync_at = datetime.now()
+            project.last_sync_at = timezone.now()
             project.save()
             
             return 0, 0, error_msg
