@@ -185,9 +185,29 @@ and future source kinds share one discovery/import/path-resolution implementatio
       "Import-Job starten" action with job history page, hover/arrow-key preview panel reading raw
       source documents (distinct from the generated-output preview), dashboard "🔍 Zu den gefundenen
       Dokumenten" quick link
+- [x] Unified SQLite job-store boilerplate: `ki_knowledge/integrations/job_store_base.py`
+      (`SqliteJobStoreBase`) is now the shared base for `PDFBatchProcessor`, `KnowledgeExtractionJobStore`,
+      and `DocumentImportJobStore` — connection handling, schema+migration, generic status transitions,
+      and filtered listing are shared; `create_job`/`mark_done` idempotency semantics stay per-subclass
+      since they genuinely differ per job kind. **Not** a generic runner interface — see note below.
+- [x] All large inline `<style>` blocks (>12 lines) extracted to dedicated static CSS files under
+      `ki_knowledge/django_site/static/{django_site,infosite,kicli_django}/css/`
+- [x] Wagtail cutover Step 6: `KnowledgeBlockIndexPage`/`KnowledgeBlockDetailPage` read-only mirror
+      of extracted knowledge blocks (`InfoSiteBlockStorage`-backed, no data duplication), plus
+      `wagtail_status_mapping.py` — an explicit, advisory canonical-status ↔ Wagtail-workflow-state
+      mapping shown on `DataSourceDetailPage` (does not auto-transition any workflow state)
 - [ ] Graph-based navigation
 - [ ] Collaborative editing
 - [ ] Full Wagtail cutover (currently a parallel/opt-in layer, not yet the primary write path)
+
+**Note on runner/job-store architecture scope:** `pipeline_runner.py`,
+`import_runner.py`, and PDF's inline job processing in `pdf_batch.py` are
+**domain-specific**, not instances of a shared generic "runner" interface —
+each has its own enqueue/run semantics, idempotency rules, and result
+payload shape. Only the *structural* SQLite boilerplate is unified, via
+`SqliteJobStoreBase` (see above). Do not assume a common `Runner` base
+class exists or should be added; the three pipelines are intentionally
+separate application flows that happen to share storage plumbing.
 
 **Key Files:**
 - `ki_knowledge/django_site/infosite_models.py` - Models

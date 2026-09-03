@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags %}
+
+{% block title %}{{ page.title }}{% endblock %}
+
+{% block content %}
+<div class="panel-grid">
+  <h1>{{ page.title }}</h1>
+  {{ page.editorial_notes|richtext }}
+
+  {% if project %}
+  <p><strong>Projekt:</strong> {{ project.title }} (<code>{{ project.domain }}/{{ project.working_title }}</code>)</p>
+  <p>
+    <strong>Statistik:</strong>
+    {{ stats.total_blocks|default:0 }} Blöcke insgesamt aus {{ stats.total_files|default:0 }} Dateien
+    ({{ stats.sections|default:0 }} Sections, {{ stats.subsections|default:0 }} Subsections,
+    {{ stats.paragraphs|default:0 }} Absätze)
+  </p>
+  <p><a class="nav-link" href="/infosite/project/{{ project.id }}/knowledge-blocks/" title="Legacy-Extraktions-/Publish-Aktionen, noch nicht nach Wagtail migriert">
+    ⚙️ Verwalten in Infosite (Extraktion · Publish · Job-Historie)
+  </a></p>
+  {% else %}
+  <p class="muted">Kein InfoSiteProject mit dieser Seite verknüpft.</p>
+  {% endif %}
+
+  {% if blocks %}
+  <h3>Blöcke</h3>
+  <div class="table-wrap" style="max-height: 500px; overflow-y: auto;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Typ</th>
+          <th>Pfad</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for block in blocks %}
+        <tr>
+          <td>{{ block.title }}</td>
+          <td><span class="chip">{{ block.block_type }}</span></td>
+          <td><small class="muted">{{ block.path }}</small></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

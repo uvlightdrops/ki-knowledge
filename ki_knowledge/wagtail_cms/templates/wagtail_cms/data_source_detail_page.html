@@ -12,6 +12,12 @@
   <p><strong>Source ID:</strong> <code>{{ descriptor.source_id }}</code></p>
   <p><strong>Status:</strong> {{ descriptor.status }}</p>
   <p><strong>URI:</strong> <code>{{ descriptor.uri }}</code></p>
+  {% if status_equivalence %}
+  <p class="hint">
+    Wagtail-Workflow-Äquivalent: <strong>{{ status_equivalence.wagtail_equivalent }}</strong>
+    ({{ status_equivalence.quality }}) — {{ status_equivalence.note }}
+  </p>
+  {% endif %}
   {% else %}
   <p class="muted">No InfoSiteProject linked to this page yet.</p>
   {% endif %}

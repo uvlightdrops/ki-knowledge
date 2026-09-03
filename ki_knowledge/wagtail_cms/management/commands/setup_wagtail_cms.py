@@ -1,17 +1,17 @@
 """Idempotent bootstrap for the Wagtail CMS/workflow layer.
 
-Creates the DataSourceIndexPage as a child of the Wagtail root page if it
-doesn't already exist. Safe to re-run.
+Creates the DataSourceIndexPage and KnowledgeBlockIndexPage as children of the
+Wagtail root page if they don't already exist. Safe to re-run.
 """
 
 from django.core.management.base import BaseCommand
 from wagtail.models import Page, Site
 
-from ki_knowledge.wagtail_cms.models import DataSourceIndexPage
+from ki_knowledge.wagtail_cms.models import DataSourceIndexPage, KnowledgeBlockIndexPage
 
 
 class Command(BaseCommand):
-    help = "Bootstrap the Wagtail CMS layer: create the Data Source Catalog page under root."
+    help = "Bootstrap the Wagtail CMS layer: create the catalog pages under root."
 
     def handle(self, *args, **options):
         site = Site.objects.filter(is_default_site=True).first()
@@ -22,6 +22,10 @@ class Command(BaseCommand):
             return
         root_page = site.root_page
 
+        self._create_data_source_index(root_page)
+        self._create_knowledge_block_index(root_page)
+
+    def _create_data_source_index(self, root_page):
         existing = DataSourceIndexPage.objects.first()
         if existing:
             self.stdout.write(self.style.WARNING(
@@ -39,4 +43,24 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"Created DataSourceIndexPage (id={index_page.id}) under root page '{root_page.title}'."
+        ))
+
+    def _create_knowledge_block_index(self, root_page):
+        existing = KnowledgeBlockIndexPage.objects.first()
+        if existing:
+            self.stdout.write(self.style.WARNING(
+                f"KnowledgeBlockIndexPage already exists: {existing.title} (id={existing.id})"
+            ))
+            return
+
+        index_page = KnowledgeBlockIndexPage(
+            title="Knowledge Blocks",
+            slug="knowledge-blocks",
+            intro="<p>Extracted semantic knowledge blocks, grouped by InfoSite project.</p>",
+        )
+        root_page.add_child(instance=index_page)
+        index_page.save_revision().publish()
+
+        self.stdout.write(self.style.SUCCESS(
+            f"Created KnowledgeBlockIndexPage (id={index_page.id}) under root page '{root_page.title}'."
         ))

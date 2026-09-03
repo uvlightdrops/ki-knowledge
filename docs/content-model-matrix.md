@@ -75,16 +75,21 @@ fehlendes `DataSourceDocumentPage`-Modell als Bug interpretiert.
 
 | Legacy/Kanonisches Modell | Feld | Wagtail-Äquivalent | Status | Owning System |
 |---|---|---|---|---|
-| `KnowledgeSource` | `source_id`, `source_type`, `title`, `location`, `metadata` | **keines** | 🟡 nur-legacy | `KnowledgeStore` |
-| `KnowledgeBlockRecord` | `block_id`, `source_id`, `block_type`, `title`, `content`, `parent_block_id`, `path`, `order_index`, `tags`, `metadata` | **keines** | 🟡 nur-legacy | `KnowledgeStore` |
+| `KnowledgeSource` | `source_id`, `source_type`, `title`, `location`, `metadata` | `KnowledgeBlockDetailPage` (read-only Spiegel, kein Duplikat) | 🟢 gespiegelt | `KnowledgeStore` |
+| `KnowledgeBlockRecord` | `block_id`, `source_id`, `block_type`, `title`, `content`, `parent_block_id`, `path`, `order_index`, `tags`, `metadata` | `KnowledgeBlockDetailPage.blocks` (Kontext, live gelesen) | 🟢 gespiegelt | `KnowledgeStore` |
 
-Die extrahierten Wissensblöcke (432 Blöcke aus Projekt 2, siehe Schritt 4)
-sind aktuell **komplett außerhalb** von Wagtail. Sie werden von
-`InfoSiteBlockStorage`/`KnowledgeStore` verwaltet und über die legacy
-`knowledge_blocks.html`/`knowledge_extraction_jobs.html`-Views angezeigt.
-Es gibt bewusst **keinen** Plan, sie 1:1 in Wagtail-Seiten zu überführen
-(siehe Abschnitt 5) — sie sind Publishing-Artefakte, keine editorierbaren
-CMS-Inhalte im klassischen Sinn.
+**Update (Wagtail-Cutover Schritt 6):** `KnowledgeBlockIndexPage`/
+`KnowledgeBlockDetailPage` (`ki_knowledge/wagtail_cms/models.py`) schließen
+diese Lücke inzwischen — nach exakt demselben Muster wie
+`DataSourceIndexPage`/`DataSourceDetailPage`: eine editorierbare Katalog-
+/Detailseite in Wagtail, deren `get_context()` die Blöcke live über
+`InfoSiteBlockStorage(project).get_stored_blocks()`/`.get_statistics()`
+liest. Es gibt weiterhin **keine** Datenduplikation — `KnowledgeStore`
+(SQLite) bleibt alleinige Quelle der Wahrheit, Wagtail besitzt nur die
+Editorial-Katalogseite drumherum (Titel, `editorial_notes`,
+Projekt-Verknüpfung via `infosite_project_id`). Einzelne Blöcke sind
+weiterhin **nicht** individuell in Wagtail editierbar — das bleibt
+bewusst so (siehe Abschnitt 6, Frage 4).
 
 ---
 
@@ -105,11 +110,19 @@ eigenes, strukturiertes Workflow-Modell (`draft` → `in_review` →
 | `imported` | am ehesten `live=True` (veröffentlicht) | ⚠️ grobe Näherung |
 | `failed` | *(kein Äquivalent — Wagtail-Pages kennen keinen Fehlerzustand)* | ❌ keine Entsprechung |
 
-**Diese Tabelle zeigt explizit eine Lücke**, die in Abschnitt 6 als offene
-Frage aufgegriffen wird: Die beiden Statusmodelle sind **nicht** isomorph.
-Aktuell laufen sie unabhängig nebeneinander (Wagtail-Page-Status betrifft
-nur die *Editorial-Notizen-Seite*, nicht den zugrunde liegenden
-Sync-/Import-Status des Projekts).
+**Diese Tabelle zeigte ursprünglich eine offene Lücke** (Abschnitt 6, Frage
+2). **Update (Wagtail-Cutover Schritt 6):**
+`ki_knowledge/knowledge/wagtail_status_mapping.py` formalisiert diese
+Tabelle jetzt im Code (`describe_wagtail_equivalent(status)`,
+`all_mappings()`) und wird auf `DataSourceDetailPage` als Hinweis-Panel
+neben dem kanonischen Status angezeigt ("Wagtail-Workflow-Äquivalent: …").
+Das ist bewusst **nur eine informative/advisory Anzeige** — es findet
+weiterhin **keine** automatische Zustandsübertragung statt (kein
+Auto-Publish bei `imported`, kein Auto-Draft bei `discovered`). Die beiden
+Statusmodelle laufen also nach wie vor unabhängig nebeneinander; das
+Mapping macht die Diskrepanz nur sichtbar/nachvollziehbar, statt sie
+aufzulösen. Ein echter Cutover (Wagtail wird primäre Statusquelle) bliebe
+weiterhin eine offene Design-Entscheidung.
 
 ---
 
@@ -135,22 +148,22 @@ Matrix, weil sie Betriebsdaten und keine editorierbaren Inhalte sind:
    Wagtail-Oberfläche sichtbar sein (z. B. als schreibgeschützte Panels),
    oder bleiben sie dauerhaft "nur-legacy"? Aktuell: bleiben nur-legacy,
    solange kein Editorial-Bedarf dafür besteht.
-2. **Statusmodell-Mapping**: Abschnitt 4 zeigt, dass die kanonischen
-   Status-Strings und der Wagtail-Workflow-Status nicht deckungsgleich
-   sind. Falls ein echter Cutover (Wagtail wird primäre Quelle) je ansteht,
-   müsste hier ein explizites Zustandsmapping oder ein Custom-Workflow
-   entworfen werden — heute nicht nötig, da beide Systeme unabhängig
-   parallel laufen (Schritt 3/5).
+2. **Statusmodell-Mapping**: ✅ **Erledigt** (Wagtail-Cutover Schritt 6) —
+   `wagtail_status_mapping.py` liefert jetzt ein explizites, advisory
+   Mapping, sichtbar auf `DataSourceDetailPage`. Ein echter Cutover
+   (Wagtail wird primäre Statusquelle mit eigenem Custom-Workflow) bleibt
+   weiterhin eine separate, nicht getroffene Design-Entscheidung.
 3. **Dokument-Granularität**: Sollen einzelne `SourceDocument`s je einen
    eigenen Wagtail-Page-Typ bekommen (z. B. für granulare Freigabe-
    Workflows pro Dokument), oder bleibt die Projekt-Ebene (`DataSourceDetailPage`)
    die einzige editorierbare Einheit? Aktuell: Projekt-Ebene, siehe
    Abschnitt 2.
-4. **Wissensblöcke in Wagtail?**: Sollen `KnowledgeBlockRecord`-Einträge
-   jemals als Wagtail-Snippets oder -Pages editierbar werden (z. B. für
-   manuelle Kuration einzelner Blöcke), oder bleiben sie reine
-   Publishing-Artefakte der Pipeline? Aktuell: keine Wagtail-Anbindung
-   geplant (Abschnitt 3).
+4. **Wissensblöcke in Wagtail?**: ✅ **Teilweise erledigt** (Wagtail-Cutover
+   Schritt 6) — `KnowledgeBlockIndexPage`/`KnowledgeBlockDetailPage`
+   bilden jetzt eine editorierbare Katalog-/Detailseite pro Projekt.
+   Weiterhin offen: einzelne `KnowledgeBlockRecord`-Einträge sind **nicht**
+   individuell editierbar (kein Wagtail-Snippet pro Block) — sie bleiben
+   reine Anzeige-Artefakte der Pipeline, wie ursprünglich entschieden.
 5. **Totes `checksum`-Feld**: `SourceDocumentRecord.checksum` wird von
    beiden Adapter-Pfaden (`InfoSiteSourceAdapter.to_document`,
    `CanonicalDataSourceService.from_document`) per `getattr(..., None)`
