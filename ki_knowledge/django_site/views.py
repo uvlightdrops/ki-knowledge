@@ -262,7 +262,9 @@ def knowledge_landing_view(request: HttpRequest):
                 ("Records", "/records/", "Inspect available records and their metadata."),
                 ("Artifacts", "/artifacts/", "Review generated artifacts and summaries."),
                 ("Jobs", "/jobs/", "Check background tasks and sync jobs."),
+                ("Semantic Terms", "/semantic/", "Explore the semantic vocabulary, term extraction and concept graph."),
                 ("Support Chat", "/support-chat/", "Ask questions across the available source types."),
+                ("Ollama Chat", "/ollama-chat/", "Local LLM chat for ad-hoc exploration of the knowledge base."),
             ],
         },
     )
@@ -299,8 +301,95 @@ def settings_view(request: HttpRequest):
         {
             "active_domain": active_domain,
             "quick_links": [
+                ("Configuration", "/settings/config/", "View active ki_core.Config values (LLM providers, knowledge paths, infosite, jira). Secrets are shown as set/not set only."),
                 ("Layout", "/settings/layout/", "Adjust GUI box widths and panel sizes for the current workspace."),
             ],
+        },
+    )
+
+
+# Config fields considered secret: never rendered in plaintext, only "gesetzt"/"nicht gesetzt".
+_CONFIG_SECRET_FIELDS = {"ki_api_key", "openai_api_key", "jira_api_token"}
+
+# Grouping of ki_core.Config fields into the settings sections shown in the GUI,
+# mirroring the YAML sections used by Config.from_yaml() (ki/ollama/openai/
+# knowledge/infosite/jira/http/kicli/context/diff).
+_CONFIG_SECTIONS = [
+    (
+        "LLM Provider",
+        "llm",
+        ["ki_base_url", "ki_api_key", "ki_model", "ki_endpoint", "ollama_base_url", "ollama_model", "openai_api_key", "openai_model", "openai_base_url"],
+    ),
+    (
+        "Knowledge Base",
+        "knowledge",
+        ["knowledge_data_root", "knowledge_cache_db", "knowledge_graph_db", "knowledge_embed_model"],
+    ),
+    (
+        "Infosite",
+        "infosite",
+        ["infosite_enabled", "infosite_title", "infosite_output_base_dir", "infosite_domain"],
+    ),
+    (
+        "Jira",
+        "jira",
+        ["jira_url", "jira_username", "jira_api_token"],
+    ),
+    (
+        "HTTP",
+        "http",
+        ["request_timeout", "http_verify_ssl"],
+    ),
+    (
+        "KI CLI / Code Assistant",
+        "kicli",
+        ["kicli_cache_dir", "kicli_session_dir", "kicli_chat_history_dir", "kicli_allowed_base_path"],
+    ),
+    (
+        "Context System",
+        "context",
+        ["context_max_files", "context_max_size_mb", "context_relevance_threshold", "context_cache_enabled", "context_cache_ttl_hours", "context_cache_max_size_mb", "context_ignore_patterns"],
+    ),
+    (
+        "Diff Engine",
+        "diff",
+        ["diff_context_lines", "diff_format", "diff_highlight_syntax", "diff_auto_apply_threshold", "diff_max_file_size_kb"],
+    ),
+]
+
+
+@login_required
+@require_GET
+def settings_config_view(request: HttpRequest):
+    """Read-only overview of the active ki_core.Config (Phase 1 of the
+    settings area rewrite, see docs/navigation-ia-proposal.md). Secrets are
+    never rendered in plaintext, only as "gesetzt"/"nicht gesetzt"."""
+    active_domain = _active_semantic_domain(request)
+    from ki_core.config import Config, _find_yaml_config_path  # local import: optional dependency boundary
+
+    config_path = _find_yaml_config_path()
+    config = Config.from_yaml()
+
+    sections = []
+    for title, key, fields in _CONFIG_SECTIONS:
+        rows = []
+        for field_name in fields:
+            raw_value = getattr(config, field_name, None)
+            is_secret = field_name in _CONFIG_SECRET_FIELDS
+            if is_secret:
+                display_value = "✅ gesetzt" if raw_value else "— nicht gesetzt"
+            else:
+                display_value = raw_value if raw_value not in (None, "") else "—"
+            rows.append({"field": field_name, "value": display_value, "is_secret": is_secret})
+        sections.append({"title": title, "key": key, "rows": rows})
+
+    return render(
+        request,
+        "kicli_django/settings_config.html",
+        {
+            "active_domain": active_domain,
+            "config_path": str(config_path) if config_path else None,
+            "sections": sections,
         },
     )
 

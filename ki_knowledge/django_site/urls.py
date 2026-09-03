@@ -22,6 +22,7 @@ urlpatterns = [
     path("knowledge/", views.knowledge_landing_view, name="knowledge"),
     path("semantic/", views.semantic_landing_view, name="semantic"),
     path("settings/", views.settings_view, name="settings"),
+    path("settings/config/", views.settings_config_view, name="settings-config"),
     path("settings/layout/", views.layout_settings_view, name="settings-layout"),
     path("knowledge-api/", views.knowledge_api_view, name="knowledge-api"),
     path("prompt-backlog/", views.prompt_backlog_view, name="prompt-backlog"),

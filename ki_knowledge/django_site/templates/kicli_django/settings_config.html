@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Configuration · Settings · KICLI{% endblock %}
+{% block content %}
+  <h1>⚙️ Configuration</h1>
+  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+  {% if config_path %}
+    <p class="muted">Aktive Config-Datei: <code>{{ config_path }}</code></p>
+  {% else %}
+    <p class="muted">Keine YAML-Config-Datei gefunden — es gelten die Dataclass-Defaults aus <code>ki_core.config.Config</code>.</p>
+  {% endif %}
+  <p class="hint">
+    Diese Ansicht ist aktuell <strong>read-only</strong> (Phase 1 der Settings-Neuordnung,
+    siehe <code>docs/navigation-ia-proposal.md</code>). Secrets (API-Keys/Tokens) werden
+    nie im Klartext angezeigt, nur als "gesetzt"/"nicht gesetzt".
+  </p>
+
+  {% for section in sections %}
+    <div class="section card">
+      <h3>{{ section.title }}</h3>
+      <table class="table">
+        <thead>
+          <tr><th>Feld</th><th>Wert</th></tr>
+        </thead>
+        <tbody>
+          {% for row in section.rows %}
+            <tr>
+              <td><code>{{ row.field }}</code></td>
+              <td>
+                {% if row.is_secret %}
+                  <span class="chip">{{ row.value }}</span>
+                {% else %}
+                  {{ row.value }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+{% endblock %}
