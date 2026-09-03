@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 
 from django.contrib import messages
+from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
@@ -14,6 +15,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 from django.contrib.auth.decorators import login_required
 from requests import RequestException
 
+from .infosite_models import Domain, GeneratedDocument
 from .services import (
     available_data_domains,
     artifact_content_preview,
@@ -297,13 +299,46 @@ def semantic_landing_view(request: HttpRequest):
 def output_landing_view(request: HttpRequest):
     """Landing page for the 'Info Output' area: formats that publish
     processed knowledge outward (currently Infosite; Quiz is a placeholder
-    for a future format, see docs/navigation-ia-proposal.md)."""
+    for a future format, see docs/navigation-ia-proposal.md).
+
+    Also shows a per-domain overview of generated InfoSite output files
+    (GeneratedDocument), analogous to the Data-Sources domain table, plus a
+    flat table of the most recent 25 generated documents across domains.
+    """
     active_domain = _active_semantic_domain(request)
+
+    domain_stats = []
+    for domain in Domain.objects.all():
+        docs = GeneratedDocument.objects.filter(project__domain=domain.slug)
+        counts = docs.aggregate(
+            total=Count("id"),
+            none=Count("id", filter=Q(review_status="none")),
+            in_review=Count("id", filter=Q(review_status="in_review")),
+            approved=Count("id", filter=Q(review_status="approved")),
+            rejected=Count("id", filter=Q(review_status="rejected")),
+        )
+        domain_stats.append(
+            {
+                "slug": domain.slug,
+                "display_name": domain.display_name or domain.slug,
+                "is_active": domain.slug == active_domain,
+                **counts,
+            }
+        )
+
+    recent_documents = (
+        GeneratedDocument.objects.select_related("project")
+        .prefetch_related("used_sources")
+        .order_by("-generated_at")[:25]
+    )
+
     return render(
         request,
         "kicli_django/output_landing.html",
         {
             "active_domain": active_domain,
+            "domain_stats": domain_stats,
+            "recent_documents": recent_documents,
             "formats": [
                 {
                     "label": "Infosite",
