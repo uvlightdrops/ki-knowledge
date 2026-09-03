@@ -35,6 +35,7 @@ urlpatterns = [
     # Knowledge block extraction
     path("project/<int:project_id>/knowledge-blocks/", infosite_views.infosite_extract_knowledge_blocks, name="knowledge_blocks"),
     path("project/<int:project_id>/knowledge-blocks/publish/", infosite_views.infosite_publish_knowledge_blocks, name="publish_blocks"),
+    path("project/<int:project_id>/knowledge-blocks/jobs/", infosite_views.infosite_knowledge_extraction_jobs, name="knowledge_extraction_jobs"),
     
     # AI refinement
     path("project/<int:project_id>/refine/", infosite_views.infosite_ai_refine, name="ai_refine"),

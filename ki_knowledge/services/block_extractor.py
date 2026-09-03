@@ -224,10 +224,13 @@ class InfoSiteBlockExtractor:
             Dict mapping file paths to block lists
         """
         if directory is None:
-            if self.project:
-                directory = Path(self.project.get_output_path())
+            if self.project and getattr(self.project, "source_directory", ""):
+                directory = Path(self.project.source_directory)
             else:
-                directory = Path("datadir/md") / self.domain / self.working_title
+                from django.conf import settings as django_settings
+
+                data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
+                directory = data_root / "md" / self.domain / self.working_title
         
         blocks_by_file = {}
         

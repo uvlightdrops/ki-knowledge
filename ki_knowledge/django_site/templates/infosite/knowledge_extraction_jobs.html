@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Extraction Jobs - {{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="panel-grid">
+  <h1>⚙️ Knowledge Extraction Jobs</h1>
+  <p class="muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Job ID</th>
+        <th>Status</th>
+        <th>Files</th>
+        <th>Blocks</th>
+        <th>Created</th>
+        <th>Completed</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td><code>{{ job.job_id }}</code></td>
+        <td>
+          {% if job.status == 'done' %}<span class="chip">✓ done</span>
+          {% elif job.status == 'failed' %}<span class="chip">✗ failed</span>
+          {% elif job.status == 'processing' %}<span class="chip">⟳ processing</span>
+          {% else %}<span class="chip">⏳ pending</span>
+          {% endif %}
+        </td>
+        <td>{{ job.files_processed }}</td>
+        <td>{{ job.blocks_stored }}</td>
+        <td><small>{{ job.created_at }}</small></td>
+        <td><small>{{ job.completed_at|default:"-" }}</small></td>
+        <td><small class="muted">{{ job.error_message|default:"" }}</small></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="muted">No extraction jobs yet. Use "Publish to Knowledge Store" to create one.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <a href="{% url 'infosite:knowledge_blocks' project.id %}" class="btn">← Back to Knowledge Blocks</a>
+</div>
+{% endblock %}

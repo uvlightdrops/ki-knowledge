@@ -27,7 +27,15 @@ class InfoSiteSourceAdapter:
         domain = getattr(project, "domain", "default") or "default"
         title = getattr(project, "title", "") or getattr(project, "working_title", "") or domain
         working_title = getattr(project, "working_title", "") or ""
-        uri = source_directory or getattr(project, "source_directory", "") or str(Path("datadir") / "md" / domain / working_title)
+        if source_directory:
+            uri = source_directory
+        elif getattr(project, "source_directory", ""):
+            uri = project.source_directory
+        else:
+            from django.conf import settings as django_settings
+
+            data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
+            uri = str(data_root / "md" / domain / working_title)
         source_type = "filesystem_markdown"
         return DataSourceDescriptor(
             source_id=InfoSiteSourceAdapter.make_source_id(source_type, title, uri),

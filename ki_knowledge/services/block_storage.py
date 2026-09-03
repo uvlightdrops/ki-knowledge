@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from django.utils import timezone
+
 from ki_knowledge.django_site.infosite_models import InfoSiteProject, SourceDocument
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.knowledge.models import KnowledgeBlockRecord, KnowledgeSource
@@ -33,31 +35,37 @@ class InfoSiteBlockStorage:
 
     def create_knowledge_source(self) -> KnowledgeSource:
         """Create KnowledgeSource entry for this InfoSite project."""
+        location = self.project.output_dir or self.project.source_directory or ""
         return KnowledgeSource(
             source_id=self.get_source_id(),
             source_type="infosite",
             title=self.project.title,
-            location=self.project.get_output_path(),
+            location=location,
             metadata={
                 "project_id": self.project.id,
                 "domain": self.project.domain,
                 "working_title": self.project.working_title,
-                "version": self.project.version or "1.0",
+                "version_count": self.project.version_count,
                 "created_at": self.project.created_at.isoformat() if self.project.created_at else None,
             },
         )
 
     def block_data_to_record(
-        self, block: KnowledgeBlockData, file_path: str, source_id: str
+        self, block: KnowledgeBlockData, file_path: str, source_id: str, blocks: list[KnowledgeBlockData]
     ) -> KnowledgeBlockRecord:
         """Convert InfoSiteBlockData to KnowledgeBlockRecord for storage."""
+        parent_block_id = (
+            blocks[block.parent_index].block_id
+            if block.parent_index is not None and 0 <= block.parent_index < len(blocks)
+            else None
+        )
         return KnowledgeBlockRecord(
-            block_id=block.id,
+            block_id=block.block_id,
             source_id=source_id,
             block_type=block.block_type,
             title=block.title,
             content=block.content,
-            parent_block_id=block.parent_id if block.parent_id else None,
+            parent_block_id=parent_block_id,
             path=file_path,
             order_index=block.order_index,
             tags=[
@@ -95,14 +103,14 @@ class InfoSiteBlockStorage:
             results["files_processed"] += 1
             for block in blocks:
                 try:
-                    record = self.block_data_to_record(block, file_path, source.source_id)
+                    record = self.block_data_to_record(block, file_path, source.source_id, blocks)
                     self.store.upsert_record(record)
                     results["blocks_stored"] += 1
                 except Exception as e:
                     results["errors"].append(
                         {
                             "file": file_path,
-                            "block_id": block.id,
+                            "block_id": block.block_id,
                             "error": str(e),
                         }
                     )
@@ -110,16 +118,17 @@ class InfoSiteBlockStorage:
         return results
 
     def update_document_status(self) -> None:
-        """Mark source documents as having blocks extracted."""
+        """Record that blocks were extracted for this project's imported documents.
+
+        SourceDocument has no free-form metadata column, so extraction status is
+        tracked on the KnowledgeExtractionJob record (job history) rather than by
+        mutating each document row. This method just bumps `updated_at` on the
+        affected documents so their sync timestamp reflects the extraction pass.
+        """
         SourceDocument.objects.filter(
             project=self.project,
             import_status="imported",
-        ).update(
-            metadata={
-                "blocks_extracted": True,
-                "extracted_at": datetime.now().isoformat(),
-            }
-        )
+        ).update(updated_at=timezone.now())
 
     def get_stored_blocks(self) -> list[KnowledgeBlockRecord]:
         """Retrieve all stored blocks for this project from knowledge_store."""

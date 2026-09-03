@@ -861,27 +861,51 @@ def infosite_extract_knowledge_blocks(request: HttpRequest, project_id: int):
 
 @login_required
 def infosite_publish_knowledge_blocks(request: HttpRequest, project_id: int):
-    """Publish extracted blocks to knowledge store."""
+    """Publish extracted blocks to knowledge store.
+
+    This view no longer performs extraction/storage logic inline. It only
+    enqueues an idempotent pipeline job (ki_knowledge.integrations.knowledge_pipeline_jobs)
+    and delegates execution to ki_knowledge.services.pipeline_runner, which is the
+    same code path used by the `run_knowledge_extraction` management command
+    and (in the future) an async worker. This decouples the pipeline from the
+    Django request/response cycle.
+    """
     project = get_object_or_404(InfoSiteProject, id=project_id)
     
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=400)
     
-    from ki_knowledge.services.block_storage import InfoSiteBlockStorage
+    from ki_knowledge.services.pipeline_runner import enqueue_and_run
     
     try:
-        storage = InfoSiteBlockStorage(project)
-        results = storage.extract_and_store()
-        storage.update_document_status()
+        results = enqueue_and_run(project)
         
         messages.success(
             request,
             f"Published {results['blocks_stored']} blocks from {results['files_processed']} files "
-            f"to knowledge store '{results['source_id']}'",
+            f"to knowledge store '{results['source_id']}' (job {results['job_id']})",
         )
         
         return JsonResponse(results)
         
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def infosite_knowledge_extraction_jobs(request: HttpRequest, project_id: int):
+    """List extraction job history for a project (read-only status view)."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+
+    from ki_knowledge.services.pipeline_runner import get_job_store
+
+    store = get_job_store()
+    jobs = store.list_jobs(project_id=project.id, limit=50)
+
+    return render(
+        request,
+        "infosite/knowledge_extraction_jobs.html",
+        {"project": project, "jobs": jobs},
+    )
 
