@@ -152,8 +152,20 @@ redirect → `/data-sources/jira/domain-terms/`.
 
 ## 5. Vorgeschlagene Umsetzungsreihenfolge (nach Rückmeldung)
 
-1. Neue Top-Nav-Struktur in `base.html` (5 Haupteinträge), CSS ggf. anpassen.
-2. Neue `settings/`-Unterseiten (read-only Config-Anzeige zuerst).
-3. URL-Reorganisation je Bereich mit Redirects für Altlasten, je ein
-   Commit pro Bereich (Data Sources, Info Output, Internal Knowledge).
-4. Tests/Smoke-Checks nach jedem Bereich.
+1. ✅ Neue Top-Nav-Struktur in `base.html` (6 Haupteinträge, aktiver
+   Zustand hervorgehoben), CSS angepasst.
+2. ✅ Neue `/settings/config/`-Seite (read-only Config-Anzeige).
+3. ✅ Dynamisches Submenü: Die Zeile unter den Hauptpunkten
+   (`.nav-quicklinks`) ist keine statische globale Linkliste mehr, sondern
+   zeigt je aktivem Hauptbereich sein eigenes Submenü. Umgesetzt über
+   einen neuen Context-Prozessor `ki_knowledge/django_site/context_processors.py:nav_areas`,
+   der anhand des längsten passenden URL-Präfixes (`NAV_AREAS`) den
+   aktiven Bereich bestimmt und dessen Submenü-Einträge bereitstellt.
+   `base.html` rendert daraus sowohl die `active`-Markierung im Hauptnav
+   als auch die dynamische Submenü-Zeile. Placeholder-Einträge ohne URL
+   (z. B. "Quiz (geplant)") werden als deaktiviertes `<span>` statt Link
+   gerendert.
+4. URL-Reorganisation je Bereich mit Redirects für Altlasten, je ein
+   Commit pro Bereich (Data Sources, Info Output, Internal Knowledge) —
+   **noch offen**.
+5. Tests/Smoke-Checks nach jedem Bereich.

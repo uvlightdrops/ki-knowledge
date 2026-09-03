@@ -94,6 +94,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "ki_knowledge.django_site.context_processors.active_domain",
+                "ki_knowledge.django_site.context_processors.nav_areas",
             ],
         },
     }
