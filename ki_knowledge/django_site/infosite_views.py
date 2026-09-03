@@ -132,7 +132,15 @@ def infosite_project_detail(request: HttpRequest, project_id: int):
     end = start + per_page
     
     docs_page = documents[start:end]
-    
+
+    # Traceability: how many of this project's source documents have actually
+    # been picked up by at least one generated output file (see
+    # ki_knowledge/services/output_registry.py + GeneratedDocument.used_sources).
+    used_source_ids = set(
+        project.generated_documents.values_list("used_sources", flat=True)
+    ) - {None}
+    generated_count = project.generated_documents.count()
+
     context = {
         'project': project,
         'documents': docs_page,
@@ -155,6 +163,8 @@ def infosite_project_detail(request: HttpRequest, project_id: int):
             'imported': documents.filter(import_status='imported').count(),
             'failed': documents.filter(import_status='failed').count(),
         },
+        'generated_document_count': generated_count,
+        'used_source_count': len(used_source_ids),
     }
     return render(request, 'infosite/project_detail.html', context)
 

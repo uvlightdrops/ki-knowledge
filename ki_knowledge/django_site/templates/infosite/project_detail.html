@@ -206,6 +206,25 @@
     </div>
     {% endif %}
 
+    <!-- Input/Output traceability -->
+    {% if generated_document_count %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">🔗 Input ↔ Output</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-1">
+                <strong>{{ used_source_count }}</strong> von <strong>{{ total_documents }}</strong>
+                Quelldateien wurden in <strong>{{ generated_document_count }}</strong> generierte(n)
+                Output-Datei(en) verwendet.
+            </p>
+            <a href="/cms-admin/snippets/django_site/generateddocument/?project={{ project.id }}" class="btn btn-sm btn-outline-secondary">
+                📤 Output-Dokumente in Wagtail ansehen/freigeben
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Documents Filter -->
     <div class="card mb-4">
         <div class="card-body">
