@@ -2,6 +2,11 @@
 
 {% block title %}AI Refinement - {{ project.title }}{% endblock %}
 
+{% block extra_css %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'infosite/css/ai-refine.css' %}">
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="row">
@@ -148,32 +153,4 @@ function updateSelectedCount() {
     document.getElementById("selected-count").textContent = `${count} file(s) selected`;
 }
 </script>
-
-<style>
-.refinement-mode-card {
-    border: 2px solid #e0e0e0;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.refinement-mode-card:hover {
-    border-color: #007bff;
-    background-color: #f8f9fa;
-}
-
-.refinement-mode-card input[type="radio"]:checked {
-    border-color: #007bff;
-    background-color: #e7f3ff;
-}
-
-.card {
-    border-left: 4px solid #007bff;
-}
-
-table {
-    margin-bottom: 0;
-}
-</style>
 {% endblock %}

@@ -1,0 +1,47 @@
+  .stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--kicli-panel);
+    border: 1px solid var(--kicli-border);
+    border-radius: var(--kicli-radius-md);
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card .value { font-size: 1.8em; font-weight: bold; color: #60a5fa; }
+  .stat-card .label { font-size: 0.85rem; color: var(--kicli-text-soft); margin-top: 4px; }
+
+  .card-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 8px 14px;
+    border: 1px solid var(--kicli-border);
+    background: var(--kicli-panel-alt);
+    color: var(--kicli-text);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  .btn:hover { border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+  .btn-primary { background: rgba(96, 165, 250, 0.2); border-color: #60a5fa; color: #93c5fd; }
+  .btn-primary:hover { background: rgba(96, 165, 250, 0.3); }
+  .btn-sm { padding: 4px 8px; font-size: 1rem; }
+
+  .quick-actions { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+
+  .workflow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }

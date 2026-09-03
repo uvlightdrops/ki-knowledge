@@ -1,0 +1,25 @@
+.refinement-mode-card {
+    border: 2px solid #e0e0e0;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.refinement-mode-card:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.refinement-mode-card input[type="radio"]:checked {
+    border-color: #007bff;
+    background-color: #e7f3ff;
+}
+
+.card {
+    border-left: 4px solid #007bff;
+}
+
+table {
+    margin-bottom: 0;
+}
