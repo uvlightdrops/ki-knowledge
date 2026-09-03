@@ -16,6 +16,12 @@
   <p class="muted">No InfoSiteProject linked to this page yet.</p>
   {% endif %}
 
+  {% if project %}
+  <p><a class="nav-link" href="/infosite/project/{{ project.id }}/" title="Open legacy editorial actions not yet migrated to Wagtail: import, AI refinement, knowledge block extraction">
+    ⚙️ Manage in Infosite (Import · AI · Knowledge Blocks)
+  </a></p>
+  {% endif %}
+
   {% if documents %}
   <h3>Documents</h3>
   <ul>
