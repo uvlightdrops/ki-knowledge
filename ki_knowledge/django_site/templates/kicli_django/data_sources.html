@@ -4,6 +4,23 @@
 {% block content %}
 <h1>Data Sources</h1>
 <p class="muted">Source hub für die aktiven Quellen der Domain: Markdown, PDF, OWL und strukturierte CSV-/Issue-Daten.</p>
+
+{% if all_domains %}
+<div class="section">
+  <h3>Domains</h3>
+  <p class="muted">Gemeinsame Domain-Registry für Wissensbasis (Jira/OWL/Markdown-Workspace) und InfoSite-Projekte. Klick wechselt die aktive Domain unten.</p>
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    {% for d in all_domains %}
+    <a class="card" href="?domain={{ d.slug }}" style="min-width:220px; text-decoration:none; color:inherit; {% if d.is_active %}border-color:#60a5fa;{% endif %}">
+      <strong>{{ d.display_name }}</strong>
+      <p class="muted" style="margin:6px 0 2px">Wissensbasis: {{ d.knowledge_sources }} Quellen · {{ d.knowledge_records }} Records</p>
+      <p class="muted" style="margin:2px 0">InfoSite: {{ d.infosite_project_count }} Projekt(e) · {{ d.infosite_source_count }} Quelldatei(en)</p>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
 
 <div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">

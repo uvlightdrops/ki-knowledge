@@ -9,6 +9,55 @@ from taggit.managers import TaggableManager
 from wagtail.models import DraftStateMixin, RevisionMixin, WorkflowMixin
 
 
+class Domain(models.Model):
+    """Shared registry of knowledge domains.
+
+    Both the legacy semantic-extraction pipeline (Jira/OWL/Markdown-workspace,
+    session-scoped string domain in ``views.py``/``services.py``) and the
+    InfoSite pipeline (``InfoSiteProject.domain``) use a plain domain string
+    for path resolution and stay otherwise completely separate. This table is
+    a lightweight, additive registry so both systems can share one list of
+    known domains and one combined overview page - it does not replace either
+    pipeline's own storage or scanning behaviour.
+
+    Rows are created on demand via :func:`ensure_domain_registered`, called
+    whenever either system encounters a domain (project save, directory scan,
+    domain creation) - there is no separate "create domain" step required.
+    """
+
+    slug = models.SlugField(max_length=100, unique=True)
+    display_name = models.CharField(max_length=150, blank=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["slug"]
+
+    def __str__(self) -> str:
+        return self.display_name or self.slug
+
+
+def ensure_domain_registered(slug: str | None, *, display_name: str | None = None) -> Domain | None:
+    """Upsert a :class:`Domain` row for ``slug``, if non-empty.
+
+    Safe to call frequently (e.g. on every project save or domain scan) -
+    it's a get-or-create keyed on the slug, with an optional display-name
+    backfill for previously auto-created rows.
+    """
+
+    normalized = (slug or "").strip()
+    if not normalized:
+        return None
+    domain, created = Domain.objects.get_or_create(
+        slug=normalized,
+        defaults={"display_name": display_name or normalized},
+    )
+    if not created and display_name and not domain.display_name:
+        domain.display_name = display_name
+        domain.save(update_fields=["display_name"])
+    return domain
+
+
 class InfoSiteProject(models.Model):
     """Project configuration for infosite generation."""
 
@@ -100,6 +149,10 @@ class InfoSiteProject(models.Model):
     def __str__(self) -> str:
         """Return string representation."""
         return f"{self.title} ({self.domain})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        ensure_domain_registered(self.domain)
 
 
 class SourceDocument(WorkflowMixin, DraftStateMixin, RevisionMixin, models.Model):

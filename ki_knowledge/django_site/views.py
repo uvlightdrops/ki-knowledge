@@ -27,6 +27,7 @@ from .services import (
     discover_pdf_files,
     domain_knowledge_summary,
     domain_pdf_dir,
+    domain_registry_overview,
     domain_source_ids,
     generate_all_artifacts,
     get_pdf_batch_processor,
@@ -466,6 +467,7 @@ def data_sources_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
     display_mode = _display_mode(request, default="cards")
     store_obj = store()
+    all_domains = domain_registry_overview(active_domain)
     markdown_files = workspace_markdown_files(domain=active_domain)
     ontology_files = workspace_ontology_files(domain=active_domain)
     domain_states = semantic_domain_states()
@@ -489,6 +491,8 @@ def data_sources_view(request: HttpRequest):
             "active_domain": active_domain,
             "active_domain_state": active_state,
             "display_mode": display_mode,
+            "all_domains": all_domains,
+
             "data_sources_toggle_cards_url": f"{reverse('data-sources')}?display=cards",
             "data_sources_toggle_table_url": f"{reverse('data-sources')}?display=table",
             "jira_issues": jira_issue_count(active_domain),

@@ -739,7 +739,33 @@ def available_data_domains() -> list[str]:
         for child in legacy_root.iterdir():
             if child.is_dir():
                 domains.add(normalize_semantic_domain(child.name))
-    return sorted(item for item in domains if item)
+    result = sorted(item for item in domains if item)
+    _register_domains(result)
+    return result
+
+
+def _register_domains(slugs: list[str]) -> None:
+    """Backfill the shared Domain registry with slugs found by directory scans.
+
+    Imported lazily and guarded: this service layer is also used by the
+    plain FastAPI app (tests/test_jira_api.py) without Django settings
+    configured at all, so any failure to reach the Django app registry
+    (ImproperlyConfigured/AppRegistryNotReady) is treated as "registry not
+    available here" rather than a hard error - domains still get registered
+    normally whenever this runs inside the Django app.
+    """
+
+    try:
+        from django.apps import apps as django_apps
+
+        if not django_apps.ready:
+            return
+        from ki_knowledge.django_site.infosite_models import ensure_domain_registered
+    except Exception:
+        return
+
+    for slug in slugs:
+        ensure_domain_registered(slug)
 
 
 def default_semantic_domain() -> str:
@@ -802,6 +828,7 @@ def create_semantic_domain(domain: str | None) -> dict[str, Any]:
     jira_dir.mkdir(parents=True, exist_ok=True)
     owl_dir.mkdir(parents=True, exist_ok=True)
     prompt_dir.mkdir(parents=True, exist_ok=True)
+    _register_domains([resolved])
     return {
         "domain": resolved,
         "markdown_dir": str(md_dir),
@@ -1026,6 +1053,36 @@ def domain_source_ids(domain: str | None = None) -> set[str]:
         if source_in_domain(source, domain=domain) or _source_matches_domain_legacy(source, domain=domain)
     ]
     return {str(source.source_id) for source in scoped_sources}
+
+
+def domain_registry_overview(active_domain: str | None = None) -> list[dict[str, Any]]:
+    """Combined overview of every registered Domain across both pipelines.
+
+    Returns one dict per Domain row with knowledge-pipeline stats (Jira/OWL/
+    Markdown-workspace, via domain_knowledge_summary) and InfoSite stats
+    (project/source-document counts), so a single "domain tile" can show
+    both without either pipeline's storage being touched or merged.
+    """
+
+    from ki_knowledge.django_site.infosite_models import Domain, InfoSiteProject, SourceDocument
+
+    overview: list[dict[str, Any]] = []
+    for domain in Domain.objects.all():
+        knowledge = domain_knowledge_summary(domain.slug)
+        projects = InfoSiteProject.objects.filter(domain=domain.slug)
+        overview.append(
+            {
+                "slug": domain.slug,
+                "display_name": domain.display_name or domain.slug,
+                "is_active": domain.slug == active_domain,
+                "knowledge_sources": knowledge["sources"],
+                "knowledge_records": knowledge["records"],
+                "infosite_project_count": projects.count(),
+                "infosite_source_count": SourceDocument.objects.filter(project__domain=domain.slug).count(),
+            }
+        )
+    return overview
+
 
 
 def _domain_knowledge_scope(domain: str | None = None) -> tuple[list[str], list[str]]:
