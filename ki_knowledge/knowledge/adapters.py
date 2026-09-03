@@ -4,10 +4,73 @@ from __future__ import annotations
 
 from typing import Any
 
+from hashlib import sha256
+from pathlib import Path
+
 from ki_knowledge.integrations.jira_client import JiraIssue
 from ki_knowledge.integrations.markdown_blocks import KnowledgeBlock
-from ki_knowledge.knowledge.models import KnowledgeBlockRecord, KnowledgeSource
+from ki_knowledge.knowledge.models import DataSourceDescriptor, KnowledgeBlockRecord, KnowledgeSource, SourceDocumentRecord
 from ki_knowledge.knowledge.quiz_schema import QuizModuleSpec, QuizOptionSpec, QuizQuestionSpec
+
+
+class InfoSiteSourceAdapter:
+    """Adapt the legacy InfoSite model layer to the canonical data-source contract."""
+
+    @staticmethod
+    def make_source_id(source_type: str, title: str, uri: str) -> str:
+        seed = f"{source_type}:{title}:{uri}".strip(":")
+        digest = sha256(seed.encode("utf-8")).hexdigest()[:16]
+        return f"{source_type}:{digest}"
+
+    @staticmethod
+    def to_descriptor(project: object, source_directory: str | None = None) -> DataSourceDescriptor:
+        domain = getattr(project, "domain", "default") or "default"
+        title = getattr(project, "title", "") or getattr(project, "working_title", "") or domain
+        working_title = getattr(project, "working_title", "") or ""
+        uri = source_directory or getattr(project, "source_directory", "") or str(Path("datadir") / "md" / domain / working_title)
+        source_type = "filesystem_markdown"
+        return DataSourceDescriptor(
+            source_id=InfoSiteSourceAdapter.make_source_id(source_type, title, uri),
+            source_type=source_type,
+            title=title,
+            uri=uri,
+            provider="infosite",
+            status=getattr(project, "sync_status", "discovered") or "discovered",
+            metadata={
+                "domain": domain,
+                "working_title": working_title,
+                "project_id": getattr(project, "id", None),
+                "enabled": getattr(project, "enabled", True),
+            },
+        )
+
+    @staticmethod
+    def to_document(project: object, document: object) -> SourceDocumentRecord:
+        source_descriptor = InfoSiteSourceAdapter.to_descriptor(project)
+        file_path = getattr(document, "file_path", "") or ""
+        title = getattr(document, "title", "") or Path(file_path).name
+        document_type = getattr(document, "file_type", "other") or "other"
+        status = getattr(document, "import_status", "discovered") or "discovered"
+        return SourceDocumentRecord(
+            document_id=InfoSiteSourceAdapter.make_source_id(document_type, title, file_path),
+            source_id=source_descriptor.source_id,
+            document_type=document_type,
+            title=title,
+            uri=file_path,
+            version="v1",
+            status=status,
+            checksum=getattr(document, "checksum", None),
+            metadata={
+                "project_id": getattr(project, "id", None),
+                "file_size": getattr(document, "file_size", None),
+                "modified_at": getattr(document, "modified_at", None),
+                "imported": getattr(document, "imported", False),
+            },
+        )
+
+    @staticmethod
+    def to_documents(project: object, documents: list[object]) -> list[SourceDocumentRecord]:
+        return [InfoSiteSourceAdapter.to_document(project, doc) for doc in documents]
 
 
 class MarkdownKnowledgeAdapter:

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ki_core.config import Config
 
+from .data_source_service import CanonicalDataSourceService
 from .discovery import DocumentDiscoveryService, FileInfo
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class DocumentSyncService:
         """Initialize sync service with discovery service."""
         self.discovery = DocumentDiscoveryService(config)
         self.config = config or Config.from_env()
+        self.data_source_service = CanonicalDataSourceService
     
     def sync_project_documents(
         self,

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags %}
+
+{% block title %}{{ page.title }}{% endblock %}
+
+{% block content %}
+<div class="panel-grid">
+  <h1>{{ page.title }}</h1>
+  {{ page.editorial_notes|richtext }}
+
+  {% if descriptor %}
+  <p><strong>Source ID:</strong> <code>{{ descriptor.source_id }}</code></p>
+  <p><strong>Status:</strong> {{ descriptor.status }}</p>
+  <p><strong>URI:</strong> <code>{{ descriptor.uri }}</code></p>
+  {% else %}
+  <p class="muted">No InfoSiteProject linked to this page yet.</p>
+  {% endif %}
+
+  {% if documents %}
+  <h3>Documents</h3>
+  <ul>
+    {% for doc in documents %}
+    <li>{{ doc.title }} — <span class="chip">{{ doc.document_type }}</span> — {{ doc.status }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

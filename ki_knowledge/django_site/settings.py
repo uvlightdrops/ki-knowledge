@@ -33,6 +33,23 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "ki_knowledge.django_site",
+    # Wagtail: parallel CMS/workflow layer on top of the canonical
+    # data-source core (see ki_knowledge.wagtail_cms). Introduced as an
+    # additive layer, not a replacement for existing infosite views.
+    "ki_knowledge.wagtail_cms",
+    "wagtail.contrib.forms",
+    "wagtail.contrib.redirects",
+    "wagtail.embeds",
+    "wagtail.sites",
+    "wagtail.users",
+    "wagtail.snippets",
+    "wagtail.documents",
+    "wagtail.images",
+    "wagtail.search",
+    "wagtail.admin",
+    "wagtail",
+    "modelcluster",
+    "taggit",
 ]
 
 MIDDLEWARE = [
@@ -43,6 +60,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "wagtail.contrib.redirects.middleware.RedirectMiddleware",
 ]
 
 ROOT_URLCONF = "ki_knowledge.django_site.urls"
@@ -84,6 +102,11 @@ TEMPLATES = [
 LOGIN_URL = "admin:login"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
+
+# Wagtail settings (parallel CMS/workflow layer)
+WAGTAIL_SITE_NAME = "ki-knowledge CMS"
+WAGTAILADMIN_BASE_URL = os.getenv("WAGTAILADMIN_BASE_URL", "http://localhost:8000")
+WAGTAIL_ENABLE_UPDATE_CHECK = False
 
 # Ki-core configuration for services
 KI_CONFIG = Config(knowledge_data_root=str(DATA_DIR))

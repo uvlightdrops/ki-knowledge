@@ -1,6 +1,10 @@
 from django.urls import path, include
 from django.contrib import admin
 
+from wagtail.admin import urls as wagtailadmin_urls
+from wagtail import urls as wagtail_urls
+from wagtail.documents import urls as wagtaildocs_urls
+
 from . import views
 
 urlpatterns = [
@@ -8,6 +12,11 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     # Infosite Management
     path("infosite/", include("ki_knowledge.django_site.infosite_urls")),
+    # Wagtail CMS/workflow layer (parallel to existing infosite views; see
+    # ki_knowledge.wagtail_cms for the thin page models built on the
+    # canonical data-source core).
+    path("cms-admin/", include(wagtailadmin_urls)),
+    path("cms-documents/", include(wagtaildocs_urls)),
     # ... rest of URLs
     path("data-sources/", views.data_sources_view, name="data-sources"),
     path("knowledge/", views.knowledge_landing_view, name="knowledge"),
@@ -44,4 +53,6 @@ urlpatterns = [
     path("artifacts/", views.artifacts, name="artifacts"),
     path("import/", views.import_action, name="import-action"),
     path("generate/", views.generate_action, name="generate-action"),
+    # Wagtail page serving must stay last so it acts as a catch-all under /cms/
+    path("cms/", include(wagtail_urls)),
 ]

@@ -8,6 +8,7 @@ from ki_knowledge.django_site.infosite_models import InfoSiteProject, SourceDocu
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.knowledge.models import KnowledgeBlockRecord, KnowledgeSource
 from ki_knowledge.services.block_extractor import KnowledgeBlockData, InfoSiteBlockExtractor
+from ki_knowledge.services.data_source_service import CanonicalDataSourceService
 
 
 class InfoSiteBlockStorage:
@@ -26,11 +27,9 @@ class InfoSiteBlockStorage:
             self.store = knowledge_store
 
     def get_source_id(self) -> str:
-        """Generate consistent source_id for this project."""
-        domain = self.project.domain or "unknown"
-        working_title = self.project.working_title or "unknown"
-        clean_title = working_title.replace(" ", "_").lower()
-        return f"infosite_{domain}_{clean_title}"
+        """Generate a canonical source_id for this project."""
+        descriptor = CanonicalDataSourceService.from_infosite_project(self.project)
+        return descriptor.source_id
 
     def create_knowledge_source(self) -> KnowledgeSource:
         """Create KnowledgeSource entry for this InfoSite project."""

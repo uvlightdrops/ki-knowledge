@@ -18,6 +18,44 @@ class KnowledgeSource:
 
 
 @dataclass
+class DataSourceDescriptor:
+    """Canonical descriptor for any external or internal source system.
+
+    This is the abstraction layer underneath infosite markdown imports and future
+    connectors such as Notion, Confluence, PDFs, Git repositories, or CMS content.
+    """
+
+    source_id: str
+    source_type: str
+    title: str
+    uri: str
+    provider: str
+    status: str = "discovered"
+    checksum: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SourceDocumentRecord:
+    """Canonical document item that belongs to a data source.
+
+    This separates the content source lifecycle from the specific infosite project
+    model and makes it possible to handle markdown files, PDFs, and CMS content
+    through the same abstraction.
+    """
+
+    document_id: str
+    source_id: str
+    document_type: str
+    title: str
+    uri: str
+    version: str = "v1"
+    status: str = "discovered"
+    checksum: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class KnowledgeBlockRecord:
     """Generic, source-neutral knowledge block."""
 
