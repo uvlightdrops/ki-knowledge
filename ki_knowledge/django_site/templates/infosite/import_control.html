@@ -2,211 +2,318 @@
 
 {% block title %}Import Control - {{ project.title }}{% endblock %}
 
+{% block extra_css %}
+<style>
+  .stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--kicli-panel);
+    border: 1px solid var(--kicli-border);
+    border-radius: var(--kicli-radius-md);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-card .value { font-size: 1.8em; font-weight: bold; color: #60a5fa; }
+  .stat-card .label { font-size: 0.85rem; color: var(--kicli-text-soft); margin-top: 4px; }
+
+  .import-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 980px) {
+    .import-layout { grid-template-columns: 1fr; }
+  }
+
+  .doc-row { cursor: pointer; }
+  .doc-row:hover, .doc-row.active-preview {
+    background: rgba(96, 165, 250, 0.1);
+  }
+  .doc-row td code { word-break: break-all; }
+
+  .preview-panel {
+    background: var(--kicli-panel);
+    border: 1px solid var(--kicli-border);
+    border-radius: var(--kicli-radius-md);
+    position: sticky;
+    top: 16px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .preview-panel-header {
+    padding: 10px 14px;
+    background: rgba(59, 130, 246, 0.1);
+    border-bottom: 1px solid var(--kicli-border);
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+
+  .preview-panel-body {
+    padding: 14px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .preview-panel-body pre {
+    white-space: pre-wrap;
+    font-size: 0.82rem;
+    margin: 0;
+  }
+
+  .preview-empty {
+    color: var(--kicli-text-soft);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 24px 8px;
+  }
+
+  .preview-hint {
+    color: var(--kicli-text-soft);
+    font-size: 0.75rem;
+    margin-top: 8px;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 10px 16px;
+    border: 1px solid var(--kicli-border);
+    background: var(--kicli-panel-alt);
+    color: var(--kicli-text);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+  }
+
+  .btn:hover { border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+
+  .btn-primary {
+    background: rgba(96, 165, 250, 0.2);
+    border-color: #60a5fa;
+    color: #93c5fd;
+  }
+  .btn-primary:hover { background: rgba(96, 165, 250, 0.3); }
+
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <h1>📥 Import Control</h1>
-            <p class="text-muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
-        </div>
-    </div>
+<div class="section">
+  <h1>📥 Import Control</h1>
+  <p class="muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
 
-    {% if messages %}
-    <div class="row mt-3">
-        <div class="col-md-12">
-            {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
 
-    <!-- Import Statistics -->
-    <div class="row mt-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Total Documents</h6>
-                    <h2 class="card-text">{{ stats.total }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Discovered</h6>
-                    <h2 class="card-text"><span class="badge bg-info">{{ stats.discovered }}</span></h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Imported</h6>
-                    <h2 class="card-text"><span class="badge bg-success">{{ stats.imported }}</span></h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Failed</h6>
-                    <h2 class="card-text"><span class="badge bg-danger">{{ stats.failed }}</span></h2>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div class="stats-cards">
+    <div class="stat-card"><div class="value">{{ stats.total }}</div><div class="label">Gesamt</div></div>
+    <div class="stat-card"><div class="value">{{ stats.discovered }}</div><div class="label">🔍 Gefunden</div></div>
+    <div class="stat-card"><div class="value">{{ stats.imported }}</div><div class="label">✅ Importiert</div></div>
+    <div class="stat-card"><div class="value">{{ stats.failed }}</div><div class="label">✗ Fehlgeschlagen</div></div>
+  </div>
 
-    <!-- Importable Documents -->
-    {% if importable_docs %}
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">📄 Available for Import ({{ importable_docs|length }})</h5>
-                </div>
-                <div class="card-body">
-                    <form method="post" action="{% url 'infosite:import_selected' project.id %}">
-                        {% csrf_token %}
-                        
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;">
-                                        <input type="checkbox" id="select-all" class="form-check-input">
-                                    </th>
-                                    <th>File Path</th>
-                                    <th>Type</th>
-                                    <th>Size</th>
-                                    <th>Import Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for doc in importable_docs %}
-                                <tr>
-                                    <td>
-                                        <input type="checkbox" name="selected_files[]" value="{{ doc.id }}" 
-                                               class="form-check-input file-checkbox">
-                                    </td>
-                                    <td>
-                                        <code class="text-truncate" title="{{ doc.file_path }}" style="max-width: 300px;">
-                                            {{ doc.file_path|truncatechars:50 }}
-                                        </code>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-info">{{ doc.get_file_type_display }}</span>
-                                    </td>
-                                    <td>
-                                        {% if doc.file_size %}
-                                            {{ doc.file_size|filesizeformat }}
-                                        {% else %}
-                                            —
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if doc.import_status == 'discovered' %}
-                                            <span class="badge bg-primary">🔍 Discovered</span>
-                                        {% elif doc.import_status == 'pending' %}
-                                            <span class="badge bg-warning">⏳ Pending</span>
-                                        {% elif doc.import_status == 'failed' %}
-                                            <span class="badge bg-danger">✗ Failed</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">{{ doc.get_import_status_display }}</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+  {% if importable_docs %}
+  <div class="card">
+    <div class="card-header">📄 Verfügbar für Import ({{ importable_docs|length }})</div>
+    <div class="import-layout">
+      <div>
+        <form method="post" action="{% url 'infosite:import_selected' project.id %}">
+          {% csrf_token %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 32px;"><input type="checkbox" id="select-all"></th>
+                  <th>Pfad</th>
+                  <th>Typ</th>
+                  <th>Größe</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="doc-table-body">
+                {% for doc in importable_docs %}
+                <tr class="doc-row" tabindex="0"
+                    data-preview-url="{% url 'infosite:source_document_api' project.id doc.id %}"
+                    data-name="{{ doc.display_path }}">
+                  <td>
+                    <input type="checkbox" name="selected_files[]" value="{{ doc.id }}" class="file-checkbox">
+                  </td>
+                  <td><code title="{{ doc.file_path }}">{{ doc.display_path }}</code></td>
+                  <td><span class="chip">{{ doc.get_file_type_display }}</span></td>
+                  <td>{% if doc.file_size %}{{ doc.file_size|filesizeformat }}{% else %}—{% endif %}</td>
+                  <td>
+                    {% if doc.import_status == 'discovered' %}
+                      <span class="badge">🔍 Gefunden</span>
+                    {% elif doc.import_status == 'pending' %}
+                      <span class="badge badge-warning">⏳ Ausstehend</span>
+                    {% elif doc.import_status == 'failed' %}
+                      <span class="badge badge-danger">✗ Fehlgeschlagen</span>
+                    {% else %}
+                      <span class="badge">{{ doc.get_import_status_display }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
 
-                        <div class="mt-3">
-                            <button type="submit" class="btn btn-primary">
-                                📥 Mark Selected as Imported
-                            </button>
-                            <span id="selected-count" class="ms-3 text-muted">0 files selected</span>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <div class="alert alert-success">
-                ✅ All documents have been imported! No action needed.
-            </div>
-        </div>
-    </div>
-    {% endif %}
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">▶️ Import-Job starten</button>
+            <span id="selected-count" class="muted">0 Dateien ausgewählt</span>
+            <a href="{% url 'infosite:import_jobs' project.id %}" class="btn">🗒️ Job-Historie</a>
+          </div>
+          <p class="preview-hint">Zeile anklicken/fokussieren oder mit ↑ ↓ navigieren, um eine Vorschau zu laden. Checkbox unabhängig davon anklickbar.</p>
+        </form>
+      </div>
 
-    <!-- Already Imported -->
-    {% if stats.imported > 0 %}
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">✅ Already Imported ({{ stats.imported }})</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table class="table table-sm mb-0">
-                            <tbody>
-                                {% for doc in documents %}
-                                    {% if doc.import_status == 'imported' %}
-                                    <tr>
-                                        <td>{{ doc.file_path|truncatechars:70 }}</td>
-                                        <td class="text-end">
-                                            {% if doc.imported_at %}
-                                                <small class="text-muted">{{ doc.imported_at|date:"Y-m-d H:i" }}</small>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+      <div class="preview-panel">
+        <div class="preview-panel-header" id="preview-title">Vorschau</div>
+        <div class="preview-panel-body" id="preview-body">
+          <div class="preview-empty">👈 Dokument in der Tabelle auswählen, um eine Vorschau zu laden.</div>
         </div>
+      </div>
     </div>
-    {% endif %}
+  </div>
+  {% else %}
+  <div class="alert alert-success">✅ Alle Dokumente wurden bereits importiert. Keine Aktion nötig.</div>
+  {% endif %}
 
-    <!-- Back Button -->
-    <div class="row mt-4 mb-4">
-        <div class="col-md-12">
-            <a href="{% url 'infosite:project_detail' project.id %}" class="btn btn-outline-secondary">
-                ← Back to Project
-            </a>
-        </div>
+  {% if stats.imported > 0 %}
+  <div class="card section">
+    <div class="card-header">✅ Bereits importiert ({{ stats.imported }})</div>
+    <div class="table-wrap" style="max-height: 300px; overflow-y: auto;">
+      <table>
+        <tbody>
+          {% for doc in documents %}
+            {% if doc.import_status == 'imported' %}
+            <tr>
+              <td><code title="{{ doc.file_path }}">{{ doc.display_path }}</code></td>
+              <td class="nowrap">
+                {% if doc.imported_at %}<span class="muted">{{ doc.imported_at|date:"Y-m-d H:i" }}</span>{% endif %}
+              </td>
+            </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <a href="{% url 'infosite:project_detail' project.id %}" class="btn">← Zurück zum Projekt</a>
+  </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const selectAll = document.getElementById('select-all');
-    const checkboxes = document.querySelectorAll('.file-checkbox');
-    const selectedCount = document.getElementById('selected-count');
-    
-    function updateCount() {
-        const count = document.querySelectorAll('.file-checkbox:checked').length;
-        selectedCount.textContent = count + ' file' + (count !== 1 ? 's' : '') + ' selected';
-    }
-    
-    if (selectAll) {
-        selectAll.addEventListener('change', function() {
-            checkboxes.forEach(cb => cb.checked = this.checked);
-            updateCount();
-        });
-    }
-    
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', updateCount);
+  const selectAll = document.getElementById('select-all');
+  const checkboxes = document.querySelectorAll('.file-checkbox');
+  const selectedCount = document.getElementById('selected-count');
+  const rows = Array.from(document.querySelectorAll('.doc-row'));
+  const previewTitle = document.getElementById('preview-title');
+  const previewBody = document.getElementById('preview-body');
+
+  function updateCount() {
+    const count = document.querySelectorAll('.file-checkbox:checked').length;
+    selectedCount.textContent = count + ' Datei' + (count !== 1 ? 'en' : '') + ' ausgewählt';
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => cb.checked = this.checked);
+      updateCount();
     });
+  }
+  checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+
+  // --- Preview panel: hover + click + arrow-key navigation ---
+  let activeRow = null;
+  let hoverTimer = null;
+  const previewCache = new Map();
+
+  function setActiveRow(row) {
+    if (!row) return;
+    if (activeRow) activeRow.classList.remove('active-preview');
+    activeRow = row;
+    activeRow.classList.add('active-preview');
+    loadPreview(row);
+  }
+
+  async function loadPreview(row) {
+    const url = row.dataset.previewUrl;
+    const name = row.dataset.name;
+    previewTitle.textContent = name;
+
+    if (previewCache.has(url)) {
+      renderPreview(previewCache.get(url));
+      return;
+    }
+
+    previewBody.innerHTML = '<div class="preview-empty">⏳ Lade Vorschau…</div>';
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      previewCache.set(url, data);
+      renderPreview(data);
+    } catch (e) {
+      previewBody.innerHTML = '<div class="preview-empty">⚠️ Vorschau konnte nicht geladen werden.</div>';
+    }
+  }
+
+  function renderPreview(data) {
+    if (data.error) {
+      previewBody.innerHTML = '<div class="preview-empty">⚠️ ' + data.error + '</div>';
+      return;
+    }
+    const content = (data.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const truncatedNote = data.truncated ? '<p class="muted">… gekürzt</p>' : '';
+    previewBody.innerHTML = '<pre>' + content + '</pre>' + truncatedNote;
+  }
+
+  rows.forEach((row, idx) => {
+    row.addEventListener('mouseenter', function() {
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => setActiveRow(row), 150);
+    });
+    row.addEventListener('mouseleave', function() {
+      clearTimeout(hoverTimer);
+    });
+    row.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') return;
+      setActiveRow(row);
+    });
+    row.addEventListener('focus', function() {
+      setActiveRow(row);
+    });
+    row.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = rows[idx + 1];
+        if (next) next.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = rows[idx - 1];
+        if (prev) prev.focus();
+      }
+    });
+  });
 });
 </script>
 {% endblock %}

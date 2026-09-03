@@ -159,3 +159,15 @@ class SourceDocument(models.Model):
                 return f"{size:.1f} {unit}"
             size /= 1024
         return f"{size:.1f} TB"
+
+    @property
+    def display_path(self) -> str:
+        """Return file_path relative to the project's markdown root.
+
+        Strips the shared prefix (source_directory or the resolved
+        domain/working_title root) so UI tables can show only the part of
+        the path that actually distinguishes one document from another.
+        """
+        from ki_knowledge.knowledge.adapters import InfoSiteSourceAdapter
+
+        return InfoSiteSourceAdapter.relative_document_path(self.project, self.file_path)

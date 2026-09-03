@@ -27,6 +27,12 @@ urlpatterns = [
     # Import control
     path("project/<int:project_id>/import/", infosite_views.infosite_import_control, name="import_control"),
     path("project/<int:project_id>/import/selected/", infosite_views.infosite_import_selected, name="import_selected"),
+    path("project/<int:project_id>/import/jobs/", infosite_views.infosite_import_jobs, name="import_jobs"),
+    path(
+        "api/source-document/<int:project_id>/<int:doc_id>/",
+        infosite_views.infosite_source_document_preview_api,
+        name="source_document_api",
+    ),
     
     # Document preview
     path("project/<int:project_id>/documents/", infosite_views.infosite_document_preview, name="documents"),

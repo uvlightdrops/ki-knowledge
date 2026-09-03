@@ -525,41 +525,56 @@ def infosite_import_control(request: HttpRequest, project_id: int):
 @login_required
 @require_http_methods(["POST"])
 def infosite_import_selected(request: HttpRequest, project_id: int):
-    """Import selected documents by marking them as imported."""
+    """Start an import job for the selected documents (decoupled from the request)."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
-    
+
     # Get selected document IDs from POST
-    selected_doc_ids = request.POST.getlist("selected_files[]")
-    
+    selected_doc_ids = []
+    for raw_id in request.POST.getlist("selected_files[]"):
+        try:
+            selected_doc_ids.append(int(raw_id))
+        except ValueError:
+            continue
+
     if not selected_doc_ids:
         messages.warning(request, "No documents selected")
         return redirect("infosite:import_control", project_id=project.id)
-    
-    # Update selected documents
-    imported_count = 0
+
+    from ki_knowledge.services.import_runner import enqueue_and_run_import
+
     try:
-        # Convert strings to integers and update documents
-        for doc_id in selected_doc_ids:
-            try:
-                doc = SourceDocument.objects.get(id=int(doc_id), project=project)
-                if doc.import_status != "imported":
-                    doc.import_status = "imported"
-                    doc.imported = True
-                    doc.imported_at = timezone.now()
-                    doc.save()
-                    imported_count += 1
-            except (ValueError, SourceDocument.DoesNotExist):
-                continue
-        
+        result = enqueue_and_run_import(project.id, selected_doc_ids)
+        imported_count = result["documents_imported"]
         if imported_count > 0:
-            messages.success(request, f"✅ Marked {imported_count} document(s) as imported")
+            messages.success(
+                request,
+                f"✅ Import-Job {result['job_id']} abgeschlossen: {imported_count} Dokument(e) importiert",
+            )
         else:
-            messages.info(request, "No documents needed updating")
-            
+            messages.info(request, f"Import-Job {result['job_id']}: keine Dokumente mussten aktualisiert werden")
     except Exception as e:
-        messages.error(request, f"Error updating documents: {str(e)}")
-    
+        messages.error(request, f"Import-Job fehlgeschlagen: {str(e)}")
+
     return redirect("infosite:import_control", project_id=project.id)
+
+
+@login_required
+@require_http_methods(["GET"])
+def infosite_import_jobs(request: HttpRequest, project_id: int):
+    """Show the history of document-import jobs for a project."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+
+    from ki_knowledge.services.import_runner import get_job_store
+
+    store = get_job_store()
+    jobs = store.list_jobs(project_id=project.id)
+
+    return render(
+        request,
+        "infosite/import_jobs.html",
+        {"project": project, "jobs": jobs},
+    )
+
 
 
 # ============================================================================
@@ -802,6 +817,56 @@ def infosite_document_preview_api(request: HttpRequest, project_id: int, doc_pat
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def infosite_source_document_preview_api(request: HttpRequest, project_id: int, doc_id: int):
+    """Return a short excerpt of a raw SourceDocument's content for the flying preview
+    used on the import-control page (source input, as opposed to
+    infosite_document_preview_api which previews the *generated output*).
+    """
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    doc = get_object_or_404(SourceDocument, id=doc_id, project=project)
+
+    file_path = Path(doc.file_path)
+    if not file_path.exists() or not file_path.is_file():
+        return JsonResponse({"error": "File not found on disk", "path": doc.file_path}, status=404)
+
+    max_chars = 4000
+
+    if doc.file_type == "pdf":
+        try:
+            from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf
+
+            text = extract_text_from_pdf(file_path)
+        except Exception as e:
+            return JsonResponse({"error": f"PDF extraction failed: {e}"}, status=500)
+        truncated = len(text) > max_chars
+        return JsonResponse({
+            "id": doc.id,
+            "name": file_path.name,
+            "type": "pdf",
+            "content": text[:max_chars],
+            "truncated": truncated,
+            "size": doc.file_size or file_path.stat().st_size,
+        })
+
+    try:
+        content = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return JsonResponse({"error": f"Could not read file: {e}"}, status=500)
+
+    truncated = len(content) > max_chars
+    return JsonResponse({
+        "id": doc.id,
+        "name": file_path.name,
+        "type": doc.file_type or "other",
+        "content": content[:max_chars],
+        "truncated": truncated,
+        "size": doc.file_size or file_path.stat().st_size,
+        "lines": len(content.split("\n")),
+    })
 
 
 # ============================================================================

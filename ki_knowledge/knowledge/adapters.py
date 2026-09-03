@@ -30,6 +30,34 @@ class InfoSiteSourceAdapter:
         return data_root / "md" / domain / working_title
 
     @staticmethod
+    def relative_document_path(project: object, file_path: str) -> str:
+        """Return `file_path` relative to the project's markdown root, if possible.
+
+        Used by the import-control UI so the table shows only the part of the
+        path that is actually specific to the document (e.g.
+        `10_geistige_welt/anspruch-und-ziel.md`) instead of the full absolute
+        path, which is mostly the same shared prefix for every row.
+        Falls back to the original `file_path` if it isn't under the resolved
+        root (e.g. legacy documents imported from an unrelated location).
+        """
+        if not file_path:
+            return file_path
+        domain = getattr(project, "domain", "default") or "default"
+        working_title = getattr(project, "working_title", "") or ""
+        root_candidates = []
+        if getattr(project, "source_directory", ""):
+            root_candidates.append(Path(project.source_directory))
+        root_candidates.append(InfoSiteSourceAdapter.resolve_markdown_root(domain, working_title))
+
+        path = Path(file_path)
+        for root in root_candidates:
+            try:
+                return str(path.relative_to(root))
+            except ValueError:
+                continue
+        return file_path
+
+    @staticmethod
     def make_source_id(source_type: str, title: str, uri: str) -> str:
         seed = f"{source_type}:{title}:{uri}".strip(":")
         digest = sha256(seed.encode("utf-8")).hexdigest()[:16]
