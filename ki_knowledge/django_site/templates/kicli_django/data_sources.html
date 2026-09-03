@@ -8,14 +8,31 @@
 {% if all_domains %}
 <div class="section">
   <h3>Domains</h3>
-  <p class="muted">Gemeinsame Domain-Registry für Wissensbasis (Jira/OWL/Markdown-Workspace) und InfoSite-Projekte. Klick wechselt die aktive Domain unten.</p>
-  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+  <table>
+    <thead>
+      <tr>
+        <th>Domain</th>
+        <th>Wissensbasis-Quellen</th>
+        <th>Wissensbasis-Records</th>
+        <th>InfoSite-Projekte</th>
+        <th>InfoSite-Quelldateien</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in all_domains %}
+      <tr {% if d.is_active %}style="background:rgba(96,165,250,0.12)"{% endif %}>
+        <td><strong>{{ d.display_name }}</strong></td>
+        <td>{{ d.knowledge_sources }}</td>
+        <td>{{ d.knowledge_records }}</td>
+        <td>{{ d.infosite_project_count }}</td>
+        <td>{{ d.infosite_source_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
     {% for d in all_domains %}
-    <a class="card" href="?domain={{ d.slug }}" style="min-width:220px; text-decoration:none; color:inherit; {% if d.is_active %}border-color:#60a5fa;{% endif %}">
-      <strong>{{ d.display_name }}</strong>
-      <p class="muted" style="margin:6px 0 2px">Wissensbasis: {{ d.knowledge_sources }} Quellen · {{ d.knowledge_records }} Records</p>
-      <p class="muted" style="margin:2px 0">InfoSite: {{ d.infosite_project_count }} Projekt(e) · {{ d.infosite_source_count }} Quelldatei(en)</p>
-    </a>
+    <a class="chip" href="?domain={{ d.slug }}" {% if d.is_active %}style="border-color:#60a5fa;color:#fff"{% endif %}>{{ d.display_name }}</a>
     {% endfor %}
   </div>
 </div>
@@ -29,6 +46,46 @@
     <a class="chip" href="{{ data_sources_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
     <a class="chip" href="{{ data_sources_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
   </div>
+</div>
+
+<div class="section card">
+  <h3>Dateien der aktiven Domain</h3>
+  <p class="muted">Markdown- und Ontology-Dateien, automatisch gefunden unter <span class="mono">DATADIR/.../{{ active_domain }}/</span>.</p>
+  <table>
+    <thead>
+      <tr><th>Typ</th><th>Datei</th><th>Pfad</th><th>Aktion</th></tr>
+    </thead>
+    <tbody>
+      {% for item in markdown_examples %}
+        <tr>
+          <td>Markdown</td>
+          <td>{{ item.name }}</td>
+          <td class="mono">{{ item.display_path }}</td>
+          <td></td>
+        </tr>
+      {% endfor %}
+      {% for item in ontology_examples %}
+        <tr>
+          <td>OWL</td>
+          <td><strong>{{ item.name }}</strong></td>
+          <td class="mono">{{ item.display_path }}</td>
+          <td>
+            <form method="post" action="{% url 'import-action' %}">
+              {% csrf_token %}
+              <input type="hidden" name="import_type" value="file">
+              <input type="hidden" name="path" value="{{ item.path }}">
+              <input type="hidden" name="source_name" value="{{ item.name }}">
+              <input type="hidden" name="next" value="data-sources">
+              <button type="submit">Import this file</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      {% if not markdown_examples and not ontology_examples %}
+        <tr><td colspan="4" class="muted">Keine Dateien für die aktive Domain gefunden.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
 </div>
 
 <div class="grid section">
@@ -170,62 +227,6 @@
   <h3>AI</h3>
   <p class="muted">Ollama-Chats speichern Ergebnisse als Markdown im Workspace und können danach direkt eingelesen werden.</p>
   <p><a href="/knowledge/chat/ollama/">Ollama Chat öffnen</a></p>
-</div>
-{% endif %}
-
-{% if display_mode == "table" %}
-<div class="section card">
-  <h3>Markdown examples</h3>
-  {% if markdown_examples %}
-    <table>
-      <thead>
-        <tr><th>File</th><th>Path</th></tr>
-      </thead>
-      <tbody>
-        {% for item in markdown_examples %}
-          <tr>
-            <td>{{ item.name }}</td>
-            <td class="mono">{{ item.display_path }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="muted">No Markdown files found in the workspace.</p>
-  {% endif %}
-</div>
-{% endif %}
-
-{% if display_mode == "table" %}
-<div class="section card">
-  <h3>Discovered ontology files</h3>
-  {% if ontology_examples %}
-    <table>
-      <thead>
-        <tr><th>Filename</th><th>Full path</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        {% for item in ontology_examples %}
-          <tr>
-            <td><strong>{{ item.name }}</strong></td>
-            <td class="mono">{{ item.display_path }}</td>
-            <td>
-              <form method="post" action="{% url 'import-action' %}">
-                {% csrf_token %}
-                <input type="hidden" name="import_type" value="file">
-                <input type="hidden" name="path" value="{{ item.path }}">
-                <input type="hidden" name="source_name" value="{{ item.name }}">
-                <input type="hidden" name="next" value="data-sources">
-                <button type="submit">Import this file</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="muted">No ontology files found in DATADIR/owl/{{ active_domain }}/.</p>
-  {% endif %}
 </div>
 {% endif %}
 
