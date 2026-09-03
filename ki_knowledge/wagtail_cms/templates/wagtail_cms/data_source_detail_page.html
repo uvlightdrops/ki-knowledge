@@ -32,7 +32,7 @@
   <h3>Source Documents</h3>
   <table>
     <thead>
-      <tr><th>Titel</th><th>Typ</th><th>Import-Status</th><th>Freigabe-Status</th><th>Tags</th><th></th></tr>
+      <tr><th>Titel</th><th>Typ</th><th>Import-Status</th><th>Freigabe-Status</th><th>Workflow-Status</th><th>Tags</th><th></th></tr>
     </thead>
     <tbody>
       {% for doc in source_documents %}
@@ -41,6 +41,7 @@
         <td><span class="chip">{{ doc.get_file_type_display }}</span></td>
         <td>{% if doc.imported %}importiert{% else %}nicht importiert{% endif %}</td>
         <td><span class="chip">{{ doc.get_review_status_display }}</span></td>
+        <td class="muted">{{ doc.workflow_status_display }}</td>
         <td>{% for tag in doc.tags.all %}<span class="chip">{{ tag }}</span>{% endfor %}</td>
         <td><a href="{% url 'wagtailsnippets_django_site_sourcedocument:edit' doc.pk %}">Bearbeiten</a></td>
       </tr>

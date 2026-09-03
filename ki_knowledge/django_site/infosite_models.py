@@ -58,6 +58,25 @@ def ensure_domain_registered(slug: str | None, *, display_name: str | None = Non
     return domain
 
 
+def _workflow_status_display(instance) -> str:
+    """Human-readable label for a WorkflowMixin instance's most recent Wagtail
+    workflow state, to show side-by-side with the plain ``review_status``
+    field (see docs/content-model-matrix.md - the two are independent:
+    review_status is a simple always-editable field, while this reflects an
+    actual Wagtail moderation workflow run, if any - including finished ones,
+    since ``current_workflow_state`` only exposes active (in-progress) runs).
+    """
+
+    state = instance.workflow_states.order_by("-created_at").first()
+    if not state:
+        return "Kein Workflow aktiv"
+    label = dict(state.STATUS_CHOICES).get(state.status, state.status)
+    if state.status == state.STATUS_IN_PROGRESS and state.current_task_state:
+        task_name = state.current_task_state.task.specific.name
+        return f"{label} ({task_name})"
+    return label
+
+
 class InfoSiteProject(models.Model):
     """Project configuration for infosite generation."""
 
@@ -259,6 +278,11 @@ class SourceDocument(WorkflowMixin, DraftStateMixin, RevisionMixin, models.Model
         return f"{size:.1f} TB"
 
     @property
+    def workflow_status_display(self) -> str:
+        """Live Wagtail moderation-workflow status, shown alongside review_status."""
+        return _workflow_status_display(self)
+
+    @property
     def display_path(self) -> str:
         """Return file_path relative to the project's markdown root.
 
@@ -355,3 +379,8 @@ class GeneratedDocument(WorkflowMixin, DraftStateMixin, RevisionMixin, models.Mo
         used = self.used_sources.count()
         total = self.project.documents.count()
         return f"{used} von {total} Quellen verwendet"
+
+    @property
+    def workflow_status_display(self) -> str:
+        """Live Wagtail moderation-workflow status, shown alongside review_status."""
+        return _workflow_status_display(self)

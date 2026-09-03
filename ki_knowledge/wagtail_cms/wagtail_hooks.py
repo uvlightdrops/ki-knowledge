@@ -66,6 +66,7 @@ class SourceDocumentViewSet(SnippetViewSet):
         "file_type",
         "import_status",
         "review_status",
+        "workflow_status_display",
         "updated_at",
     ]
     list_filter = ["project", "file_type", "import_status", "review_status"]
@@ -107,6 +108,7 @@ class GeneratedDocumentViewSet(SnippetViewSet):
         "project",
         "ai_refinement_mode",
         "review_status",
+        "workflow_status_display",
         "used_sources_summary",
         "generated_at",
     ]
