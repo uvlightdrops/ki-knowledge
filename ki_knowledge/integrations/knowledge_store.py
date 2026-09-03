@@ -17,6 +17,18 @@ from ki_knowledge.knowledge.models import (
 )
 
 
+# SQLite's default compiled limit is SQLITE_MAX_VARIABLE_NUMBER (typically 999,
+# sometimes as low as 32766 or as strict as 999 depending on the build). Stay
+# well under the lowest common value so large "delete many"/"look up many"
+# batches don't hit "too many SQL variables".
+_SQLITE_MAX_VARIABLES = 900
+
+
+def _chunked(items: list, size: int) -> "list[list]":
+    """Split items into chunks of at most `size` elements."""
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
 class KnowledgeStore:
     """Persistent store for shared knowledge-core entities."""
 
@@ -373,15 +385,18 @@ class KnowledgeStore:
         unique_ids = [block_id for block_id in dict.fromkeys(str(block_id).strip() for block_id in block_ids) if block_id]
         if not unique_ids:
             return 0
-        placeholders = ", ".join("?" for _ in unique_ids)
+        deleted = 0
         with self._connect() as conn:
-            conn.execute(f"DELETE FROM knowledge_embeddings WHERE block_id IN ({placeholders})", unique_ids)
-            conn.execute(
-                f"DELETE FROM knowledge_relations WHERE source_block_id IN ({placeholders}) OR target_block_id IN ({placeholders})",
-                unique_ids + unique_ids,
-            )
-            cursor = conn.execute(f"DELETE FROM knowledge_blocks WHERE id IN ({placeholders})", unique_ids)
-        return cursor.rowcount
+            for chunk in _chunked(unique_ids, _SQLITE_MAX_VARIABLES // 2):
+                placeholders = ", ".join("?" for _ in chunk)
+                conn.execute(f"DELETE FROM knowledge_embeddings WHERE block_id IN ({placeholders})", chunk)
+                conn.execute(
+                    f"DELETE FROM knowledge_relations WHERE source_block_id IN ({placeholders}) OR target_block_id IN ({placeholders})",
+                    chunk + chunk,
+                )
+                cursor = conn.execute(f"DELETE FROM knowledge_blocks WHERE id IN ({placeholders})", chunk)
+                deleted += cursor.rowcount
+        return deleted
 
     def delete_artifact(self, artifact_id: str) -> bool:
         with self._connect() as conn:
@@ -392,10 +407,13 @@ class KnowledgeStore:
         unique_ids = [artifact_id for artifact_id in dict.fromkeys(str(artifact_id).strip() for artifact_id in artifact_ids) if artifact_id]
         if not unique_ids:
             return 0
-        placeholders = ", ".join("?" for _ in unique_ids)
+        deleted = 0
         with self._connect() as conn:
-            cursor = conn.execute(f"DELETE FROM knowledge_artifacts WHERE artifact_id IN ({placeholders})", unique_ids)
-        return cursor.rowcount
+            for chunk in _chunked(unique_ids, _SQLITE_MAX_VARIABLES):
+                placeholders = ", ".join("?" for _ in chunk)
+                cursor = conn.execute(f"DELETE FROM knowledge_artifacts WHERE artifact_id IN ({placeholders})", chunk)
+                deleted += cursor.rowcount
+        return deleted
 
     def upsert_block(self, block: KnowledgeBlock) -> None:
         with self._connect() as conn:
@@ -528,28 +546,37 @@ class KnowledgeStore:
     def list_relations_for_blocks(self, block_ids: list[str]) -> list[dict]:
         if not block_ids:
             return []
-        placeholders = ",".join(["?"] * len(block_ids))
-        query = f"""
-            SELECT *
-            FROM knowledge_relations
-            WHERE source_block_id IN ({placeholders})
-               OR target_block_id IN ({placeholders})
-            ORDER BY created_at
-        """
-        params = [*block_ids, *block_ids]
+        seen_ids: set = set()
+        result: list[dict] = []
         with self._connect() as conn:
-            rows = conn.execute(query, params).fetchall()
-        return [
-            {
-                "id": row["id"],
-                "source_block_id": row["source_block_id"],
-                "target_block_id": row["target_block_id"],
-                "relation": row["relation"],
-                "weight": float(row["weight"]),
-                "metadata": json.loads(row["metadata_json"]),
-            }
-            for row in rows
-        ]
+            for chunk in _chunked(list(block_ids), _SQLITE_MAX_VARIABLES // 2):
+                placeholders = ",".join(["?"] * len(chunk))
+                query = f"""
+                    SELECT *
+                    FROM knowledge_relations
+                    WHERE source_block_id IN ({placeholders})
+                       OR target_block_id IN ({placeholders})
+                    ORDER BY created_at
+                """
+                params = [*chunk, *chunk]
+                rows = conn.execute(query, params).fetchall()
+                for row in rows:
+                    if row["id"] in seen_ids:
+                        continue
+                    seen_ids.add(row["id"])
+                    result.append(
+                        {
+                            "id": row["id"],
+                            "source_block_id": row["source_block_id"],
+                            "target_block_id": row["target_block_id"],
+                            "relation": row["relation"],
+                            "weight": float(row["weight"]),
+                            "metadata": json.loads(row["metadata_json"]),
+                            "_created_at": row["created_at"],
+                        }
+                    )
+        result.sort(key=lambda item: item.pop("_created_at"))
+        return result
 
     def add_embedding(self, block_id: str, model: str, vector: list[float]) -> None:
         with self._connect() as conn:
