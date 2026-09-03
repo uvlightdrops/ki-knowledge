@@ -15,7 +15,7 @@ from wagtail.admin.panels import FieldPanel
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet
 
-from ki_knowledge.django_site.infosite_models import SourceDocument
+from ki_knowledge.django_site.infosite_models import GeneratedDocument, SourceDocument
 
 
 class SourceDocumentViewSet(SnippetViewSet):
@@ -58,3 +58,45 @@ class SourceDocumentViewSet(SnippetViewSet):
 
 
 register_snippet(SourceDocumentViewSet)
+
+
+class GeneratedDocumentViewSet(SnippetViewSet):
+    """Editorial listing/edit UI for generated/refined InfoSite output files.
+
+    Rows are upserted automatically by ki_knowledge.services.output_registry
+    right after a file is written to data_out/ - this viewset is purely the
+    editorial surface (review status, notes, tags) plus visibility into
+    which source documents fed into each output file.
+    """
+
+    model = GeneratedDocument
+    icon = "doc-full-inverse"
+    menu_label = "Generated Documents"
+    menu_name = "generated-documents"
+    menu_order = 220
+    add_to_admin_menu = True
+
+    list_display = [
+        "display_path",
+        "project",
+        "ai_refinement_mode",
+        "review_status",
+        "used_sources_summary",
+        "generated_at",
+    ]
+    list_filter = ["project", "ai_refinement_mode", "review_status"]
+    search_fields = ["file_path", "editor_notes"]
+
+    panels = [
+        FieldPanel("project"),
+        FieldPanel("file_path", read_only=True),
+        FieldPanel("ai_refinement_mode", read_only=True),
+        FieldPanel("used_sources"),
+        FieldPanel("review_status"),
+        FieldPanel("editor_notes"),
+        FieldPanel("tags"),
+    ]
+
+
+register_snippet(GeneratedDocumentViewSet)
+

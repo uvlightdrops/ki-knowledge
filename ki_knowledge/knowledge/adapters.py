@@ -30,6 +30,36 @@ class InfoSiteSourceAdapter:
         return data_root / "md" / domain / working_title
 
     @staticmethod
+    def resolve_output_root(domain: str, working_title: str) -> Path:
+        """Resolve the canonical generated-output directory for a domain/working_title pair.
+
+        Mirrors InfoSiteGeneratorService.output_base (`<data_root>/data_out/<domain>/<working_title>`),
+        used by GeneratedDocument.display_path so output tables can show the
+        part of the path specific to the file instead of the shared prefix.
+        """
+        from django.conf import settings as django_settings
+
+        data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
+        return data_root / "data_out" / domain / working_title
+
+    @staticmethod
+    def relative_output_path(project: object, file_path: str) -> str:
+        """Return `file_path` relative to the project's generated-output root, if possible.
+
+        Analogous to relative_document_path, but for GeneratedDocument entries
+        living under data_out/ instead of SourceDocument entries under md/.
+        """
+        if not file_path:
+            return file_path
+        domain = getattr(project, "domain", "default") or "default"
+        working_title = getattr(project, "working_title", "") or ""
+        path = Path(file_path)
+        try:
+            return str(path.relative_to(InfoSiteSourceAdapter.resolve_output_root(domain, working_title)))
+        except ValueError:
+            return file_path
+
+    @staticmethod
     def relative_document_path(project: object, file_path: str) -> str:
         """Return `file_path` relative to the project's markdown root, if possible.
 

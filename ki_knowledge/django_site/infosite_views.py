@@ -327,7 +327,13 @@ def infosite_generate(request: HttpRequest, project_id: int):
             project.generation_error = ""
             project.version_count = len(generator.list_versions(project.domain, project.working_title))
             project.save()
-            
+
+            # Keep the Wagtail-editable output layer in sync with what was
+            # actually written to disk (see ki_knowledge/services/output_registry.py).
+            from ki_knowledge.services.output_registry import register_generated_documents
+
+            register_generated_documents(project, result.output_dir, used_sources=docs)
+
             messages.success(
                 request,
                 f"Generated infosite: {result.files_created} files created"
@@ -679,7 +685,12 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
             # Save refined version
             with open(md_path, "w", encoding="utf-8") as f:
                 f.write(refined_content)
-            
+
+            # Register/update the Wagtail-editable output entry for this file.
+            from ki_knowledge.services.output_registry import register_refined_document
+
+            register_refined_document(project, md_path, refinement_mode)
+
             refined_count += 1
         
         messages.success(request, f"Refined {refined_count} file(s) with AI")

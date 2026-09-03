@@ -216,3 +216,89 @@ class SourceDocument(WorkflowMixin, DraftStateMixin, RevisionMixin, models.Model
         from ki_knowledge.knowledge.adapters import InfoSiteSourceAdapter
 
         return InfoSiteSourceAdapter.relative_document_path(self.project, self.file_path)
+
+
+class GeneratedDocument(WorkflowMixin, DraftStateMixin, RevisionMixin, models.Model):
+    """A generated/refined InfoSite output file living under data_out/.
+
+    Mirrors SourceDocument's Wagtail-editorial treatment (snippet, workflow,
+    draft/live, revisions), but on the *output* side of the pipeline: rows
+    here are upserted automatically by
+    ki_knowledge.services.output_registry whenever InfoSiteGeneratorService
+    or the AI-refinement view writes a markdown file to data_out/, so
+    Wagtail always knows about output files right after they are produced
+    (see docs/content-model-matrix.md and the CMS-workflow rollout plan).
+    """
+
+    AI_REFINEMENT_MODES = [
+        ("", "Keine Verfeinerung (Rohausgabe)"),
+        ("improve", "Improve"),
+        ("structure", "Restructure"),
+        ("summarize", "Summarize"),
+        ("all", "All"),
+    ]
+
+    project = models.ForeignKey(
+        InfoSiteProject, on_delete=models.CASCADE, related_name="generated_documents"
+    )
+    file_path = models.CharField(max_length=500, help_text="Path to the generated file under data_out/.")
+    generated_at = models.DateTimeField(auto_now=True, help_text="Last time this file was (re-)generated/refined.")
+    ai_refinement_mode = models.CharField(max_length=20, choices=AI_REFINEMENT_MODES, blank=True, default="")
+    content_hash = models.CharField(max_length=64, blank=True, help_text="Short hash of the file content, for change detection.")
+
+    # Traceability: which SourceDocuments actually fed into this output file.
+    used_sources = models.ManyToManyField(
+        SourceDocument, blank=True, related_name="used_in_generated_documents"
+    )
+
+    # Editorial fields, same review model as SourceDocument.
+    review_status = models.CharField(
+        max_length=20,
+        choices=SourceDocument.REVIEW_STATUS,
+        default="none",
+        help_text="Editorial review/approval status for this output file.",
+    )
+    editor_notes = models.TextField(blank=True, help_text="Freitext-Notizen der Redaktion zu dieser Ausgabedatei.")
+    tags = TaggableManager(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    workflow_states = GenericRelation(
+        "wagtailcore.WorkflowState",
+        content_type_field="base_content_type",
+        object_id_field="object_id",
+        related_query_name="generated_document",
+        for_concrete_model=False,
+    )
+    revisions = GenericRelation(
+        "wagtailcore.Revision",
+        content_type_field="base_content_type",
+        object_id_field="object_id",
+        related_query_name="generated_document",
+        for_concrete_model=False,
+    )
+
+    class Meta:
+        verbose_name = "Generated Document"
+        verbose_name_plural = "Generated Documents"
+        ordering = ["file_path"]
+        unique_together = [["project", "file_path"]]
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return self.file_path
+
+    @property
+    def display_path(self) -> str:
+        """Return file_path relative to the project's output root (data_out/<domain>/<working_title>/)."""
+        from ki_knowledge.knowledge.adapters import InfoSiteSourceAdapter
+
+        return InfoSiteSourceAdapter.relative_output_path(self.project, self.file_path)
+
+    @property
+    def used_sources_summary(self) -> str:
+        """Return a short "X von Y" usage summary for the project's total source documents."""
+        used = self.used_sources.count()
+        total = self.project.documents.count()
+        return f"{used} von {total} Quellen verwendet"
