@@ -196,9 +196,25 @@ and future source kinds share one discovery/import/path-resolution implementatio
       of extracted knowledge blocks (`InfoSiteBlockStorage`-backed, no data duplication), plus
       `wagtail_status_mapping.py` — an explicit, advisory canonical-status ↔ Wagtail-workflow-state
       mapping shown on `DataSourceDetailPage` (does not auto-transition any workflow state)
+- [x] **Wagtail-Workflow rollout (Schritte 1–6)**: `SourceDocument` and new `GeneratedDocument`
+      model are now real Wagtail snippets (`WorkflowMixin`/`DraftStateMixin`/`RevisionMixin`), with
+      editorial fields (`review_status`, `editor_notes`, `tags`) and an **active** Wagtail moderation
+      workflow (`GroupApprovalTask`, group "Editors", migration `0008_editorial_workflow.py`) —
+      not just the advisory status mapping from Step 6 above. `DataSourceDetailPage` embeds a real,
+      filtered `SourceDocument` snippet table (not an ad-hoc list). `/output/` landing page shows a
+      per-domain `GeneratedDocument` overview (review-status distribution) plus a recent-documents
+      table with source-usage traceability. Input (`SourceDocument`) and output (`GeneratedDocument`)
+      remain two separate models/snippet-listings/landing pages by design — no merged UI.
+- [x] **Shared `Domain` registry** (`infosite_models.Domain`): a lightweight, additive table that
+      both the legacy Jira/OWL/Markdown-workspace pipeline (session-scoped string domain) and the
+      InfoSite pipeline (`InfoSiteProject.domain`) register into via `ensure_domain_registered()`.
+      Enables a combined domain overview table on `/data-sources/` (knowledge-pipeline stats +
+      InfoSite stats side by side) without merging either pipeline's storage or scanning behaviour.
 - [ ] Graph-based navigation
 - [ ] Collaborative editing
-- [ ] Full Wagtail cutover (currently a parallel/opt-in layer, not yet the primary write path)
+- [ ] Full Wagtail cutover (Wagtail snippets now have real editorial workflow for InfoSite
+      input/output; the legacy Jira/OWL/Markdown-workspace pipeline itself is still not
+      snippet-backed, and Wagtail is not yet the primary write path for any pipeline)
 
 **Note on runner/job-store architecture scope:** `pipeline_runner.py`,
 `import_runner.py`, and PDF's inline job processing in `pdf_batch.py` are
@@ -424,9 +440,14 @@ Completed beyond the original scope:
   sources share one discovery/path-resolution/import implementation instead of format-specific code paths.
 - **Knowledge block linking** — semantic extraction pipeline publishes `KnowledgeBlock` records
   (domain `anthro`) from InfoSite source documents; see `knowledge_blocks.md`.
-- **Wagtail CMS parallel layer** — Wagtail page models mirror the InfoSite project/document
-  structure to enable a gradual, low-risk cutover to Wagtail-native content workflows rather than a
-  big-bang rewrite.
+- **Wagtail CMS parallel layer, evolved into a real editorial workflow** — Wagtail page models
+  mirror the InfoSite project/document structure, and `SourceDocument`/`GeneratedDocument` are now
+  full Wagtail snippets with an active `GroupApprovalTask` moderation workflow ("Editors" group),
+  editorial fields (`review_status`, `editor_notes`, `tags`), and embedded snippet tables on
+  `DataSourceDetailPage`/`/output/`. Input and output stay in separate models/pages by design.
+- **Shared `Domain` registry** — a lightweight, additive table that both the legacy pipeline
+  and InfoSite register into, powering a combined domain-overview table on `/data-sources/`
+  without merging either pipeline's storage.
 - **Decoupled, job-tracked pipelines** — both knowledge extraction (`pipeline_runner.py`) and
   document import (`import_runner.py`) run as tracked jobs with SQLite-backed history and dedicated
   job-list UI pages, instead of synchronous, un-auditable inline operations.
@@ -438,7 +459,9 @@ Completed beyond the original scope:
 Still open / not yet done:
 - Graph-based navigation across knowledge blocks
 - Collaborative editing
-- Full Wagtail cutover (currently opt-in/parallel, not the primary write path)
+- Full Wagtail cutover (input/output snippets + workflow now exist; the legacy Jira/OWL/
+  Markdown-workspace pipeline itself is still not snippet-backed, and Wagtail is not yet the
+  primary write path for any pipeline)
 - Broader rollout of the content-model matrix across all domains
 
 ---

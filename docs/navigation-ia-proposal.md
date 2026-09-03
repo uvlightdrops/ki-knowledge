@@ -1,6 +1,12 @@
 # Navigation-IA-Neuordnung — Vorschlag
 
-Status: **Entwurf zur Diskussion** (noch nicht umgesetzt)
+Status: **Umgesetzt** (URL-Reorganisation abgeschlossen: `/data-sources/`,
+`/output/` inkl. `output_landing_view`, Jira-Routen unter `/data-sources/jira/`
+etc.). Die Wagtail-Spiegel-Ebene (Zeile "🗂️ CMS Catalog", unten) ist seither
+kein reines Read-only-Mirror mehr, sondern besitzt echte Snippet-Editing- und
+Freigabe-Workflows für `SourceDocument`/`GeneratedDocument` (siehe
+`docs/content-model-matrix.md`, Abschnitte 2, 2a, 4). Dieses Dokument bleibt
+als historischer Ist-Zustand/Vorschlag zum Zeitpunkt der Reorg erhalten.
 Datum: 2026-09-03
 
 ## 1. Ausgangslage: Ist-Zustand der Navigation
