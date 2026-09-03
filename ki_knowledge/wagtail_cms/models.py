@@ -87,17 +87,21 @@ class DataSourceDetailPage(Page):
         context = super().get_context(request, *args, **kwargs)
         project = None
         descriptor = None
-        documents = []
+        source_documents = []
         status_equivalence = None
         if self.infosite_project_id:
             project = InfoSiteProject.objects.filter(id=self.infosite_project_id).first()
             if project:
                 descriptor = InfoSiteSourceAdapter.to_descriptor(project)
-                documents = InfoSiteSourceAdapter.to_documents(project, list(project.documents.all()[:50]))
+                # Embed the real SourceDocument snippet rows (editorial review
+                # status/tags/notes included) instead of the previous ad-hoc
+                # descriptor-only document list - editors can jump straight
+                # into the snippet editor from here.
+                source_documents = project.documents.all().order_by("title")[:50]
                 status_equivalence = describe_wagtail_equivalent(descriptor.status)
         context["project"] = project
         context["descriptor"] = descriptor
-        context["documents"] = documents
+        context["source_documents"] = source_documents
         context["status_equivalence"] = status_equivalence
         return context
 
