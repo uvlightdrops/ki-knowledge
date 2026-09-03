@@ -17,6 +17,19 @@ class InfoSiteSourceAdapter:
     """Adapt the legacy InfoSite model layer to the canonical data-source contract."""
 
     @staticmethod
+    def resolve_markdown_root(domain: str, working_title: str) -> Path:
+        """Resolve the canonical markdown directory for a domain/working_title pair.
+
+        This mirrors the data root used by DocumentDiscoveryService and the infosite
+        views (django.conf.settings.KI_CONFIG.knowledge_data_root), so any fallback
+        path logic stays in one place instead of being duplicated per caller.
+        """
+        from django.conf import settings as django_settings
+
+        data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
+        return data_root / "md" / domain / working_title
+
+    @staticmethod
     def make_source_id(source_type: str, title: str, uri: str) -> str:
         seed = f"{source_type}:{title}:{uri}".strip(":")
         digest = sha256(seed.encode("utf-8")).hexdigest()[:16]
@@ -32,10 +45,7 @@ class InfoSiteSourceAdapter:
         elif getattr(project, "source_directory", ""):
             uri = project.source_directory
         else:
-            from django.conf import settings as django_settings
-
-            data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
-            uri = str(data_root / "md" / domain / working_title)
+            uri = str(InfoSiteSourceAdapter.resolve_markdown_root(domain, working_title))
         source_type = "filesystem_markdown"
         return DataSourceDescriptor(
             source_id=InfoSiteSourceAdapter.make_source_id(source_type, title, uri),

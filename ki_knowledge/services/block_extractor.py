@@ -227,10 +227,9 @@ class InfoSiteBlockExtractor:
             if self.project and getattr(self.project, "source_directory", ""):
                 directory = Path(self.project.source_directory)
             else:
-                from django.conf import settings as django_settings
+                from ki_knowledge.knowledge.adapters import InfoSiteSourceAdapter
 
-                data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
-                directory = data_root / "md" / self.domain / self.working_title
+                directory = InfoSiteSourceAdapter.resolve_markdown_root(self.domain, self.working_title)
         
         blocks_by_file = {}
         
