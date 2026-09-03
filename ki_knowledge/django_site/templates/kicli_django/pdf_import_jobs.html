@@ -8,7 +8,7 @@
 
 <div class="section">
   <h2>Enqueue New Job</h2>
-  <form method="POST" action="/pdf-import/" style="display: grid; gap: 12px; max-width: 500px;">
+  <form method="POST" action="/data-sources/pdf/" style="display: grid; gap: 12px; max-width: 500px;">
     {% csrf_token %}
     <div>
       <label for="domain"><strong>Domain</strong></label>
@@ -254,7 +254,7 @@
 <div class="section">
   <p class="hint">
     This page shows PDF import jobs from the batch processor.
-    Status updates are fetched from <code>/pdf-import/jobs.json</code>.
+    Status updates are fetched from <code>/data-sources/pdf/jobs.json</code>.
   </p>
 </div>
 
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Auto-refresh job status every 3 seconds
 setInterval(function() {
-  fetch('/pdf-import/jobs.json?domain={{ active_domain }}&status={{ status }}')
+  fetch('/data-sources/pdf/jobs.json?domain={{ active_domain }}&status={{ status }}')
     .then(r => r.json())
     .then(data => {
       // Update page with new data (optional: reload page)

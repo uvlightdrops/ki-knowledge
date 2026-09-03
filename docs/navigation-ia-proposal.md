@@ -52,8 +52,9 @@ separate "Quicklinks"-Leiste mit 7 weiteren Links. Insgesamt gibt es
 - Settings-Formulare sind in Phase 1 **read-only** (Anzeige der aktiven
   Config-Werte); Schreibzugriff mit Backup+Diff-Vorschau folgt als
   separate Phase 2, erst nach Rückmeldung.
-- Alte URLs bekommen **301-Redirects** auf die neuen Pfade (kein harter
-  Cutover), damit nichts bricht.
+- ~~Alte URLs bekommen 301-Redirects~~ — **Revidiert**: Ein-User-
+  Development ohne Bookmarks/externe Links, daher **harter Cutover ohne
+  Redirects** (siehe Abschnitt 5).
 
 ```
 🏠 Dashboard
@@ -134,12 +135,13 @@ Bleibt separat, da es explizit der *editoriale Wagtail-Spiegel* ist
 (Schritt 3+6) — konzeptionell eine Beobachtungs-/Kuratierungs-Ebene über
 allen anderen Bereichen, kein eigener Datenfluss.
 
-## 3. URL-Mapping (Altlast-Kompatibilität)
+## 3. URL-Mapping
 
-Damit vorhandene Bookmarks/Tests nicht brechen, würde ich für jede
-verschobene Route eine **301-Weiterleitung** von der alten auf die neue
-URL anlegen, statt harte Brüche. Beispiel: `/jira/domain-terms/` →
-redirect → `/data-sources/jira/domain-terms/`.
+**Revidiert nach Rückmeldung**: Da es sich um Ein-User-Development ohne
+externe Bookmarks handelt, wurde auf 301-Redirects verzichtet — **harter
+Cutover** aller Pfade in einem Zug (siehe Abschnitt 5 für die finale
+Struktur). Beispiel: `/jira/domain-terms/` → `/data-sources/jira/domain-terms/`
+(alter Pfad existiert nicht mehr, kein Redirect).
 
 ## 4. Entscheidungen (vormals offene Fragen)
 
@@ -147,7 +149,8 @@ redirect → `/data-sources/jira/domain-terms/`.
 2. ✅ Settings-Formulare sind Phase 1 read-only; Schreibzugriff (Backup+Diff) folgt später.
 3. ✅ Secrets (API-Keys/Tokens) werden nur als "gesetzt"/"nicht gesetzt" angezeigt, nie im Klartext.
 4. ✅ Umsetzungsreihenfolge: siehe Abschnitt 5 (Nav zuerst, dann Settings read-only, dann URL-Reorganisation je Bereich).
-5. ✅ Alte URLs bekommen 301-Redirects statt hartem Cutover.
+5. ✅ **Revidiert**: keine 301-Redirects, sondern harter Cutover aller URLs
+   (Ein-User-Development, keine Bookmarks) — abgeschlossen.
 6. ✅ `/output/quiz/` ist zunächst nur ein Platzhalter, kein Datenmodell/Generator.
 
 ## 5. Vorgeschlagene Umsetzungsreihenfolge (nach Rückmeldung)
@@ -165,7 +168,33 @@ redirect → `/data-sources/jira/domain-terms/`.
    als auch die dynamische Submenü-Zeile. Placeholder-Einträge ohne URL
    (z. B. "Quiz (geplant)") werden als deaktiviertes `<span>` statt Link
    gerendert.
-4. URL-Reorganisation je Bereich mit Redirects für Altlasten, je ein
-   Commit pro Bereich (Data Sources, Info Output, Internal Knowledge) —
-   **noch offen**.
-5. Tests/Smoke-Checks nach jedem Bereich.
+4. ✅ **URL-Reorganisation abgeschlossen** (harter Cutover, keine
+   Redirects — Ein-User-Development-Projekt ohne Bookmarks). Alle
+   View-Namen (`name=` in `urls.py`) blieben unverändert, nur die
+   URL-*Pfade* wurden verschoben; dadurch mussten `reverse()`/`{% url %}`-
+   Aufrufe in Python/Templates nicht angefasst werden. Neue Struktur:
+   - `/data-sources/` — `workspace/`, `sources/`, `sources/<id>/`, `pdf/`
+     (+ `report/`, `jobs/<id>/`, `jobs.json`), `jira/domain-terms/`,
+     `jira/exclusions/`, `import/`
+   - `/knowledge/` — `api/`, `records/`, `artifacts/`, `generate/`,
+     `jobs/` (+ `<id>/`), `graphs/<id>/` (+ `3d/`), `prompt-backlog/`,
+     `chat/support/`, `chat/jira-support/`, `chat/ollama/`,
+     `semantic/` (+ `terms/`, `terms/<id>/`, `domain-analysis/`,
+     `hybrid-search/`, `graph-explorer/`, `daily-timeline/`)
+   - `/output/` (neu, ersetzt `/infosite/` als Top-Level-Präfix) —
+     `/output/` (neue Übersichtsseite `output_landing_view`),
+     `/output/quiz/` (Platzhalter, `output_quiz_view`),
+     `/output/infosite/...` (unverändertes `infosite_urls.py`-Include,
+     nutzt durchgehend `{% url 'infosite:...' %}`, daher ohne
+     Template-Änderungen verschiebbar)
+   - `/cms/`, `/cms-admin/`, `/cms-documents/`, `/settings/` — unverändert
+   - Alle hartcodierten `href="/…"`-Links in Templates (`data_sources.html`,
+     `dashboard.html`, `semantic_landing.html`, `prompt_backlog.html`,
+     `knowledge_landing.html`, `sources.html`, `ollama_chat.html`,
+     `pdf_import_jobs.html`) sowie 2 hartcodierte Links in
+     `wagtail_cms`-Templates auf die neuen Pfade aktualisiert.
+   - `NAV_AREAS` in `context_processors.py` auf die neuen (jetzt sauber
+     hierarchischen) Präfixe vereinfacht.
+5. ✅ Tests/Smoke-Checks: `manage.py check`, `reverse()` für alle
+   Parametrisierten Routen, `pytest tests/` (95 passed / 1 bekannter
+   Vorbestand), Live-Smoke-Test aller neuen Seiten via Django-Test-Client.

@@ -121,7 +121,7 @@
         {% for file in recent_outputs %}
           <tr>
             <td class="mono">{{ file.name }}</td>
-            <td><a href="/workspace/?path={{ file.path|urlencode }}">Im Workspace</a></td>
+            <td><a href="/data-sources/workspace/?path={{ file.path|urlencode }}">Im Workspace</a></td>
           </tr>
         {% empty %}
           <tr><td colspan="2" class="muted">Noch keine Batch-Ergebnisse gespeichert.</td></tr>

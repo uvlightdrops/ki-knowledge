@@ -282,12 +282,55 @@ def semantic_landing_view(request: HttpRequest):
             "active_domain": active_domain,
             "term_count": len(terms),
             "quick_links": [
-                ("Semantic Terms", "/semantic/terms/", "Explore the semantic vocabulary and concept graph."),
-                ("Support Chat", "/support-chat/", "Use a source-agnostic semantic chat across domain data."),
-                ("Knowledge API", "/knowledge-api/", "Inspect the knowledge graph and browser context."),
+                ("Semantic Terms", "/knowledge/semantic/terms/", "Explore the semantic vocabulary and concept graph."),
+                ("Support Chat", "/knowledge/chat/support/", "Use a source-agnostic semantic chat across domain data."),
+                ("Knowledge API", "/knowledge/api/", "Inspect the knowledge graph and browser context."),
                 ("Data Sources", "/data-sources/", "Return to the source overview and import entry points."),
             ],
         },
+    )
+
+
+@login_required
+@require_GET
+def output_landing_view(request: HttpRequest):
+    """Landing page for the 'Info Output' area: formats that publish
+    processed knowledge outward (currently Infosite; Quiz is a placeholder
+    for a future format, see docs/navigation-ia-proposal.md)."""
+    active_domain = _active_semantic_domain(request)
+    return render(
+        request,
+        "kicli_django/output_landing.html",
+        {
+            "active_domain": active_domain,
+            "formats": [
+                {
+                    "label": "Infosite",
+                    "url": "/output/infosite/dashboard/",
+                    "status": "aktiv",
+                    "description": "Browsable Markdown-Präsentationen aus Quelldokumenten generieren, mit AI-Refinement.",
+                },
+                {
+                    "label": "Quiz",
+                    "url": None,
+                    "status": "geplant",
+                    "description": "Noch kein Konzept — geplantes Ausgabeformat zur Wissensabfrage aus Knowledge Blocks.",
+                },
+            ],
+        },
+    )
+
+
+@login_required
+@require_GET
+def output_quiz_view(request: HttpRequest):
+    """Placeholder page for the planned Quiz output format (no data model or
+    generator yet, see docs/navigation-ia-proposal.md, offene Frage 6)."""
+    active_domain = _active_semantic_domain(request)
+    return render(
+        request,
+        "kicli_django/output_quiz.html",
+        {"active_domain": active_domain},
     )
 
 

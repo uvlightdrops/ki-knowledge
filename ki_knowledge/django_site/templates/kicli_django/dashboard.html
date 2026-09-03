@@ -89,16 +89,16 @@
     <table class="dashboard-monitor-table" style="width:100%; border-collapse:collapse;">
       <tbody>
         <tr>
-          <th style="text-align:left;"><a href="/sources/">Sources</a></th>
-          <td><a href="/sources/">{{ source_count }}</a></td>
+          <th style="text-align:left;"><a href="/data-sources/sources/">Sources</a></th>
+          <td><a href="/data-sources/sources/">{{ source_count }}</a></td>
         </tr>
         <tr>
-          <th style="text-align:left;"><a href="/records/">Records</a></th>
-          <td><a href="/records/">{{ record_count }}</a></td>
+          <th style="text-align:left;"><a href="/knowledge/records/">Records</a></th>
+          <td><a href="/knowledge/records/">{{ record_count }}</a></td>
         </tr>
         <tr>
-          <th style="text-align:left;"><a href="/artifacts/">Artifacts</a></th>
-          <td><a href="/artifacts/">{{ artifact_count }}</a></td>
+          <th style="text-align:left;"><a href="/knowledge/artifacts/">Artifacts</a></th>
+          <td><a href="/knowledge/artifacts/">{{ artifact_count }}</a></td>
         </tr>
       </tbody>
     </table>
@@ -393,7 +393,7 @@
     if (!value) return "";
     return value.length <= 24 ? value : `${value.slice(0, 10)}...${value.slice(-8)}`;
   };
-  const jobUrl = (jobId) => `/jobs/${encodeURIComponent(jobId || "")}/`;
+  const jobUrl = (jobId) => `/knowledge/jobs/${encodeURIComponent(jobId || "")}/`;
 
   const render = (data) => {
     setText("mon-total-terms", data?.totals?.terms);

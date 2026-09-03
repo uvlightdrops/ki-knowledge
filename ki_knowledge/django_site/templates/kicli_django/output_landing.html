@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Info Output · KICLI{% endblock %}
+{% block content %}
+  <h1>📤 Info Output</h1>
+  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+  <p class="muted">Ausgabeformate, die verarbeitetes Wissen nach außen präsentieren.</p>
+
+  <div class="grid section">
+    {% for format in formats %}
+      <div class="card">
+        <h3>
+          {% if format.url %}
+            <a href="{{ format.url }}">{{ format.label }}</a>
+          {% else %}
+            {{ format.label }}
+          {% endif %}
+          <span class="chip">{{ format.status }}</span>
+        </h3>
+        <p class="muted">{{ format.description }}</p>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

@@ -27,20 +27,20 @@
       <p><strong>Issues:</strong> {{ jira_issues }}</p>
       <p><strong>CSV:</strong> <span class="mono">{{ jira_csv_path|default:"-" }}</span></p>
       <p><strong>Cache:</strong> <span class="mono">{{ jira_cache_db }}</span></p>
-      <p><a href="/jira/support-chat/">Open issue source tools</a></p>
+      <p><a href="/knowledge/chat/jira-support/">Open issue source tools</a></p>
     </div>
   {% endif %}
   <div class="card">
     <h3>Markdown</h3>
     <p><strong>Files:</strong> {{ markdown_count }}</p>
     <p><strong>Data dir:</strong> <span class="mono">{{ data_dir }}</span></p>
-    <p><a href="/workspace/">Open workspace</a></p>
+    <p><a href="/data-sources/workspace/">Open workspace</a></p>
   </div>
   <div class="card">
     <h3>Knowledge store</h3>
     <p><strong>Sources:</strong> {{ source_count }}</p>
     <p><strong>Artifacts:</strong> {{ artifact_count }}</p>
-    <p><a href="/records/">Browse records</a> · <a href="/jobs/">Jobs</a></p>
+    <p><a href="/knowledge/records/">Browse records</a> · <a href="/knowledge/jobs/">Jobs</a></p>
   </div>
   <div class="card">
     <h3>OWL</h3>

@@ -22,15 +22,15 @@
     <p><strong>CSV:</strong> <span class="mono">{% if active_domain_state.has_jira_source %}{{ jira_csv_path|default:"-" }}{% else %}unused{% endif %}</span></p>
     <p><strong>Cache:</strong> <span class="mono">{% if active_domain_state.has_jira_source %}{{ jira_cache_db }}{% else %}unused{% endif %}</span></p>
     <p>
-      <a href="/jira/support-chat/">Support chat</a> ·
-      <a href="/jira/domain-terms/">Domain terms</a> ·
-      <a href="/jira/exclusions/">Exclusions</a> ·
-      <a href="/jira/domain-analysis/">Analysis</a>
+      <a href="/knowledge/chat/jira-support/">Support chat</a> ·
+      <a href="/data-sources/jira/domain-terms/">Domain terms</a> ·
+      <a href="/data-sources/jira/exclusions/">Exclusions</a> ·
+      <a href="/knowledge/semantic/domain-analysis/">Analysis</a>
     </p>
     <p>
-      <a href="/jira/hybrid-search/">Hybrid search</a> ·
-      <a href="/jira/graph-explorer/">Graph explorer</a> ·
-      <a href="/jira/daily-timeline/">Daily timeline</a>
+      <a href="/knowledge/semantic/hybrid-search/">Hybrid search</a> ·
+      <a href="/knowledge/semantic/graph-explorer/">Graph explorer</a> ·
+      <a href="/knowledge/semantic/daily-timeline/">Daily timeline</a>
     </p>
   </div>
 
@@ -56,7 +56,7 @@
     </form>
     <p>
       <a href="{% url 'pdf-import-jobs' %}?domain={{ active_domain }}">PDF jobs</a> ·
-      <a href="/jobs/">Jobs</a>
+      <a href="/knowledge/jobs/">Jobs</a>
     </p>
   </div>
 
@@ -66,13 +66,13 @@
     <p><strong>Files:</strong> {{ markdown_count }}</p>
     <p><strong>Data dir:</strong> <span class="mono">{% if active_domain_state.has_md_source %}{{ data_dir }}{% else %}unused{% endif %}</span></p>
     <p>
-      <a href="/workspace/">Workspace</a> ·
-      <a href="/sources/">Sources</a> ·
-      <a href="/records/">Records</a> ·
-      <a href="/artifacts/">Artifacts</a>
+      <a href="/data-sources/workspace/">Workspace</a> ·
+      <a href="/data-sources/sources/">Sources</a> ·
+      <a href="/knowledge/records/">Records</a> ·
+      <a href="/knowledge/artifacts/">Artifacts</a>
     </p>
     <p>
-      <a href="/import/">Import</a> ·
+      <a href="/data-sources/import/">Import</a> ·
       <a href="/dashboard/">Dashboard</a>
     </p>
   </div>
@@ -95,9 +95,9 @@
       </div>
     </form>
     <p>
-      <a href="/knowledge-api/">Knowledge API</a> ·
-      <a href="/records/">Records</a> ·
-      <a href="/jobs/">Jobs</a>
+      <a href="/knowledge/api/">Knowledge API</a> ·
+      <a href="/knowledge/records/">Records</a> ·
+      <a href="/knowledge/jobs/">Jobs</a>
     </p>
   </div>
 </div>
@@ -152,7 +152,7 @@
 <div class="section card">
   <h3>AI</h3>
   <p class="muted">Ollama-Chats speichern Ergebnisse als Markdown im Workspace und können danach direkt eingelesen werden.</p>
-  <p><a href="/ollama-chat/">Ollama Chat öffnen</a></p>
+  <p><a href="/knowledge/chat/ollama/">Ollama Chat öffnen</a></p>
 </div>
 {% endif %}
 
