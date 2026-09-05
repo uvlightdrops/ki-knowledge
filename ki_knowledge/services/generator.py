@@ -52,7 +52,7 @@ class InfoSiteGeneratorService:
         Args:
             data_root_or_config: Either a Path/str to data root or a Config object
         """
-        from ki_core.config import Config
+        from ki_knowledge.app_config import AppConfig as Config
         
         if isinstance(data_root_or_config, (str, Path)):
             self.data_root = Path(data_root_or_config)

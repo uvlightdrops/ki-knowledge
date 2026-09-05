@@ -16,7 +16,7 @@ from django.conf import settings
 
 import networkx as nx
 from ki_core.adapters.ollama import OllamaClient
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_core.core.models import ChatRequest, Message, Role
 from ki_knowledge.api.app import _field_embedding_backend, _get_components, _semantic_model_id
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFEmbeddingProvider
@@ -1494,6 +1494,11 @@ def graph_3d_context(source_id: str, limit: int = 400) -> dict[str, Any]:
 
 
 def jira_cache_db_path(domain: str | None = None) -> str:
+    resolved = normalize_semantic_domain(domain or default_semantic_domain())
+    domain_key = f"JIRA_CACHE_DB_{resolved.upper().replace('-', '_')}"
+    explicit = os.getenv(domain_key, "").strip() or os.getenv("JIRA_CACHE_DB", "").strip()
+    if explicit:
+        return str(Path(explicit).expanduser())
     return str(domain_db_paths(domain)["cache_db"])
 
 
@@ -1921,6 +1926,11 @@ def jira_support_chat_answer(
 
 
 def jira_graph_db_path(domain: str | None = None) -> str:
+    resolved = normalize_semantic_domain(domain or default_semantic_domain())
+    domain_key = f"JIRA_GRAPH_DB_{resolved.upper().replace('-', '_')}"
+    explicit = os.getenv(domain_key, "").strip() or os.getenv("JIRA_GRAPH_DB", "").strip()
+    if explicit:
+        return str(Path(explicit).expanduser())
     return str(domain_db_paths(domain)["graph_db"])
 
 

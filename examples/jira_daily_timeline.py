@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from ki_knowledge.integrations.jira_cache import JiraIssueCache
 from ki_knowledge.integrations.jira_csv import JiraCSVImporter
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import jira_cache_db_path, jira_csv_path, knowledge_data_root
 
 

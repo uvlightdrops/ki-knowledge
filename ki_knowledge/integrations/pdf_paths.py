@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import knowledge_pdf_root
 
 

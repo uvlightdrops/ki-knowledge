@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import knowledge_db_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

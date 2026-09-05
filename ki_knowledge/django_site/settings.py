@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import config as runtime_config, knowledge_data_root
 
 

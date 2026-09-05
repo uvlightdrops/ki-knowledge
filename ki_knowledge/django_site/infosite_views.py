@@ -8,7 +8,7 @@ from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db.models import Count, Q
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 
 from .infosite_models import InfoSiteProject, SourceDocument
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
@@ -663,7 +663,7 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
     
     try:
         from ki_core.client import AIClient
-        from ki_core.config import Config as CoreConfig
+        from ki_knowledge.app_config import AppConfig as CoreConfig
         
         core_config = CoreConfig.from_yaml()
         client = AIClient(core_config)
@@ -994,4 +994,3 @@ def infosite_knowledge_extraction_jobs(request: HttpRequest, project_id: int):
         "infosite/knowledge_extraction_jobs.html",
         {"project": project, "jobs": jobs},
     )
-

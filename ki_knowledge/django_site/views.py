@@ -380,7 +380,7 @@ def settings_view(request: HttpRequest):
         {
             "active_domain": active_domain,
             "quick_links": [
-                ("Configuration", "/settings/config/", "View active ki_core.Config values (LLM providers, knowledge paths, infosite, jira). Secrets are shown as set/not set only."),
+                ("Configuration", "/settings/config/", "View active AppConfig values (LLM providers, knowledge paths, infosite, jira). Secrets are shown as set/not set only."),
                 ("Layout", "/settings/layout/", "Adjust GUI box widths and panel sizes for the current workspace."),
             ],
         },
@@ -390,9 +390,8 @@ def settings_view(request: HttpRequest):
 # Config fields considered secret: never rendered in plaintext, only "gesetzt"/"nicht gesetzt".
 _CONFIG_SECRET_FIELDS = {"ki_api_key", "openai_api_key", "jira_api_token"}
 
-# Grouping of ki_core.Config fields into the settings sections shown in the GUI,
-# mirroring the YAML sections used by Config.from_yaml() (ki/ollama/openai/
-# knowledge/infosite/jira/http/kicli/context/diff).
+# Grouping of AppConfig fields into the settings sections shown in the GUI,
+# mirroring the resolved YAML sections owned by ki-knowledge and ki-core.
 _CONFIG_SECTIONS = [
     (
         "LLM Provider",
@@ -402,7 +401,17 @@ _CONFIG_SECTIONS = [
     (
         "Knowledge Base",
         "knowledge",
-        ["knowledge_data_root", "knowledge_cache_db", "knowledge_graph_db", "knowledge_embed_model"],
+        [
+            "knowledge_data_root",
+            "knowledge_markdown_root",
+            "knowledge_jira_root",
+            "knowledge_ontology_root",
+            "knowledge_pdf_root",
+            "knowledge_cache_db",
+            "knowledge_graph_db",
+            "knowledge_embed_model",
+            "knowledge_default_domain",
+        ],
     ),
     (
         "Infosite",
@@ -412,27 +421,27 @@ _CONFIG_SECTIONS = [
     (
         "Jira",
         "jira",
-        ["jira_url", "jira_username", "jira_api_token"],
+        [
+            "jira_url",
+            "jira_username",
+            "jira_api_token",
+            "jira_csv_path",
+            "jira_cache_db",
+            "jira_graph_db",
+            "jira_graph_cypher_path",
+            "jira_csv_delimiter",
+            "jira_csv_encoding",
+            "jira_timeline_days",
+            "jira_embed_model",
+            "jira_use_hybrid_search",
+            "jira_use_graph",
+            "jira_cache_refresh",
+        ],
     ),
     (
         "HTTP",
         "http",
         ["request_timeout", "http_verify_ssl"],
-    ),
-    (
-        "KI CLI / Code Assistant",
-        "kicli",
-        ["kicli_cache_dir", "kicli_session_dir", "kicli_chat_history_dir", "kicli_allowed_base_path"],
-    ),
-    (
-        "Context System",
-        "context",
-        ["context_max_files", "context_max_size_mb", "context_relevance_threshold", "context_cache_enabled", "context_cache_ttl_hours", "context_cache_max_size_mb", "context_ignore_patterns"],
-    ),
-    (
-        "Diff Engine",
-        "diff",
-        ["diff_context_lines", "diff_format", "diff_highlight_syntax", "diff_auto_apply_threshold", "diff_max_file_size_kb"],
     ),
 ]
 
@@ -440,19 +449,24 @@ _CONFIG_SECTIONS = [
 @login_required
 @require_GET
 def settings_config_view(request: HttpRequest):
-    """Read-only overview of the active ki_core.Config (Phase 1 of the
-    settings area rewrite, see docs/navigation-ia-proposal.md). Secrets are
-    never rendered in plaintext, only as "gesetzt"/"nicht gesetzt"."""
+    """Read-only overview of the active AppConfig. Secrets are never
+    rendered in plaintext, only as "gesetzt"/"nicht gesetzt"."""
     active_domain = _active_semantic_domain(request)
-    from ki_core.config import Config, _find_yaml_config_path  # local import: optional dependency boundary
+    from dataclasses import fields as dataclass_fields
+
+    from ki_core.config import _find_yaml_config_path  # local import: optional dependency boundary
+    from ki_knowledge.app_config import AppConfig
 
     config_path = _find_yaml_config_path()
-    config = Config.from_yaml()
+    config = AppConfig.from_yaml()
+    available_fields = {field.name for field in dataclass_fields(AppConfig) if field.name != "raw"}
 
     sections = []
     for title, key, fields in _CONFIG_SECTIONS:
         rows = []
         for field_name in fields:
+            if field_name not in available_fields:
+                continue
             raw_value = getattr(config, field_name, None)
             is_secret = field_name in _CONFIG_SECRET_FIELDS
             if is_secret:

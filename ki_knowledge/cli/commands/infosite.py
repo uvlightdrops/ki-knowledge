@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 from tabulate import tabulate
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
 from ki_knowledge.infosite.importer import DocumentImporterRegistry
 

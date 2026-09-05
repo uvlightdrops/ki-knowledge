@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import jira_cache_db_path, jira_graph_db_path, knowledge_db_path
 
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph

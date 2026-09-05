@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 
 
 def config() -> Config:
@@ -14,6 +14,10 @@ def knowledge_data_root(cfg: Config | None = None) -> Path:
     resolved = cfg or config()
     if resolved.knowledge_data_root:
         return Path(resolved.knowledge_data_root).expanduser()
+
+    env_root = os.getenv("KNOWLEDGE_DATA_ROOT", "").strip()
+    if env_root:
+        return Path(env_root).expanduser()
 
     legacy_root = os.getenv("KICLI_DATA_ROOT", "").strip()
     if legacy_root:

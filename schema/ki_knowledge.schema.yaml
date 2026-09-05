@@ -1,0 +1,143 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: "ki-knowledge Configuration"
+description: "Application-specific schema for ki-knowledge. Merged on top of ki-core's generic base schema (llm, http, creds)."
+type: object
+properties:
+  knowledge:
+    type: object
+    title: "Knowledge Base Settings"
+    properties:
+      data_root:
+        type: string
+        default: ""
+        description: "Root directory for knowledge base data"
+      cache_db:
+        type: string
+        default: ""
+        description: "Path to the knowledge cache database"
+      graph_db:
+        type: string
+        default: ""
+        description: "Path to the knowledge graph database"
+      embed_model:
+        type: string
+        default: "nomic-embed-text"
+        description: "Embedding model used for semantic search"
+      default_domain:
+        type: string
+        default: "default"
+      paths:
+        type: object
+        properties:
+          markdown_root:
+            type: string
+            default: ""
+          jira_root:
+            type: string
+            default: ""
+          ontology_root:
+            type: string
+            default: ""
+          pdf_root:
+            type: string
+            default: ""
+        additionalProperties: true
+    additionalProperties: true
+  jira:
+    type: object
+    title: "Jira Integration Settings"
+    properties:
+      url:
+        type: string
+        default: ""
+      username:
+        type: string
+        default: ""
+      api_token:
+        type: string
+        default: ""
+      csv_path:
+        type: string
+        default: ""
+      cache_db:
+        type: string
+        default: ""
+      graph_db:
+        type: string
+        default: ""
+      graph_cypher_path:
+        type: string
+        default: ""
+      csv_delimiter:
+        type: string
+        default: ","
+      csv_encoding:
+        type: string
+        default: "utf-8"
+      timeline_days:
+        type: integer
+        default: 90
+      embed_model:
+        type: string
+        default: "nomic-embed-text"
+      use_hybrid_search:
+        type: boolean
+        default: true
+      use_graph:
+        type: boolean
+        default: false
+      cache_refresh:
+        type: boolean
+        default: false
+    additionalProperties: true
+  infosite:
+    type: object
+    title: "InfoSite Settings"
+    properties:
+      enabled:
+        type: boolean
+        default: false
+      title:
+        type: string
+        default: ""
+      output_base_dir:
+        type: string
+        default: ""
+      domain:
+        type: string
+        default: "default"
+    additionalProperties: true
+  apps:
+    type: object
+    properties:
+      ki_knowledge:
+        type: object
+        title: "ki-knowledge App Settings"
+        properties:
+          api_url:
+            type: string
+            default: ""
+          django:
+            type: object
+            properties:
+              db_path:
+                type: string
+                default: ""
+              secret_key:
+                type: string
+                default: ""
+              debug:
+                type: boolean
+                default: false
+              allowed_hosts:
+                type: array
+                items:
+                  type: string
+                default: []
+              wagtail_admin_base_url:
+                type: string
+                default: ""
+            additionalProperties: true
+        additionalProperties: true
+    additionalProperties: true
+additionalProperties: true

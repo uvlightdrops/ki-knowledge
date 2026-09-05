@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import knowledge_db_path
 from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore

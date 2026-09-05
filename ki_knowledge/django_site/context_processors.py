@@ -65,7 +65,7 @@ NAV_AREAS = [
         "key": "settings",
         "prefixes": ["/settings/"],
         "submenu": [
-            ("Configuration", "/settings/config/", "Aktive ki_core.Config-Werte anzeigen."),
+            ("Configuration", "/settings/config/", "Aktive AppConfig-Werte anzeigen."),
             ("Layout", "/settings/layout/", "GUI-Panelbreiten und Layout-Presets anpassen."),
         ],
     },

@@ -10,7 +10,7 @@ from datetime import datetime
 from django.utils import timezone
 import logging
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
 from ki_knowledge.infosite.models import PageSpec

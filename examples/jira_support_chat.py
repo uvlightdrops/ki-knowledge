@@ -10,7 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ki_core.adapters.ollama import OllamaClient
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import jira_cache_db_path, jira_csv_path, jira_graph_db_path, knowledge_data_root
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFEmbeddingProvider
 from ki_knowledge.integrations.jira_assistant import JiraSupportAssistant

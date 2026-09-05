@@ -7,7 +7,7 @@ from django.utils import timezone
 from typing import Optional, Tuple
 from pathlib import Path
 
-from ki_core.config import Config
+from ki_knowledge.app_config import AppConfig as Config
 
 from .data_source_service import CanonicalDataSourceService
 from .discovery import DocumentDiscoveryService, FileInfo
