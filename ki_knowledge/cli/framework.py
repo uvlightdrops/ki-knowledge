@@ -214,34 +214,3 @@ class CLIBuilder:
                             ctx.exit(1)
 
                     return cmd
-
-
-def build_cli_from_config(config_path: Optional[Path] = None) -> click.Group:
-    """Build CLI from configuration file.
-
-    Args:
-        config_path: Path to config file (auto-discovered if None)
-
-    Returns:
-        Click command group
-    """
-    if config_path is None:
-        # Try to find config file
-        candidates = [
-            Path("ki.yaml"),
-            Path("kicli.yaml"),
-            Path("config.yaml"),
-            Path("cli.yaml"),
-            Path(".ki.yaml"),
-            Path.home() / ".config" / "ki" / "cli.yaml",
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                config_path = candidate
-                break
-
-    if config_path is None:
-        raise FileNotFoundError("No CLI config file found")
-
-    builder = CLIBuilder.from_yaml_file(config_path)
-    return builder.build_cli()

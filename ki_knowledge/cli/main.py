@@ -23,8 +23,6 @@ def main():
         Path.cwd() / "cli.yaml",
         Path(__file__).parent.parent.parent / "cli.yaml",  # From ki_knowledge/cli/main.py -> project root
         Path(__file__).parent / "cli.yaml",  # From module
-        Path("cli.yaml"),
-        Path("ki.yaml"),
     ]
 
     cli = None
