@@ -16,6 +16,7 @@ dependencies = [
     "elasticsearch>=8.0",
     "pypdf>=3.0",
     "ki-core @ file:///home/flow/dev_flow/ki-core",
+    "yaml-cfg-wizard>=0.1.0",
     "requests>=2.31.0",
     "PyYAML>=6.0",
     "fastapi>=0.110.0",
