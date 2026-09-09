@@ -90,12 +90,64 @@
   </div>
 
   <div class="card">
+    <h3>Domain overview and targeted purge</h3>
+    <p class="muted">1. Domain auswählen · 2. Zahlen prüfen · 3. gezielt bereinigen.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Sources</th>
+            <th>Records</th>
+            <th>Artifacts</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for domain in domain_overview %}
+            <tr>
+              <td>
+                <strong>{{ domain.display_name }}</strong>
+                {% if domain.is_active %}<span class="chip">active</span>{% endif %}
+              </td>
+              <td>{{ domain.source_count }}</td>
+              <td>{{ domain.record_count }}</td>
+              <td>{{ domain.artifact_count }}</td>
+              <td>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                  <a class="chip" href="?domain={{ domain.slug }}">Use</a>
+                  <form method="post" style="display:inline; margin:0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="kb_clear_artifacts_domain">
+                    <input type="hidden" name="target_domain" value="{{ domain.slug }}">
+                    <input type="hidden" name="next" value="{{ current_path }}">
+                    <button type="submit" onclick="return confirm('Nur Artefakte der Domain {{ domain.slug }} löschen?')">Artefakte</button>
+                  </form>
+                  <form method="post" style="display:inline; margin:0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="kb_reset_domain">
+                    <input type="hidden" name="target_domain" value="{{ domain.slug }}">
+                    <input type="hidden" name="next" value="{{ current_path }}">
+                    <button type="submit" onclick="return confirm('Knowledge-Base der Domain {{ domain.slug }} komplett zurücksetzen?')">Reset</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="muted">Keine Domains registriert.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
     <h3>Knowledge base management</h3>
-    <p><strong>Domain:</strong> <span class="chip">{{ active_domain }}</span></p>
     <div class="section">
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="kb_reset_domain">
+        <input type="hidden" name="target_domain" value="{{ active_domain }}">
         <input type="hidden" name="next" value="{{ current_path }}">
         <button type="submit" onclick="return confirm('Knowledge-Store der aktiven Domain zurücksetzen?')">Reset KB (active domain)</button>
       </form>
@@ -104,6 +156,7 @@
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="kb_clear_artifacts_domain">
+        <input type="hidden" name="target_domain" value="{{ active_domain }}">
         <input type="hidden" name="next" value="{{ current_path }}">
         <button type="submit" onclick="return confirm('Nur Artefakte der aktiven Domain löschen?')">Clear artifacts (active domain)</button>
       </form>

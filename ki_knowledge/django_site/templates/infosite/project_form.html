@@ -62,6 +62,26 @@
                     <small class="form-text text-muted">Optional description of this knowledge base</small>
                 </div>
 
+                <!-- Site structure -->
+                <div class="mb-3">
+                    <label for="site_structure" class="form-label">InfoSite hierarchy order</label>
+                    <textarea class="form-control font-monospace" id="site_structure" name="site_structure" rows="6">{% if site_structure_json %}{{ site_structure_json }}{% elif project and project.site_structure %}{{ project.site_structure }}{% else %}[]{% endif %}</textarea>
+                    <small class="form-text text-muted">
+                        Optional JSON list or nested tree to define the order of topic sections in the generated site.
+                        Example: ["98_allgemeines", "10_geistige_welt", {"title":"Praxis","children":["70_sstk"]}]
+                    </small>
+                </div>
+
+                <!-- Mapping rules -->
+                <div class="mb-3">
+                    <label for="mapping_rules" class="form-label">Source → destination mapping</label>
+                    <textarea class="form-control font-monospace" id="mapping_rules" name="mapping_rules" rows="8">{% if mapping_rules_json %}{{ mapping_rules_json }}{% else %}[]{% endif %}</textarea>
+                    <small class="form-text text-muted">
+                        Optional JSON array for explicit source-to-section assignments.
+                        Example: [{"source_path":"anthro/sstk/10_geistige_welt/anspruch-und-ziel.md","target_parent":"10_geistige_welt","target_section":"Anspruch und Ziel","target_slug":"anspruch-und-ziel","order_index":1,"mode":"manual","active":true}]
+                    </small>
+                </div>
+
                 <!-- Auto Discovery -->
                 <div class="mb-3">
                     <div class="form-check">
@@ -73,6 +93,19 @@
                     </div>
                     <small class="form-text text-muted">
                         Automatically discover documents from md/&lt;domain&gt;/&lt;working_title&gt;/ directory
+                    </small>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="generate_html_site" name="generate_html_site" value="on"
+                               {% if project and project.generate_html_site %}checked{% endif %}>
+                        <label class="form-check-label" for="generate_html_site">
+                            <strong>Generate static HTML website</strong>
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Also generate a browsable static HTML site under <code>data_out/&lt;domain&gt;/&lt;working_title&gt;/html/</code>.
                     </small>
                 </div>
 

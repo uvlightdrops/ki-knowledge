@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Admin · KICLI{% endblock %}
+{% block content %}
+  <h1>🛠️ Admin</h1>
+  <p class="muted">Domains, status and operational overview for the active workspace.</p>
+
+  {% if widget_cards %}
+  <div class="widget-grid section">
+    {% for card in widget_cards %}
+      <div class="card" style="grid-column: span {{ card.width|default:6 }};">
+        <h3>{{ card.label }}</h3>
+        {% if card.description %}<p class="muted">{{ card.description }}</p>{% endif %}
+        {{ card.body|safe }}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+{% endblock %}

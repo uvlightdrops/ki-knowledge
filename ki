@@ -8,7 +8,6 @@ Example usage:
     ki infosite generate
     ki infosite list
     ki knowledge import
-    ki config show
 """
 
 import sys

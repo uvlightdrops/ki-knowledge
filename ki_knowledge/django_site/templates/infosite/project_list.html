@@ -1,37 +1,29 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Infosite Projects{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'infosite/css/theme.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="container">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col">
-            <h1>📚 Infosite Projects</h1>
-            <p class="text-muted">Manage your knowledge bases</p>
+<div class="infosite-shell">
+    <section class="infosite-hero">
+        <div class="infosite-hero__content">
+            <h1>Infosite Projects</h1>
+            <p>Manage your knowledge bases in a denser dark layout.</p>
         </div>
-        <div class="col-auto">
+        <div class="infosite-hero__actions">
             {% if perms.django_site.add_infositeproject %}
-            <a href="{% url 'infosite:project_create' %}" class="btn btn-primary">
-                ➕ New Project
-            </a>
+            <a href="{% url 'infosite:project_create' %}" class="btn btn-primary">➕ New Project</a>
             {% endif %}
         </div>
-    </div>
+    </section>
 
-    <!-- Messages -->
-    {% if messages %}
-    <div class="alert alert-info alert-dismissible fade show" role="alert">
-        {% for message in messages %}
-        <div>{{ message }}</div>
-        {% endfor %}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    {% endif %}
-
-    <!-- Filters -->
-    <div class="card mb-4">
-        <div class="card-body">
+    <section class="infosite-surface">
+        <div class="infosite-surface__body">
+            <div class="infosite-section-title">Filter</div>
             <form method="get" class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label">Status</label>
@@ -60,13 +52,14 @@
                 </div>
             </form>
         </div>
-    </div>
+    </section>
 
-    <!-- Projects Table -->
     {% if projects %}
-    <div class="card">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
+    <section class="infosite-surface">
+        <div class="infosite-surface__body">
+        <div class="infosite-table-wrap">
+        <table class="table table-hover mb-0 infosite-table">
+            <thead>
                 <tr>
                     <th>Title</th>
                     <th>Domain</th>
@@ -150,7 +143,9 @@
                 {% endfor %}
             </tbody>
         </table>
-    </div>
+        </div>
+        </div>
+    </section>
     {% else %}
     <div class="alert alert-info" role="alert">
         No projects found. <a href="{% url 'infosite:project_create' %}">Create one now!</a>

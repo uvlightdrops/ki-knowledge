@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Ki-Knowledge{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <link rel="stylesheet" href="{% static 'django_site/css/base-theme.css' %}">
   {% block extra_css %}{% endblock %}
 </head>
@@ -15,6 +16,10 @@
         <a href="/" title="Return to main dashboard">🏠 Ki-Knowledge</a>
       </div>
       <div class="header-user">
+        <div class="header-domain">
+          <span class="muted">Domain</span>
+          <span class="chip">{{ global_active_domain|default:"default" }}</span>
+        </div>
         <span>{{ request.user.username }}</span>
         <a href="/admin/auth/user/{{ request.user.id }}/change/" title="Edit your profile">👤 Profile</a>
         <a href="/accounts/logout/" title="Logout and close session">🚪 Logout</a>
@@ -38,6 +43,11 @@
         <small>Infosite · Quiz (geplant)</small>
       </a>
 
+      <a class="nav-section{% if nav_active_area == 'admin' %} active{% endif %}" href="/admin-overview/" title="Administrative overview for domains, status and system health">
+        <span class="nav-section-title">🛠️ Admin</span>
+        <small>Domains · Status</small>
+      </a>
+
       <a class="nav-section nav-section--cms{% if nav_active_area == 'cms-catalog' %} active{% endif %}" href="/cms/data-sources/" title="Browse the read-only Wagtail catalog of data sources (editorial workflow layer)">
         <span class="nav-section-title">🗂️ CMS Catalog</span>
         <small>Wagtail · Browse · Editorial</small>
@@ -47,6 +57,8 @@
         <span class="nav-section-title">⚙️ Settings</span>
         <small>Config · Layout</small>
       </a>
+
+      <a class="nav-mini{% if nav_active_area == 'layout-builder' %} active{% endif %}" href="/settings/layout/builder/" title="Dashboard Builder — arrange widgets by area and grid position" aria-label="Dashboard Builder">🧩</a>
     </nav>
     <div class="nav-quicklinks" aria-label="Submenu for the active area">
       {% for area in nav_areas %}

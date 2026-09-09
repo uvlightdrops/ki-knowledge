@@ -65,10 +65,15 @@ urlpatterns = [
     path("cms-admin/", include(wagtailadmin_urls)),
     path("cms-documents/", include(wagtaildocs_urls)),
 
+    # --- 🛠️ Admin ------------------------------------------------------------
+    path("admin-overview/", views.admin_overview_view, name="admin-overview"),
+
     # --- ⚙️ Settings ----------------------------------------------------------
     path("settings/", views.settings_view, name="settings"),
     path("settings/config/", views.settings_config_view, name="settings-config"),
     path("settings/layout/", views.layout_settings_view, name="settings-layout"),
+    path("settings/layout/widgets/", views.widget_catalog_view, name="settings-layout-widgets"),
+    path("settings/layout/builder/", views.dashboard_builder_view, name="settings-layout-builder"),
 
     # Wagtail page serving must stay last so it acts as a catch-all under /cms/
     path("cms/", include(wagtail_urls)),

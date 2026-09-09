@@ -71,14 +71,18 @@
   .dashboard-shell {
     display: grid;
     gap: 16px;
-    --layout-columns: 4;
+    --layout-columns: 12;
     grid-template-columns: repeat(var(--layout-columns), minmax(0, 1fr));
+    align-items: stretch;
   }
   .dashboard-shell--wide {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .dashboard-shell--dense { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .layout-box { min-width: 0; }
+  .layout-box {
+    min-width: 0;
+    height: 100%;
+  }
   .layout-box[data-size="compact"] { grid-column: span 1; }
   .layout-box[data-size="balanced"] { grid-column: span 2; }
   .layout-box[data-size="wide"] { grid-column: span 3; }

@@ -15,18 +15,32 @@
         <th>Source Type</th>
         <th>Status</th>
         <th>URI</th>
+        <th>Browse</th>
       </tr>
     </thead>
     <tbody>
       {% for entry in data_sources %}
       <tr>
-        <td>{{ entry.descriptor.title }}</td>
+        <td>
+          {% if entry.detail_page %}
+            <a href="{{ entry.detail_page.url }}">{{ entry.descriptor.title }}</a>
+          {% else %}
+            {{ entry.descriptor.title }}
+          {% endif %}
+        </td>
         <td><span class="chip">{{ entry.descriptor.source_type }}</span></td>
         <td>{{ entry.descriptor.status }}</td>
         <td><code>{{ entry.descriptor.uri }}</code></td>
+        <td>
+          {% if entry.detail_page %}
+            <a class="nav-link" href="{{ entry.detail_page.url }}">Open</a>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="muted">No data sources registered yet.</td></tr>
+      <tr><td colspan="5" class="muted">No data sources registered yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

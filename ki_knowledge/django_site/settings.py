@@ -66,6 +66,41 @@ DATABASES = {
     }
 }
 
+# Default dev cache: safe local caching for repeated dashboard metadata and
+# template fragments without requiring an external cache service.
+REDIS_URL = os.getenv("REDIS_URL", "").strip()
+USE_REDIS_CACHE = os.getenv("USE_REDIS_CACHE", "").strip().lower() in {"1", "true", "yes"}
+
+if USE_REDIS_CACHE and REDIS_URL:
+    try:
+        import django_redis  # noqa: F401
+    except ImportError:
+        USE_REDIS_CACHE = False
+
+if USE_REDIS_CACHE and REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+            "KEY_PREFIX": "ki-knowledge",
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ki-knowledge-dev-cache",
+            "TIMEOUT": 300,
+        }
+    }
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+SESSION_CACHE_ALIAS = "default"
+
 LANGUAGE_CODE = "de-de"
 TIME_ZONE = "Europe/Berlin"
 USE_I18N = True
@@ -93,7 +128,7 @@ TEMPLATES = [
     }
 ]
 
-LOGIN_URL = "admin:login"
+LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 

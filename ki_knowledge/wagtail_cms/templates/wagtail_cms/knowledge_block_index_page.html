@@ -14,17 +14,31 @@
         <th>Projekt</th>
         <th>Domain</th>
         <th>Blöcke</th>
+        <th>Browse</th>
       </tr>
     </thead>
     <tbody>
       {% for entry in knowledge_projects %}
       <tr>
-        <td>{{ entry.project.title }}</td>
+        <td>
+          {% if entry.detail_page %}
+            <a href="{{ entry.detail_page.url }}">{{ entry.project.title }}</a>
+          {% else %}
+            {{ entry.project.title }}
+          {% endif %}
+        </td>
         <td><span class="chip">{{ entry.project.domain }}</span></td>
         <td>{{ entry.block_count }}</td>
+        <td>
+          {% if entry.detail_page %}
+            <a class="nav-link" href="{{ entry.detail_page.url }}">Open</a>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="3" class="muted">Noch keine Wissensblöcke extrahiert.</td></tr>
+      <tr><td colspan="4" class="muted">Noch keine Wissensblöcke extrahiert.</td></tr>
       {% endfor %}
     </tbody>
   </table>

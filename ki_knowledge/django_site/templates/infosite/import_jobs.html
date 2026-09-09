@@ -1,47 +1,64 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Import Jobs - {{ project.title }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'infosite/css/theme.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="panel-grid">
-  <h1>📥 Document Import Jobs</h1>
-  <p class="muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
+<div class="infosite-shell">
+  <section class="infosite-hero">
+    <div class="infosite-hero__content">
+      <h1>Document Import Jobs</h1>
+      <p>{{ project.title }} · <code>{{ project.domain }}/{{ project.working_title }}</code></p>
+    </div>
+    <div class="infosite-hero__actions">
+      <a href="{% url 'infosite:import_control' project.id %}" class="btn">← Back to Import Control</a>
+    </div>
+  </section>
 
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Job ID</th>
-        <th>Status</th>
-        <th>Requested</th>
-        <th>Imported</th>
-        <th>Created</th>
-        <th>Completed</th>
-        <th>Error</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for job in jobs %}
-      <tr>
-        <td><code>{{ job.job_id }}</code></td>
-        <td>
-          {% if job.status == 'done' %}<span class="chip">✓ done</span>
-          {% elif job.status == 'failed' %}<span class="chip">✗ failed</span>
-          {% elif job.status == 'processing' %}<span class="chip">⟳ processing</span>
-          {% else %}<span class="chip">⏳ pending</span>
-          {% endif %}
-        </td>
-        <td>{{ job.documents_requested }}</td>
-        <td>{{ job.documents_imported }}</td>
-        <td><small>{{ job.created_at }}</small></td>
-        <td><small>{{ job.completed_at|default:"-" }}</small></td>
-        <td><small class="muted">{{ job.error_message|default:"" }}</small></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="7" class="muted">No import jobs yet. Use "Import-Job starten" on the Import Control page.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <a href="{% url 'infosite:import_control' project.id %}" class="btn">← Back to Import Control</a>
+  <section class="infosite-surface">
+    <div class="infosite-surface__body">
+      <div class="infosite-section-title">Job History</div>
+      <div class="infosite-table-wrap">
+        <table class="table infosite-table">
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Status</th>
+              <th>Requested</th>
+              <th>Imported</th>
+              <th>Created</th>
+              <th>Completed</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in jobs %}
+            <tr>
+              <td><code>{{ job.job_id }}</code></td>
+              <td>
+                {% if job.status == 'done' %}<span class="chip">✓ done</span>
+                {% elif job.status == 'failed' %}<span class="chip">✗ failed</span>
+                {% elif job.status == 'processing' %}<span class="chip">⟳ processing</span>
+                {% else %}<span class="chip">⏳ pending</span>
+                {% endif %}
+              </td>
+              <td>{{ job.documents_requested }}</td>
+              <td>{{ job.documents_imported }}</td>
+              <td><small>{{ job.created_at }}</small></td>
+              <td><small>{{ job.completed_at|default:"-" }}</small></td>
+              <td><small class="muted">{{ job.error_message|default:"" }}</small></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="muted">No import jobs yet. Use "Import-Job starten" on the Import Control page.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}

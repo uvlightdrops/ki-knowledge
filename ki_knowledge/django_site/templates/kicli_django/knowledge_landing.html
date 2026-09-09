@@ -2,34 +2,18 @@
 {% block title %}Internal Knowledge · KICLI{% endblock %}
 {% block content %}
   <h1>🧠 Internal Knowledge</h1>
-  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
-  <p class="muted">Verarbeitung von Rohdaten zu Wissen: Semantic-Analyse, KI-Extraktions-Pipeline, Records/Artifacts und Chat.</p>
+    <p class="muted">Verarbeitung von Rohdaten zu Wissen: Semantic-Analyse, KI-Extraktions-Pipeline, Records/Artifacts und Chat.</p>
+    <p class="muted"><a href="{% url 'settings-layout-builder' %}?area=knowledge">→ Bereichs-Layout für Knowledge bearbeiten</a></p>
 
-  <div class="grid section">
-    <div class="card">
-      <h3>Overview</h3>
-      <p><strong>Sources:</strong> {{ source_count }}</p>
-      <p><strong>Records:</strong> {{ record_count }}</p>
-      <p><strong>Artifacts:</strong> {{ artifact_count }}</p>
-    </div>
-    <div class="card">
-      <h3>Fast access</h3>
-      <p><a href="/knowledge/api/" title="Open the Knowledge API browser and health checks">Knowledge API</a></p>
-      <p><a href="/data-sources/sources/" title="Inspect the source registry for the active domain">Sources</a></p>
-      <p><a href="/knowledge/records/" title="Review all records in the active domain">Records</a></p>
-      <p><a href="/knowledge/artifacts/" title="Open generated artifacts and output documents">Artifacts</a></p>
-    </div>
+  {% if widget_cards %}
+  <div class="widget-grid section">
+    {% for card in widget_cards %}
+      <div class="card" style="grid-column: span {{ card.width|default:6 }};">
+        <h3>{{ card.label }}</h3>
+        {% if card.description %}<p class="muted">{{ card.description }}</p>{% endif %}
+        {{ card.body|safe }}
+      </div>
+    {% endfor %}
   </div>
-
-  <div class="section card">
-    <h3>Tasks and tools</h3>
-    <div class="grid">
-      {% for label, url, description in quick_links %}
-        <div class="card">
-          <h4><a href="{{ url }}" title="{{ description }}">{{ label }}</a></h4>
-          <p class="muted">{{ description }}</p>
-        </div>
-      {% endfor %}
-    </div>
-  </div>
+  {% endif %}
 {% endblock %}

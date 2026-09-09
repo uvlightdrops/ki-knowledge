@@ -9,7 +9,10 @@ def active_domain(request):
         resolved = normalize_semantic_domain(str(raw))
     else:
         resolved = default_semantic_domain()
-    return {"global_active_domain": resolved}
+    return {
+        "active_domain": resolved,
+        "global_active_domain": resolved,
+    }
 
 
 # Top-level navigation areas (see docs/navigation-ia-proposal.md). Each area
@@ -23,10 +26,8 @@ NAV_AREAS = [
         "submenu": [
             ("Übersicht", "/data-sources/", "Discovery- und Import-Übersicht aller Quellen (Markdown, PDF, OWL, Jira)."),
             ("Sources", "/data-sources/sources/", "Quellen-Registry der aktiven Domain."),
-            ("Workspace", "/data-sources/workspace/", "Markdown-Dateien vor dem Import durchsuchen/prüfen."),
+            ("Workspace", "/data-sources/workspace/", "Quellen vor dem Import prüfen, vorbereiten und importieren."),
             ("PDF Import Jobs", "/data-sources/pdf/", "PDF-Batch-Import-Jobs und Verlauf."),
-            ("Jira Domain Terms", "/data-sources/jira/domain-terms/", "Domain-Begriffe für den Jira-Import pflegen."),
-            ("Jira Exclusions", "/data-sources/jira/exclusions/", "Ausschlusslisten für den Jira-Import."),
         ],
     },
     {
@@ -34,7 +35,9 @@ NAV_AREAS = [
         "prefixes": ["/knowledge/"],
         "submenu": [
             ("Übersicht", "/knowledge/", "Verarbeitungs-Hub: Sources, Records, Artifacts."),
-            ("Semantic Terms", "/knowledge/semantic/", "Semantische Begriffe, Domain-Analyse und Konzeptgraph."),
+            ("Semantic Layer", "/knowledge/semantic/", "Semantische Begriffe, Domain-Analyse und Konzeptgraph."),
+            ("Domain Terms", "/knowledge/semantic/terms/", "Interne Begriffsliste zur Wissensmodellierung und Domain-Analyse."),
+            ("Exclusion List", "/knowledge/semantic/", "Generische Stopword-/Ausschlussliste für Vorverarbeitung und Filterung."),
             ("Records", "/knowledge/records/", "Records der aktiven Domain durchsuchen."),
             ("Artifacts", "/knowledge/artifacts/", "Generierte Artefakte und Zusammenfassungen."),
             ("Jobs", "/knowledge/jobs/", "Hintergrund-Jobs und Sync-Verlauf."),
@@ -53,6 +56,15 @@ NAV_AREAS = [
         ],
     },
     {
+        "key": "admin",
+        "prefixes": ["/admin-overview/"],
+        "submenu": [
+            ("Übersicht", "/admin-overview/", "Zentrale Admin-Übersicht über Domains, Status und Systemwerte."),
+            ("Domain Management", "/admin-overview/", "Domain-Status, Überblick und aktive Verwaltung."),
+            ("System Status", "/admin-overview/", "Anwendungsstatus und Laufzeitwerte prüfen."),
+        ],
+    },
+    {
         "key": "cms-catalog",
         "prefixes": ["/cms/", "/cms-admin/", "/cms-documents/"],
         "submenu": [
@@ -62,11 +74,19 @@ NAV_AREAS = [
         ],
     },
     {
+        "key": "layout-builder",
+        "prefixes": ["/settings/layout/builder/", "/settings/layout/widgets/"],
+        "submenu": [
+            ("Builder", "/settings/layout/builder/", "Widget-Layout pro Area verwalten."),
+            ("Widget catalog", "/settings/layout/widgets/", "Preview aller Widgets und ihres HTML-Codes."),
+        ],
+    },
+    {
         "key": "settings",
         "prefixes": ["/settings/"],
         "submenu": [
             ("Configuration", "/settings/config/", "Aktive AppConfig-Werte anzeigen."),
-            ("Layout", "/settings/layout/", "GUI-Panelbreiten und Layout-Presets anpassen."),
+            ("Widget catalog", "/settings/layout/widgets/", "Preview aller Widgets und ihres HTML-Codes."),
         ],
     },
 ]

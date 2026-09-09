@@ -61,13 +61,6 @@ ki knowledge search       # Knowledge Base durchsuchen
 ki knowledge graph        # Knowledge-Graph visualisieren
 ```
 
-**Konfiguration:**
-```bash
-ki config show            # Config anzeigen
-ki config validate        # Config prüfen
-ki config init            # Config-Datei erstellen
-```
-
 ## Konfiguration
 
 Die CLI-Hierarchie ist in `cli.yaml` definiert und kann jederzeit angepasst werden:

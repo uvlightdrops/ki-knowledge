@@ -22,6 +22,7 @@
       <option value="running" {% if status == "running" %}selected{% endif %}>running</option>
       <option value="done" {% if status == "done" %}selected{% endif %}>done</option>
       <option value="failed" {% if status == "failed" %}selected{% endif %}>failed</option>
+      <option value="cancelled" {% if status == "cancelled" %}selected{% endif %}>cancelled</option>
     </select>
     <label style="margin-left: 12px;">Type</label>
     <select name="job_type">
@@ -36,6 +37,15 @@
   </form>
 </div>
 
+{% if jobs %}
+  <form method="post" action="{% url 'jobs' %}" style="margin: 0 0 12px 0;" id="jobs-bulk-cancel-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="cancel">
+    <input type="hidden" name="next" value="{% url 'jobs' %}?status={{ status }}&job_type={{ job_type }}&limit={{ limit }}">
+    <button type="submit" onclick="return confirm('Ausgewählte Jobs wirklich abbrechen?');">Ausgewählte abbrechen</button>
+  </form>
+{% endif %}
+
 {% if display_mode == "cards" %}
   <div class="grid">
     {% for job in jobs %}
@@ -43,7 +53,17 @@
         <h3 class="mono">{{ job.job_id|short_id }}</h3>
         <p><span class="chip">{{ job.status }}</span> <span class="muted">{{ job.job_type }}</span></p>
         <p class="mono">{{ job.term_id|short_id }}</p>
-        <p class="muted">{{ job.updated_at|date:"Y-m-d H:i:s" }}</p>
+        <p class="muted">Created: {{ job.created_at|date:"Y-m-d H:i:s" }}</p>
+        <p class="muted">Updated: {{ job.updated_at|date:"Y-m-d H:i:s" }}</p>
+        {% if job.status != 'cancelled' and job.status != 'done' %}
+          <form method="post" action="{% url 'jobs' %}" style="margin: 8px 0 0 0;" onsubmit="return confirm('Job wirklich abbrechen?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="cancel">
+            <input type="hidden" name="job_ids" value="{{ job.job_id }}">
+            <input type="hidden" name="next" value="{% url 'jobs' %}?status={{ status }}&job_type={{ job_type }}&limit={{ limit }}">
+            <button type="submit" class="small-btn">Cancel</button>
+          </form>
+        {% endif %}
       </div>
     {% empty %}
       <p>No jobs found.</p>
@@ -56,25 +76,19 @@
     <table>
       <thead>
         <tr>
+          <th><input type="checkbox" data-select-all="job_ids" form="jobs-bulk-cancel-form"></th>
+          <th>Created</th>
           <th>Updated</th>
           <th>Status</th>
           <th>Type</th>
           <th>Target</th>
           <th>Attempts</th>
           <th>Job ID</th>
+          <th>Action</th>
         </tr>
       </thead>
-      <tbody>
-        {% for job in jobs %}
-        <tr>
-          <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.updated_at|date:"Y-m-d H:i:s" }}</a></td>
-          <td><span class="chip">{{ job.status }}</span></td>
-          <td>{{ job.job_type }}</td>
-          <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.term_id|short_id }}</a></td>
-          <td>{{ job.attempts }}</td>
-          <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.job_id|short_id }}</a></td>
-        </tr>
-        {% endfor %}
+      <tbody id="jobs-table-body">
+        {% include 'kicli_django/jobs_rows_fragment.html' %}
       </tbody>
     </table>
   </div>
@@ -83,4 +97,18 @@
   {% endif %}
 </div>
 {% endif %}
+<script>
+document.addEventListener("change", function (event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || !target.matches("[data-select-all]")) {
+    return;
+  }
+  const fieldName = target.dataset.selectAll;
+  document.querySelectorAll(`input[name="${fieldName}"]`).forEach((checkbox) => {
+    if (checkbox !== target) {
+      checkbox.checked = target.checked;
+    }
+  });
+});
+</script>
 {% endblock %}

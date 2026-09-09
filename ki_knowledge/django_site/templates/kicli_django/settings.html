@@ -2,8 +2,7 @@
 {% block title %}Settings · KICLI{% endblock %}
 {% block content %}
   <h1>Settings</h1>
-  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
-
+  
   <div class="section panel-grid panel-grid--auto">
     {% for label, url, description in quick_links %}
       <div class="card">

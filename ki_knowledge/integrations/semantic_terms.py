@@ -565,6 +565,23 @@ class SemanticTermStore:
                 (status, next_retry, error_message[:500], now, job_id),
             )
 
+    def cancel_jobs(self, job_ids: list[str]) -> int:
+        cleaned = [str(item).strip() for item in job_ids if str(item).strip()]
+        if not cleaned:
+            return 0
+        now = self._now()
+        with self._connect() as conn:
+            placeholders = ",".join("?" for _ in cleaned)
+            result = conn.execute(
+                f"""
+                UPDATE semantic_enrichment_jobs
+                SET status='cancelled', next_retry_at=NULL, updated_at=?
+                WHERE job_id IN ({placeholders})
+                """,
+                [now, *cleaned],
+            )
+            return int(result.rowcount or 0)
+
     def set_job_prompt(self, job_id: str, prompt_text: str) -> None:
         now = self._now()
         with self._connect() as conn:

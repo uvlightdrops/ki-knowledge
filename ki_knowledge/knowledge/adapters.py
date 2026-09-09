@@ -44,16 +44,27 @@ class InfoSiteSourceAdapter:
 
     @staticmethod
     def relative_output_path(project: object, file_path: str) -> str:
-        """Return `file_path` relative to the project's generated-output root, if possible.
+        """Return `file_path` relative to the domain output data root.
 
-        Analogous to relative_document_path, but for GeneratedDocument entries
-        living under data_out/ instead of SourceDocument entries under md/.
+        The UI should display paths as `anthro/sstk/section/file.md` instead of
+        absolute `/home/.../data_out/anthro/sstk/...` paths, which are mostly the
+        same prefix for every project.
         """
         if not file_path:
             return file_path
         domain = getattr(project, "domain", "default") or "default"
         working_title = getattr(project, "working_title", "") or ""
         path = Path(file_path)
+
+        try:
+            from django.conf import settings as django_settings
+
+            data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
+            if path.is_relative_to(data_root / "data_out"):
+                return str(path.relative_to(data_root / "data_out"))
+        except Exception:
+            pass
+
         try:
             return str(path.relative_to(InfoSiteSourceAdapter.resolve_output_root(domain, working_title)))
         except ValueError:
@@ -61,25 +72,31 @@ class InfoSiteSourceAdapter:
 
     @staticmethod
     def relative_document_path(project: object, file_path: str) -> str:
-        """Return `file_path` relative to the project's markdown root, if possible.
+        """Return `file_path` relative to the domain markdown data root.
 
-        Used by the import-control UI so the table shows only the part of the
-        path that is actually specific to the document (e.g.
-        `10_geistige_welt/anspruch-und-ziel.md`) instead of the full absolute
-        path, which is mostly the same shared prefix for every row.
-        Falls back to the original `file_path` if it isn't under the resolved
-        root (e.g. legacy documents imported from an unrelated location).
+        Examples: `anthro/sstk/10_geistige_welt/anspruch-und-ziel.md`.
         """
         if not file_path:
             return file_path
         domain = getattr(project, "domain", "default") or "default"
         working_title = getattr(project, "working_title", "") or ""
+        path = Path(file_path)
+
+        try:
+            from django.conf import settings as django_settings
+
+            data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
+            md_root = data_root / "md"
+            if path.is_relative_to(md_root):
+                return str(path.relative_to(md_root))
+        except Exception:
+            pass
+
         root_candidates = []
         if getattr(project, "source_directory", ""):
             root_candidates.append(Path(project.source_directory))
         root_candidates.append(InfoSiteSourceAdapter.resolve_markdown_root(domain, working_title))
 
-        path = Path(file_path)
         for root in root_candidates:
             try:
                 return str(path.relative_to(root))

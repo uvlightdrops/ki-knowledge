@@ -1,32 +1,19 @@
-# jira_daily_timeline.py
+# Deprecated Jira naming: daily timeline
 
-## Zweck
+This legacy filename remains for compatibility. The timeline feature is now datasource-agnostic and documented here:
 
-Erstellt eine tägliche Zeitleiste aus Jira-CSV-Daten und verdichtet pro Tag die wichtigsten Themen.
+- [daily_timeline.md](daily_timeline.md)
+- [knowledge_retrieval.md](knowledge_retrieval.md)
 
-## Was es kann
+## Status
 
-- CSV importieren
-- Issues in den SQLite-Cache schreiben
-- Tagesweise Zusammenfassungen bilden
-- Issue-Keys und erkannte Themen ausgeben
+The daily timeline aggregates timestamped knowledge into daily summaries. It is not tied to Jira-only data and can be used with any imported source that has timestamps and content in the knowledge cache.
 
-## Eingaben
+## Example
 
-- `JIRA_CSV_PATH`
-- `JIRA_CSV_ENCODING`
-- `JIRA_CSV_DELIMITER`
-- `JIRA_CACHE_DB`
-- `JIRA_TIMELINE_DAYS`
+```bash
+python examples/jira_daily_timeline.py
+```
 
-## Ausgabe
-
-- Pro Tag:
-  - Issue-Anzahl
-  - erkannte Themen
-  - betroffene Issue-Keys
-
-## Wann verwenden
-
-Wenn du sehen willst, was sich über die Zeit in einem Team oder Themenbereich entwickelt hat.
+This remains valid, but the capability is designed as general temporal analysis, not Jira-specific reporting.
 

@@ -13,7 +13,6 @@ from typing import Any
 
 import markdown
 from django.conf import settings
-
 import networkx as nx
 from ki_core.adapters.ollama import OllamaClient
 from ki_knowledge.app_config import AppConfig as Config
@@ -38,87 +37,93 @@ from ki_knowledge.ui.knowledge_api_client import (
 )
 from ki_knowledge.ui.knowledge_graph_viz import create_pyvis_network, graph_dict_to_networkx, graph_statistics
 from ki_knowledge.ui.knowledge_workspace import build_markdown_tree
-from ki_knowledge.config_runtime import (
-    knowledge_data_root,
-    knowledge_jira_root,
-    knowledge_markdown_root,
-    knowledge_ontology_root,
-    knowledge_pdf_root,
+from ki_knowledge.django_site.source_workflow import (
+    discover_ontology_files,
+    discover_pdf_files,
+    import_markdown_directory,
+    import_markdown_file,
+    import_ontology_directory,
+    import_ontology_file,
+    import_ontology_url,
+    import_pdf_directory,
+    import_pdf_file,
+    render_markdown_html,
+    tree_lines,
+    workspace_markdown_files,
+    workspace_ontology_files,
 )
+from ki_knowledge.django_site.knowledge_summary import (
+    domain_knowledge_summary,
+    domain_registry_overview,
+    knowledge_base_clear_domain_artifacts,
+    knowledge_base_reset_all,
+    knowledge_base_reset_domain,
+    semantic_job_detail,
+    semantic_jobs,
+    semantic_monitoring_snapshot,
+    semantic_store,
+    semantic_term_detail,
+    semantic_terms,
+)
+from ki_knowledge.django_site.jira_workflow import (
+    jira_cache_db_path,
+    jira_csv_path,
+    jira_daily_timeline,
+    jira_domain_analysis,
+    jira_domain_terms,
+    jira_excluded_terms,
+    jira_exclusion_add,
+    jira_exclusion_remove,
+    jira_forget_jira_term,
+    jira_graph_explorer,
+    jira_hybrid_search,
+    jira_issue_count,
+    jira_reimport_data,
+    jira_reset_data,
+)
+from ki_knowledge.django_site.domain_paths import (
+    _cached_delete,
+    _cached_get,
+    _cached_set,
+    _detect_domain_label,
+    _domain_source_ids_cache_key,
+    _domain_summary_cache_key,
+    _resolve_domain_file,
+    _resolve_existing_domain_dir,
+    data_root,
+    default_semantic_domain,
+    domain_jira_dir,
+    domain_markdown_dir,
+    domain_ontology_dir,
+    domain_pdf_dir,
+    invalidate_domain_summary_cache,
+    jira_type_root,
+    markdown_type_root,
+    normalize_semantic_domain,
+    ontology_type_root,
+    pdf_type_root,
+)
+
+
+def _infer_domain_from_path(path: Path | str | None) -> str | None:
+    raw = str(path or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
+    for root in (markdown_type_root(), jira_type_root(), ontology_type_root(), pdf_type_root()):
+        try:
+            relative = candidate.resolve().relative_to(root.resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if relative.parts:
+            return normalize_semantic_domain(relative.parts[0])
+    return None
 
 
 @dataclass
 class ImportResult:
     imported: int = 0
     source_ids: list[str] = None
-
-
-def data_root() -> Path:
-    return knowledge_data_root(Config.from_env())
-
-
-def markdown_type_root() -> Path:
-    return knowledge_markdown_root(Config.from_env())
-
-
-def jira_type_root() -> Path:
-    return knowledge_jira_root(Config.from_env())
-
-
-def ontology_type_root() -> Path:
-    return knowledge_ontology_root(Config.from_env())
-
-
-def pdf_type_root() -> Path:
-    return knowledge_pdf_root(Config.from_env())
-
-
-def _resolve_existing_domain_dir(base: Path, normalized_domain: str) -> Path:
-    if base.exists() and base.is_dir():
-        for child in base.iterdir():
-            if child.is_dir() and normalize_semantic_domain(child.name) == normalized_domain:
-                return child
-    return base / normalized_domain
-
-
-def _detect_domain_label(base: Path, normalized_domain: str) -> str:
-    if base.exists() and base.is_dir():
-        for child in base.iterdir():
-            if child.is_dir() and normalize_semantic_domain(child.name) == normalized_domain:
-                return child.name
-    return normalized_domain
-
-
-def _resolve_domain_file(domain_dir: Path, preferred: str, legacy: str) -> Path:
-    preferred_path = domain_dir / preferred
-    legacy_path = domain_dir / legacy
-    if legacy_path.exists() and not preferred_path.exists():
-        preferred_path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_path.rename(preferred_path)
-    return preferred_path
-
-
-def domain_markdown_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    return _resolve_existing_domain_dir(markdown_type_root(), resolved)
-
-
-def domain_jira_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    return _resolve_existing_domain_dir(jira_type_root(), resolved)
-
-
-def domain_ontology_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    return _resolve_existing_domain_dir(ontology_type_root(), resolved)
-
-
-def domain_pdf_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    pdf_dir = _resolve_existing_domain_dir(pdf_type_root(), resolved)
-    if not pdf_dir.exists():
-        pdf_dir.mkdir(parents=True, exist_ok=True)
-    return pdf_dir
 
 
 def discover_pdf_files(root: Path) -> list[Path]:
@@ -165,23 +170,40 @@ def data_dir(domain: str | None = None) -> Path:
 def display_data_path(value: str | Path | None) -> str:
     if value is None:
         return "-"
-    path = Path(value).expanduser()
+    raw = str(value).strip()
+    if not raw:
+        return "-"
+    path = Path(raw).expanduser()
     root = data_root().expanduser()
     home = Path.home().expanduser()
     try:
-        resolved = path.resolve()
+        resolved = path.resolve(strict=False)
     except (OSError, RuntimeError):
         resolved = path
+
     try:
         relative = resolved.relative_to(root.resolve())
-        return "DATADIR" if not relative.parts else f"DATADIR/{relative.as_posix()}"
+        if not relative.parts:
+            return "."
+        if relative.parts[0] == "md":
+            relative = relative.relative_to("md")
+            return "." if not relative.parts else relative.as_posix()
+        return relative.as_posix()
     except (OSError, RuntimeError, ValueError):
         pass
+
     try:
         relative = resolved.relative_to(home.resolve())
-        return "~" if not relative.parts else f"~/{relative.as_posix()}"
+        if not relative.parts:
+            return "."
+        return relative.as_posix()
     except (OSError, RuntimeError, ValueError):
-        return str(path)
+        pass
+
+    normalized = resolved.as_posix().replace("\\", "/")
+    if normalized.startswith("/"):
+        normalized = normalized.lstrip("/")
+    return normalized or "."
 
 
 def display_source_ref(value: str | None) -> str:
@@ -992,23 +1014,54 @@ def _source_matches_domain_legacy(source: Any, domain: str | None = None) -> boo
     return False
 
 
-def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
-    store_obj = store()
-    scoped_sources = [
-        source
-        for source in store_obj.list_sources()
-        if source_in_domain(source, domain=domain) or _source_matches_domain_legacy(source, domain=domain)
+def _domain_scoped_sources(domain: str | None = None, *, limit: int | None = None) -> list[Any]:
+    resolved = normalize_semantic_domain(domain or default_semantic_domain())
+    if resolved == "default":
+        rows = store().list_sources()[:limit] if limit is not None else store().list_sources()
+        return rows
+
+    roots = [
+        domain_markdown_dir(resolved),
+        domain_jira_dir(resolved),
+        domain_ontology_dir(resolved),
+        domain_pdf_dir(resolved),
     ]
+    clauses: list[str] = []
+    params: list[str] = []
+    for root in roots:
+        root_str = str(root.expanduser())
+        clauses.append("(location = ? OR location LIKE ? OR location LIKE ?)")
+        params.extend([root_str, f"{root_str}/%", f"{root_str}\\%"])
+    if clauses:
+        sql = "SELECT * FROM knowledge_sources WHERE " + " OR ".join(clauses)
+        sql += " ORDER BY updated_at DESC, source_id"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(str(limit))
+        with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(sql, params).fetchall()
+        store_obj = store()
+        return [store_obj._row_to_source(row) for row in rows]
+    return []
+
+
+def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
+    cache_key = _domain_summary_cache_key(domain)
+    cached = _cached_get(cache_key)
+    if cached is not None:
+        return cached
+
+    store_obj = store()
+    scoped_sources = _domain_scoped_sources(domain)
     source_ids = [source.source_id for source in scoped_sources]
     source_count = len(source_ids)
     if not source_ids:
-        return {"sources": 0, "records": 0, "artifacts": 0, "recent_sources": [], "recent_artifacts": []}
-    scoped_artifacts = [
-        artifact
-        for artifact in store_obj.list_artifacts()
-        if getattr(artifact, "source_id", "") in set(source_ids)
-    ]
+        result = {"sources": 0, "records": 0, "artifacts": 0, "recent_sources": [], "recent_artifacts": []}
+        _cached_set(cache_key, result)
+        return result
     with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
         source_placeholders = ",".join("?" for _ in source_ids)
         record_count = conn.execute(
             f"""
@@ -1022,22 +1075,32 @@ def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
             f"SELECT COUNT(*) FROM knowledge_artifacts WHERE source_id IN ({source_placeholders})",
             source_ids,
         ).fetchone()
-    return {
+        recent_artifacts_rows = conn.execute(
+            f"SELECT * FROM knowledge_artifacts WHERE source_id IN ({source_placeholders}) ORDER BY updated_at DESC, artifact_id LIMIT 8",
+            source_ids,
+        ).fetchall()
+    scoped_artifacts = [store_obj._row_to_artifact(row) for row in recent_artifacts_rows]
+    result = {
         "sources": source_count,
         "records": int(record_count[0]) if record_count else 0,
         "artifacts": int(artifact_count[0]) if artifact_count else 0,
         "recent_sources": scoped_sources[:8],
         "recent_artifacts": scoped_artifacts[:8],
     }
+    _cached_set(cache_key, result)
+    return result
 
 
 def domain_source_ids(domain: str | None = None) -> set[str]:
-    scoped_sources = [
-        source
-        for source in store().list_sources()
-        if source_in_domain(source, domain=domain) or _source_matches_domain_legacy(source, domain=domain)
-    ]
-    return {str(source.source_id) for source in scoped_sources}
+    cache_key = _domain_source_ids_cache_key(domain)
+    cached = _cached_get(cache_key)
+    if cached is not None:
+        return {str(item) for item in cached}
+
+    scoped_sources = _domain_scoped_sources(domain)
+    result = {str(source.source_id) for source in scoped_sources}
+    _cached_set(cache_key, sorted(result))
+    return result
 
 
 def domain_registry_overview(active_domain: str | None = None) -> list[dict[str, Any]]:
@@ -1053,6 +1116,8 @@ def domain_registry_overview(active_domain: str | None = None) -> list[dict[str,
 
     overview: list[dict[str, Any]] = []
     for domain in Domain.objects.all():
+        if domain.slug == "default":
+            continue
         knowledge = domain_knowledge_summary(domain.slug)
         projects = InfoSiteProject.objects.filter(domain=domain.slug)
         overview.append(
@@ -1071,20 +1136,18 @@ def domain_registry_overview(active_domain: str | None = None) -> list[dict[str,
 
 
 def _domain_knowledge_scope(domain: str | None = None) -> tuple[list[str], list[str]]:
-    scoped_sources = [
-        source
-        for source in store().list_sources()
-        if source_in_domain(source, domain=domain) or _source_matches_domain_legacy(source, domain=domain)
-    ]
+    scoped_sources = _domain_scoped_sources(domain)
     source_ids = [source.source_id for source in scoped_sources]
     source_locations = [str(source.location) for source in scoped_sources]
     return source_ids, source_locations
 
 
 def knowledge_base_clear_domain_artifacts(domain: str | None = None) -> dict[str, Any]:
+    normalized_domain = normalize_semantic_domain(domain)
     source_ids, _ = _domain_knowledge_scope(domain)
+    invalidate_domain_summary_cache(normalized_domain)
     if not source_ids:
-        return {"domain": normalize_semantic_domain(domain), "deleted_artifacts": 0}
+        return {"domain": normalized_domain, "deleted_artifacts": 0}
     with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
         placeholders = ",".join("?" for _ in source_ids)
         row = conn.execute(
@@ -1103,6 +1166,7 @@ def knowledge_base_clear_domain_artifacts(domain: str | None = None) -> dict[str
 def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
     source_ids, source_locations = _domain_knowledge_scope(domain)
     normalized_domain = normalize_semantic_domain(domain)
+    invalidate_domain_summary_cache(normalized_domain)
     if not source_ids and not source_locations:
         return {
             "domain": normalized_domain,
@@ -1196,6 +1260,8 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
 
 
 def knowledge_base_reset_all() -> dict[str, Any]:
+    for domain in (default_semantic_domain(), "default"):
+        invalidate_domain_summary_cache(domain)
     with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
         counts = {}
         for table in (
@@ -1221,197 +1287,6 @@ def store() -> KnowledgeStore:
 
 def root_markdown_tree(query: str = "", domain: str | None = None):
     return build_markdown_tree(data_dir(domain), query=query)
-
-
-def workspace_markdown_files(query: str = "", domain: str | None = None) -> list[dict[str, str]]:
-    root = data_dir(domain)
-    files = discover_markdown_files(root)
-    normalized_query = query.strip().lower()
-    if normalized_query:
-        files = [
-            path
-            for path in files
-            if normalized_query in path.name.lower() or normalized_query in path.as_posix().lower()
-        ]
-    return [
-        {"name": path.relative_to(root).as_posix(), "path": str(path)}
-        for path in files
-    ]
-
-
-def discover_ontology_files(root: Path) -> list[Path]:
-    if not root.exists() or not root.is_dir():
-        return []
-    suffixes = {".owl", ".rdf", ".ttl", ".n3", ".jsonld"}
-    return sorted(path for path in root.glob("**/*") if path.is_file() and path.suffix.lower() in suffixes)
-
-
-def workspace_ontology_files(query: str = "", domain: str | None = None) -> list[dict[str, str]]:
-    root = domain_ontology_dir(domain)
-    files = discover_ontology_files(root)
-    normalized_query = query.strip().lower()
-    if normalized_query:
-        files = [
-            path
-            for path in files
-            if normalized_query in path.name.lower() or normalized_query in path.as_posix().lower()
-        ]
-    return [
-        {"name": path.relative_to(root).as_posix(), "path": str(path)}
-        for path in files
-    ]
-
-
-def render_markdown_html(content: str) -> str:
-    return markdown.markdown(
-        content,
-        extensions=["fenced_code", "tables", "sane_lists", "toc"],
-        output_format="html5",
-    )
-
-
-def tree_lines(node, prefix: str = "") -> list[str]:
-    lines: list[str] = []
-    for child in node.iter_children():
-        lines.append(f"{prefix}{child.name}/")
-        lines.extend(tree_lines(child, prefix=prefix + "  "))
-    for file_path in node.files:
-        lines.append(f"{prefix}{file_path.name}")
-    return lines
-
-
-def import_markdown_file(path: Path, *, source_name: str | None = None, block_types: list[str] | None = None) -> dict[str, Any]:
-    store_obj = store()
-    # For ontology files, import directly as OWL source instead of markdown
-    if "/ontology/" in str(path) and path.suffix == ".md":
-        return {"imported": 0, "source_id": "owl:deprecated-markdown", "note": "Ontology markdown import is deprecated; use OWL format directly"}
-    
-    # Automatically filter ontology imports to reduce metadata bloat
-    if block_types is None and "/ontology/" in str(path):
-        block_types = ["heading", "paragraph"]
-    blocks = store_obj.import_markdown_file(path, source_name=source_name, allowed_block_types=block_types)
-    return {"imported": len(blocks), "source_id": f"markdown:{path.resolve()}"}
-
-
-def import_ontology_file(path: Path) -> dict[str, Any]:
-    """Import OWL/RDF file directly as ontology source."""
-    text = path.read_text(encoding="utf-8")
-    try:
-        record_count, source_id = import_ontology_to_store(
-            text,
-            source_url=str(path),
-            title=path.stem.replace("_", " ").title(),
-        )
-        return {"imported": record_count, "source_id": source_id, "type": "ontology"}
-    except Exception as exc:
-        return {"imported": 0, "error": str(exc), "type": "ontology"}
-
-
-def import_ontology_directory(directory: Path) -> dict[str, Any]:
-    """Import all ontology files (OWL/RDF/TTL/etc.) from directory and subdirectories."""
-    if not directory.exists() or not directory.is_dir():
-        return {"imported": 0, "error": f"Directory not found: {directory}", "files": 0}
-    
-    # Recursively find all ontology files in subdirectories
-    ontology_suffixes = {".owl", ".rdf", ".ttl", ".n3", ".jsonld"}
-    ontology_files = sorted(
-        path for path in directory.glob("**/*")
-        if path.is_file() and path.suffix.lower() in ontology_suffixes
-    )
-    
-    if not ontology_files:
-        return {"imported": 0, "files": 0}
-    
-    imported = 0
-    source_ids: list[str] = []
-    
-    for ontology_path in ontology_files:
-        result = import_ontology_file(ontology_path)
-        imported += int(result.get("imported", 0))
-        if "source_id" in result:
-            source_ids.append(result["source_id"])
-    
-    return {"imported": imported, "source_ids": source_ids, "files": len(ontology_files)}
-
-
-def import_ontology_url(url: str, *, top_n: int = 50) -> dict[str, Any]:
-    """Fetch and import ontology from a remote URL."""
-    text, content_type = fetch_ontology_url(url)
-    record_count, source_id = import_ontology_to_store(
-        text,
-        source_url=url,
-        content_type=content_type,
-        title=Path(url).stem.replace("_", " ").title() or "Ontology",
-        top_n=top_n,
-    )
-    return {"imported": record_count, "source_id": source_id, "type": "ontology"}
-
-
-def import_markdown_directory(directory: Path, *, block_types: list[str] | None = None) -> dict[str, Any]:
-    store_obj = store()
-    files = discover_markdown_files(directory)
-    imported = 0
-    source_ids: list[str] = []
-    for file_path in files:
-        result = import_markdown_file(
-            file_path,
-            source_name=file_path.relative_to(directory).as_posix(),
-            block_types=block_types,
-        )
-        imported += int(result["imported"])
-        source_ids.append(result["source_id"])
-    return {"imported": imported, "source_ids": source_ids, "files": len(files)}
-
-
-def import_pdf_file(path: Path, *, source_name: str | None = None, domain: str | None = None) -> dict[str, Any]:
-    """Import a PDF file as markdown blocks into the knowledge store."""
-    store_obj = store()
-    if not path.exists():
-        return {"imported": 0, "error": f"PDF not found: {path}"}
-    
-    try:
-        markdown_text = pdf_extract_text(path)
-    except Exception as exc:
-        return {"imported": 0, "error": str(exc), "file": str(path)}
-    
-    if not markdown_text.strip():
-        return {"imported": 0, "error": "PDF contains no extractable text", "file": str(path)}
-    
-    blocks = store_obj.import_markdown_text(
-        markdown_text,
-        source_path=str(path.resolve()),
-        source_name=source_name or pdf_relative_source_path(path, domain=domain),
-        source_id=pdf_source_id(path, domain=domain),
-        source_type="pdf",
-    )
-    return {"imported": len(blocks), "source_id": pdf_source_id(path, domain=domain), "file": str(path)}
-
-
-def import_pdf_directory(directory: Path, *, domain: str | None = None) -> dict[str, Any]:
-    """Import all PDF files from a directory and subdirectories into the knowledge store."""
-    if not directory.exists() or not directory.is_dir():
-        return {"imported": 0, "error": f"Directory not found: {directory}"}
-    
-    # Recursively find all PDF files in subdirectories, including symlinked folders
-    pdf_files = discover_pdf_files(directory)
-    imported = 0
-    source_ids: list[str] = []
-
-    for pdf_path in pdf_files:
-        try:
-            relative_name = pdf_path.relative_to(directory).as_posix()
-        except ValueError:
-            relative_name = pdf_path.name
-        result = import_pdf_file(
-            pdf_path,
-            source_name=relative_name,
-            domain=domain,
-        )
-        imported += int(result.get("imported", 0))
-        if "source_id" in result:
-            source_ids.append(result["source_id"])
-
-    return {"imported": imported, "source_ids": source_ids, "files": len(pdf_files)}
 
 
 def generate_all_artifacts(source_id: str, max_items: int = 8) -> list[dict[str, Any]]:
@@ -1496,10 +1371,15 @@ def graph_3d_context(source_id: str, limit: int = 400) -> dict[str, Any]:
 def jira_cache_db_path(domain: str | None = None) -> str:
     resolved = normalize_semantic_domain(domain or default_semantic_domain())
     domain_key = f"JIRA_CACHE_DB_{resolved.upper().replace('-', '_')}"
-    explicit = os.getenv(domain_key, "").strip() or os.getenv("JIRA_CACHE_DB", "").strip()
+    explicit = os.getenv(domain_key, "").strip()
     if explicit:
         return str(Path(explicit).expanduser())
-    return str(domain_db_paths(domain)["cache_db"])
+    if domain is not None and resolved != "default":
+        return str(domain_db_paths(resolved)["cache_db"])
+    legacy = os.getenv("JIRA_CACHE_DB", "").strip() or os.getenv("KNOWLEDGE_CACHE_DB", "").strip()
+    if legacy:
+        return str(Path(legacy).expanduser())
+    return str(domain_db_paths(resolved)["cache_db"])
 
 
 def jira_issue_count(domain: str | None = None) -> int:
@@ -1512,9 +1392,24 @@ def jira_issue_count(domain: str | None = None) -> int:
 def jira_csv_path(domain: str | None = None) -> str:
     resolved = normalize_semantic_domain(domain or default_semantic_domain())
     domain_key = f"JIRA_CSV_PATH_{resolved.upper().replace('-', '_')}"
-    explicit = os.getenv(domain_key, "").strip() or os.getenv("JIRA_CSV_PATH", "").strip()
+    explicit = os.getenv(domain_key, "").strip()
     if explicit:
         return str(Path(explicit).expanduser())
+    if domain is not None and resolved != "default":
+        jira_dir = domain_jira_dir(resolved)
+        if not jira_dir.exists() or not jira_dir.is_dir():
+            return ""
+        candidates = sorted(path for path in jira_dir.glob("*.csv") if path.is_file())
+        if not candidates:
+            return ""
+        for preferred in ("jira.csv", "issues.csv", f"{resolved}.csv"):
+            exact = next((path for path in candidates if path.name.lower() == preferred), None)
+            if exact is not None:
+                return str(exact)
+        return str(candidates[0])
+    legacy = os.getenv("JIRA_CSV_PATH", "").strip()
+    if legacy:
+        return str(Path(legacy).expanduser())
     jira_dir = domain_jira_dir(resolved)
     if not jira_dir.exists() or not jira_dir.is_dir():
         return ""
@@ -2141,12 +2036,14 @@ def run_dashboard_task(task_name: str, *, domain: str | None = None, target_doma
         return {"task": task_name, **deleted}
 
     if task_name == "kb_reset_domain":
-        result = knowledge_base_reset_domain(resolved_domain)
-        return {"task": task_name, **result}
+        target = normalize_semantic_domain(target_domain or domain or resolved_domain)
+        result = knowledge_base_reset_domain(target)
+        return {"task": task_name, "domain": target, **result}
 
     if task_name == "kb_clear_artifacts_domain":
-        result = knowledge_base_clear_domain_artifacts(resolved_domain)
-        return {"task": task_name, **result}
+        target = normalize_semantic_domain(target_domain or domain or resolved_domain)
+        result = knowledge_base_clear_domain_artifacts(target)
+        return {"task": task_name, "domain": target, **result}
 
     if task_name == "kb_reset_all":
         result = knowledge_base_reset_all()
@@ -2401,3 +2298,133 @@ def process_pdf_import_job(job_id: str) -> dict:
     """Process a PDF import job immediately."""
     processor = get_pdf_batch_processor()
     return processor.process_job(job_id)
+
+
+def jira_cache_db_path(domain: str | None = None) -> str:
+    from ki_knowledge.django_site.jira_workflow import jira_cache_db_path as _impl
+    return _impl(domain)
+
+
+def jira_issue_count(domain: str | None = None) -> int:
+    from ki_knowledge.django_site.jira_workflow import jira_issue_count as _impl
+    return _impl(domain)
+
+
+def jira_csv_path(domain: str | None = None) -> str:
+    from ki_knowledge.django_site.jira_workflow import jira_csv_path as _impl
+    return _impl(domain)
+
+
+def jira_domain_terms(limit: int = 200, min_count: int = 2, *, sort: str = "relevance", order: str = "desc", domain: str | None = None) -> list[DomainTerm]:
+    from ki_knowledge.django_site.jira_workflow import jira_domain_terms as _impl
+    return _impl(limit=limit, min_count=min_count, sort=sort, order=order, domain=domain)
+
+
+def jira_reset_data(domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.jira_workflow import jira_reset_data as _impl
+    return _impl(domain)
+
+
+def jira_reimport_data(domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.jira_workflow import jira_reimport_data as _impl
+    return _impl(domain)
+
+
+def jira_excluded_terms(kind: str | None = None, domain: str | None = None) -> list[dict[str, str]]:
+    from ki_knowledge.django_site.jira_workflow import jira_excluded_terms as _impl
+    return _impl(kind=kind, domain=domain)
+
+
+def jira_exclusion_add(term: str, kind: str = "exception", domain: str | None = None) -> bool:
+    from ki_knowledge.django_site.jira_workflow import jira_exclusion_add as _impl
+    return _impl(term, kind=kind, domain=domain)
+
+
+def jira_exclusion_remove(term: str, domain: str | None = None) -> bool:
+    from ki_knowledge.django_site.jira_workflow import jira_exclusion_remove as _impl
+    return _impl(term, domain=domain)
+
+
+def jira_forget_jira_term(term: str, kind: str = "exception", domain: str | None = None) -> dict[str, bool]:
+    from ki_knowledge.django_site.jira_workflow import jira_forget_jira_term as _impl
+    return _impl(term, kind=kind, domain=domain)
+
+
+def jira_hybrid_search(query: str, limit: int = 8, domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.jira_workflow import jira_hybrid_search as _impl
+    return _impl(query, limit=limit, domain=domain)
+
+
+def jira_daily_timeline(days: int = 14, domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.jira_workflow import jira_daily_timeline as _impl
+    return _impl(days=days, domain=domain)
+
+
+def jira_graph_explorer(*, issue_key: str | None = None, limit: int = 20, rebuild: bool = False, domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.jira_workflow import jira_graph_explorer as _impl
+    return _impl(issue_key=issue_key, limit=limit, rebuild=rebuild, domain=domain)
+
+
+def jira_domain_analysis(*, limit_terms: int = 20, min_count: int = 2, query: str = "", limit_hits: int = 8, domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.jira_workflow import jira_domain_analysis as _impl
+    return _impl(limit_terms=limit_terms, min_count=min_count, query=query, limit_hits=limit_hits, domain=domain)
+
+
+def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.knowledge_summary import domain_knowledge_summary as _impl
+    return _impl(domain)
+
+
+def domain_registry_overview(active_domain: str | None = None) -> list[dict[str, Any]]:
+    from ki_knowledge.django_site.knowledge_summary import domain_registry_overview as _impl
+    return _impl(active_domain)
+
+
+def knowledge_base_clear_domain_artifacts(domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.knowledge_summary import knowledge_base_clear_domain_artifacts as _impl
+    return _impl(domain)
+
+
+def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.knowledge_summary import knowledge_base_reset_domain as _impl
+    return _impl(domain)
+
+
+def knowledge_base_reset_all() -> dict[str, Any]:
+    from ki_knowledge.django_site.knowledge_summary import knowledge_base_reset_all as _impl
+    return _impl()
+
+
+def run_dashboard_task(task_name: str, *, domain: str | None = None, target_domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.ui_dispatcher import run_dashboard_task as _impl
+    return _impl(task_name, domain=domain, target_domain=target_domain)
+
+
+def semantic_store(domain: str | None = None) -> SemanticTermStore:
+    from ki_knowledge.django_site.knowledge_summary import semantic_store as _impl
+    return _impl(domain)
+
+
+def semantic_terms(status: str | None = None, limit: int = 300, domain: str | None = None):
+    from ki_knowledge.django_site.knowledge_summary import semantic_terms as _impl
+    return _impl(status=status, limit=limit, domain=domain)
+
+
+def semantic_term_detail(term_id: str, domain: str | None = None) -> dict[str, Any] | None:
+    from ki_knowledge.django_site.knowledge_summary import semantic_term_detail as _impl
+    return _impl(term_id, domain)
+
+
+def semantic_monitoring_snapshot(domain: str | None = None) -> dict[str, Any]:
+    from ki_knowledge.django_site.knowledge_summary import semantic_monitoring_snapshot as _impl
+    return _impl(domain)
+
+
+def semantic_jobs(status: str | None = None, job_type: str | None = None, limit: int = 200, domain: str | None = None):
+    from ki_knowledge.django_site.knowledge_summary import semantic_jobs as _impl
+    return _impl(status=status, job_type=job_type, limit=limit, domain=domain)
+
+
+def semantic_job_detail(job_id: str, domain: str | None = None) -> dict[str, Any] | None:
+    from ki_knowledge.django_site.knowledge_summary import semantic_job_detail as _impl
+    return _impl(job_id, domain)

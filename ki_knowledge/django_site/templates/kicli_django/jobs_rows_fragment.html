@@ -1,0 +1,41 @@
+{% load ui_extras %}
+{% for job in jobs %}
+<tr>
+  <td><input type="checkbox" name="job_ids" value="{{ job.job_id }}" form="jobs-bulk-cancel-form"></td>
+  <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.created_at|date:"Y-m-d H:i:s" }}</a></td>
+  <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.updated_at|date:"Y-m-d H:i:s" }}</a></td>
+  <td><span class="chip">{{ job.status }}</span></td>
+  <td>{{ job.job_type }}</td>
+  <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.term_id|short_id }}</a></td>
+  <td>{{ job.attempts }}</td>
+  <td class="mono"><a href="{% url 'job-detail' job.job_id %}">{{ job.job_id|short_id }}</a></td>
+  <td>
+    {% if job.status != 'cancelled' and job.status != 'done' %}
+      <form method="post" action="{% url 'jobs' %}" style="margin:0;" onsubmit="return confirm('Job wirklich abbrechen?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="cancel">
+        <input type="hidden" name="job_ids" value="{{ job.job_id }}">
+        <input type="hidden" name="next" value="{% url 'jobs' %}">
+        <button type="submit" class="small-btn">Cancel</button>
+      </form>
+    {% else %}
+      <span class="muted">—</span>
+    {% endif %}
+  </td>
+</tr>
+{% empty %}
+  <tr><td colspan="9" class="muted">No jobs found.</td></tr>
+{% endfor %}
+{% if has_more %}
+  <tr id="jobs-load-more-row" hx-swap-oob="outerHTML:#jobs-load-more-row">
+    <td colspan="9">
+      <button type="button"
+              hx-get="{{ next_page_url }}"
+              hx-target="#jobs-table-body"
+              hx-swap="beforeend"
+              hx-trigger="click">
+        Mehr laden
+      </button>
+    </td>
+  </tr>
+{% endif %}

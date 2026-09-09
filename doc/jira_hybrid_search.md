@@ -1,33 +1,27 @@
-# jira_hybrid_search.py
+# Deprecated Jira naming: hybrid search
 
-## Zweck
+This legacy file name still exists for compatibility, but the feature it describes is now datasource-agnostic.
 
-Führt mehrere Suchanfragen gegen den Jira-Cache aus und kombiniert lexikalische und semantische Suche.
+The current, canonical documentation is:
 
-## Was es kann
+- [hybrid_search.md](hybrid_search.md)
+- [knowledge_retrieval.md](knowledge_retrieval.md)
 
-- mehrere Queries pro Lauf
-- Keyword-Ranking über Cache
-- Embedding-basierte Semantik
-- Ollama-Embeddings mit Fallback auf lokale TF-IDF-Vektoren
-- Score-Ausgabe für Vergleich und Tuning
+## Status
 
-## Eingaben
+The hybrid-search logic operates on the cached knowledge layer and is not tied to Jira data alone. It can be used with:
 
-- `JIRA_CSV_PATH`
-- `JIRA_CACHE_DB`
-- `JIRA_EMBED_MODEL`
-- `OLLAMA_BASE_URL`
-- `JIRA_CACHE_REFRESH`
+- Markdown-derived records
+- PDF extracted content
+- OWL/ontology data
+- Jira exports
+- any future source integrated into the knowledge cache
 
-## Ausgabe
+## Example
 
-- Treffer pro Query mit:
-  - Combined Score
-  - lexical score
-  - semantic score
+```bash
+python examples/jira_hybrid_search.py
+```
 
-## Wann verwenden
-
-Wenn du suchst wie ein Mensch denkt: nicht nur per Wort, sondern auch per Bedeutung.
+This call remains valid, but the feature is now treated as a general retrieval capability rather than a Jira-only utility.
 

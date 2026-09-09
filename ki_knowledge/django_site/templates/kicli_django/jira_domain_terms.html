@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Jira Domain Terms · KICLI{% endblock %}
+{% block title %}Domain Terms · KICLI{% endblock %}
 {% block content %}
-<h1>Jira Domain Terms</h1>
-<p class="muted">Quelle: {{ cache_db }}</p>
+<h1>Domain Terms</h1>
+<p class="muted">Interne Begriffsliste für Wissensmodellierung und Domain-Analyse. Quelle: {{ cache_db }}</p>
 
 <div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
   <div class="muted">Ansicht</div>
@@ -47,43 +47,25 @@
   </div>
 {% else %}
 <div class="card">
-  {% if terms %}
-  <table>
-    <thead>
-      <tr>
-        <th><a href="?min_count={{ min_count }}&limit={{ limit }}&sort=term&order={% if sort == 'term' and order == 'asc' %}desc{% else %}asc{% endif %}">Term</a></th>
-        <th><a href="?min_count={{ min_count }}&limit={{ limit }}&sort=count&order={% if sort == 'count' and order == 'asc' %}desc{% else %}asc{% endif %}">Count</a></th>
-        <th><a href="?min_count={{ min_count }}&limit={{ limit }}&sort=issue_count&order={% if sort == 'issue_count' and order == 'asc' %}desc{% else %}asc{% endif %}">Issue Count</a></th>
-        <th>Sources</th>
-        <th>Sample Issue Keys</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for term in terms %}
-      <tr>
-        <td><strong>{{ term.term }}</strong></td>
-        <td>{{ term.count }}</td>
-        <td>{{ term.issue_count }}</td>
-        <td>{{ term.sources|join:", " }}</td>
-        <td>{{ term.sample_issue_keys|join:", " }}</td>
-        <td>
-          <form method="post" action="{% url 'jira-exclusions' %}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="exclude_and_forget">
-            <input type="hidden" name="kind" value="exception">
-            <input type="hidden" name="term" value="{{ term.term }}">
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <button type="submit">Ausschließen & löschen</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p>Keine DomainTerms gefunden. Importiere zuerst Jira-CSV in den Cache.</p>
-  {% endif %}
+{% if terms %}
+<table>
+  <thead>
+    <tr>
+      <th><a href="?min_count={{ min_count }}&limit={{ limit }}&sort=term&order={% if sort == 'term' and order == 'asc' %}desc{% else %}asc{% endif %}">Term</a></th>
+      <th><a href="?min_count={{ min_count }}&limit={{ limit }}&sort=count&order={% if sort == 'count' and order == 'asc' %}desc{% else %}asc{% endif %}">Count</a></th>
+      <th><a href="?min_count={{ min_count }}&limit={{ limit }}&sort=issue_count&order={% if sort == 'issue_count' and order == 'asc' %}desc{% else %}asc{% endif %}">Issue Count</a></th>
+      <th>Sources</th>
+      <th>Sample Issue Keys</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="jira-domain-terms-table-body">
+    {% include 'kicli_django/jira_domain_terms_rows_fragment.html' %}
+  </tbody>
+</table>
+{% else %}
+<p>Keine DomainTerms gefunden. Importiere zuerst Jira-CSV in den Cache.</p>
+{% endif %}
 </div>
 {% endif %}
 {% endblock %}

@@ -10,10 +10,40 @@ SourceDocumentRecord contracts without duplicating the underlying models.
 from __future__ import annotations
 
 from django.db import models
+from django.utils.text import slugify
 
 from wagtail.admin.panels import FieldPanel
 from wagtail.fields import RichTextField
 from wagtail.models import Page
+
+
+def ensure_project_detail_page(index_page: Page, project: object, page_model: type[Page], *, title: str, slug_prefix: str) -> Page:
+    """Create a project-scoped detail page under ``index_page`` when missing.
+
+    The Wagtail catalog is intentionally a thin editorial layer above the
+    canonical project/source data, so each enabled InfoSiteProject should have a
+    browsable detail page in the CMS tree even if the underlying datasource or
+    knowledge-block records are stored elsewhere.
+    """
+    existing = page_model.objects.child_of(index_page).filter(infosite_project_id=project.id).first()
+    if existing:
+        return existing
+
+    slug_base = slugify(f"{slug_prefix} {project.title} {project.id}") or f"project-{project.id}"
+    slug = slug_base
+    counter = 1
+    while page_model.objects.child_of(index_page).filter(slug=slug).exists():
+        counter += 1
+        slug = f"{slug_base}-{counter}"
+
+    detail_page = page_model(
+        title=title,
+        slug=slug,
+        infosite_project_id=project.id,
+    )
+    index_page.add_child(instance=detail_page)
+    detail_page.save_revision().publish()
+    return detail_page
 
 
 class DataSourceIndexPage(Page):
@@ -43,13 +73,22 @@ class DataSourceIndexPage(Page):
 
         context = super().get_context(request, *args, **kwargs)
         projects = InfoSiteProject.objects.filter(enabled=True).order_by("title")
-        context["data_sources"] = [
-            {
-                "project": project,
-                "descriptor": InfoSiteSourceAdapter.to_descriptor(project),
-            }
-            for project in projects
-        ]
+        context["data_sources"] = []
+        for project in projects:
+            detail_page = ensure_project_detail_page(
+                self,
+                project,
+                DataSourceDetailPage,
+                title=f"{project.title} — Data Sources",
+                slug_prefix="data-source",
+            )
+            context["data_sources"].append(
+                {
+                    "project": project,
+                    "descriptor": InfoSiteSourceAdapter.to_descriptor(project),
+                    "detail_page": detail_page,
+                }
+            )
         return context
 
 
@@ -137,13 +176,19 @@ class KnowledgeBlockIndexPage(Page):
         context = super().get_context(request, *args, **kwargs)
         entries = []
         for project in InfoSiteProject.objects.filter(enabled=True).order_by("title"):
+            detail_page = ensure_project_detail_page(
+                self,
+                project,
+                KnowledgeBlockDetailPage,
+                title=f"{project.title} — Knowledge Blocks",
+                slug_prefix="knowledge-blocks",
+            )
             storage = InfoSiteBlockStorage(project)
             try:
                 block_count = len(storage.get_stored_blocks())
             except Exception:
                 block_count = 0
-            if block_count:
-                entries.append({"project": project, "block_count": block_count})
+            entries.append({"project": project, "block_count": block_count, "detail_page": detail_page})
         context["knowledge_projects"] = entries
         return context
 

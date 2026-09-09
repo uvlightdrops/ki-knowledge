@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Widget catalog · KICLI{% endblock %}
+{% block content %}
+<style>
+  .widget-catalog-shell {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .widget-catalog-panel {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  }
+  .catalog-area-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 16px;
+  }
+  .catalog-area-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(15, 23, 42, 0.35);
+    color: var(--kicli-text);
+    text-decoration: none;
+    font-size: 0.78rem;
+  }
+  .catalog-area-tab.is-active {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(96, 165, 250, 0.9);
+  }
+  .widget-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 760px;
+    overflow: auto;
+    padding-right: 4px;
+  }
+  .widget-list-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.35);
+    color: var(--kicli-text);
+    padding: 12px 12px 10px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  }
+  .widget-list-item:hover,
+  .widget-list-item.is-active {
+    border-color: rgba(96, 165, 250, 0.9);
+    background: rgba(30, 41, 59, 0.9);
+    transform: translateY(-1px);
+  }
+  .widget-list-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .widget-list-copy {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.45;
+    margin-bottom: 8px;
+  }
+  .widget-preview-surface {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 440px;
+  }
+  .widget-preview-card {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.6);
+    padding: 18px;
+    min-height: 180px;
+  }
+  .widget-preview-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .widget-preview-title {
+    font-size: 1.08rem;
+    font-weight: 700;
+  }
+  .widget-preview-body {
+    color: #e2e8f0;
+    line-height: 1.6;
+    font-size: 0.88rem;
+  }
+  .widget-code {
+    width: 100%;
+    min-height: 240px;
+    max-height: 420px;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.92);
+    color: #dbeafe;
+    padding: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+  }
+  @media (max-width: 920px) {
+    .widget-catalog-shell { grid-template-columns: 1fr; }
+  }
+</style>
+
+<h1>Widget catalog</h1>
+<p class="muted">Preview of every registered widget and its rendered HTML snippet.</p>
+<nav class="catalog-area-tabs" aria-label="Widget catalog areas">
+  {% for tab in area_tabs %}
+    <a class="catalog-area-tab{% if area_filter == tab.key %} is-active{% endif %}" href="{% url 'settings-layout-widgets' %}?area={{ tab.key }}">{{ tab.label }}</a>
+  {% endfor %}
+</nav>
+<div class="widget-catalog-shell">
+  <aside class="widget-catalog-panel">
+    <h3>Widget metadata</h3>
+    <div class="widget-list">
+      {% for spec in widget_catalog %}
+        <button type="button" class="widget-list-item{% if forloop.first %} is-active{% endif %}" data-widget-id="{{ spec.widget_id }}">
+          <div class="widget-list-head">
+            <strong>{{ spec.label }}</strong>
+            <span class="chip">{{ spec.area }}</span>
+          </div>
+          <div class="widget-list-copy">{{ spec.description }}</div>
+          <div class="db-widget-footer">
+            <span>{{ spec.category }}</span>
+            <span>{{ spec.default_w }}×{{ spec.default_h }}</span>
+          </div>
+        </button>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <section class="widget-catalog-panel">
+    <h3>Widget preview</h3>
+    <div id="widget-preview" class="widget-preview-surface" aria-live="polite"></div>
+  </section>
+</div>
+
+<script>
+  const widgetPayload = {{ widget_preview_payload_json|safe }};
+  const previewEl = document.getElementById('widget-preview');
+  const itemButtons = document.querySelectorAll('.widget-list-item');
+
+  function renderPreview(widgetId) {
+    const item = widgetPayload.find(entry => entry.widget_id === widgetId) || widgetPayload[0];
+    if (!item) return;
+
+    const label = document.querySelector(`.widget-list-item[data-widget-id="${item.widget_id}"] strong`)?.textContent || item.widget_id;
+    previewEl.innerHTML = `
+      <div class="widget-preview-card">
+        <div class="widget-preview-head">
+          <span class="widget-preview-title">${label}</span>
+          <span class="chip">${item.widget_id}</span>
+        </div>
+        <div class="widget-preview-body">${item.preview_html}</div>
+      </div>
+      <pre class="widget-code" aria-label="Widget HTML source">${escapeHtml(item.source_html)}</pre>
+    `;
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    itemButtons.forEach(button => {
+      button.classList.toggle('is-active', button.dataset.widgetId === item.widget_id);
+    });
+  }
+
+  itemButtons.forEach(button => {
+    button.addEventListener('click', () => renderPreview(button.dataset.widgetId));
+  });
+
+  if (widgetPayload.length) {
+    renderPreview(widgetPayload[0].widget_id);
+  }
+</script>
+{% endblock %}

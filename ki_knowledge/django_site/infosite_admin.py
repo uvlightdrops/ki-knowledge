@@ -5,7 +5,13 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count, Q
 
-from .infosite_models import InfoSiteProject, SourceDocument
+from .infosite_models import InfoSiteMappingRule, InfoSiteProject, SourceDocument
+
+
+def _status_badge_html(value: str, *, colors: dict[str, str], default: str = "gray") -> str:
+    """Reusable markup for simple admin status badges."""
+    color = colors.get(value, default)
+    return format_html('<span style="color: {}; font-weight: bold;">●</span> {}', color, value)
 
 
 @admin.register(InfoSiteProject)
@@ -37,17 +43,14 @@ class InfoSiteProjectAdmin(admin.ModelAdmin):
 
     def sync_status_badge(self, obj: InfoSiteProject) -> str:
         """Display sync status as badge."""
-        colors = {
-            "pending": "gray",
-            "syncing": "blue",
-            "completed": "green",
-            "failed": "red",
-        }
-        color = colors.get(obj.sync_status, "gray")
-        return format_html(
-            '<span style="color: {}; font-weight: bold;">●</span> {}',
-            color,
-            obj.get_sync_status_display()
+        return _status_badge_html(
+            obj.get_sync_status_display(),
+            colors={
+                "Pending": "gray",
+                "Syncing": "blue",
+                "Completed": "green",
+                "Failed": "red",
+            },
         )
 
     sync_status_badge.short_description = "Sync Status"
@@ -71,17 +74,14 @@ class SourceDocumentAdmin(admin.ModelAdmin):
 
     def import_status_badge(self, obj: SourceDocument) -> str:
         """Display import status as badge."""
-        colors = {
-            "discovered": "blue",
-            "pending": "orange",
-            "imported": "green",
-            "failed": "red",
-        }
-        color = colors.get(obj.import_status, "gray")
-        return format_html(
-            '<span style="color: {};">●</span> {}',
-            color,
-            obj.get_import_status_display()
+        return _status_badge_html(
+            obj.get_import_status_display(),
+            colors={
+                "Discovered": "blue",
+                "Pending Import": "orange",
+                "Imported": "green",
+                "Failed": "red",
+            },
         )
 
     import_status_badge.short_description = "Status"
@@ -97,3 +97,13 @@ class SourceDocumentAdmin(admin.ModelAdmin):
         return format_html("<small>{} MB</small>", f"{mb:.1f}")
 
     file_size_display.short_description = "Size"
+
+
+@admin.register(InfoSiteMappingRule)
+class InfoSiteMappingRuleAdmin(admin.ModelAdmin):
+    """Mapping rules that place one source in a generated section tree."""
+
+    list_display = ["project", "source_path", "target_parent", "target_section", "order_index", "mode", "active"]
+    list_filter = ["project", "mode", "active"]
+    search_fields = ["source_path", "target_section", "target_title", "target_parent"]
+    ordering = ["project__title", "order_index", "target_section"]

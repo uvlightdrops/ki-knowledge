@@ -1,166 +1,118 @@
 # Knowledge Retrieval & Analysis
 
-This page provides an overview of the tools available for searching, analyzing, and exploring imported knowledge.
+This landing page groups the source-agnostic discovery and analysis features of the knowledge stack. The same search, graph and chat patterns work regardless of whether content came from Markdown, PDFs, OWL, Jira exports, or other imported sources.
 
 ## Quick Reference
 
-| Task | Tool | Purpose |
-|------|------|---------|
-| Find Jira issues by keywords or meaning | [`examples/jira_hybrid_search.py`](../examples/jira_hybrid_search.py) | Keyword + semantic search |
-| Explore Jira graph relationships | [`jira_graph_explorer.md`](jira_graph_explorer.md) | Inspect cached Jira graph |
-| Chat with grounded answers | [`jira_support_chat.md`](jira_support_chat.md) | RAG-based Q&A |
-| Timeline & trending topics | [`jira_daily_timeline.md`](jira_daily_timeline.md) | Temporal summaries |
+| Feature | Document | Purpose |
+|---|---|---|
+| Hybrid search | [hybrid_search.md](hybrid_search.md) | Combine keyword and semantic retrieval |
+| Graph explorer | [graph_explorer.md](graph_explorer.md) | Inspect relationships between entities and concepts |
+| Support chat | [support_chat.md](support_chat.md) | Ask grounded questions over the loaded knowledge |
+| Daily timeline | [daily_timeline.md](daily_timeline.md) | Summarize chronology and trends across cached data |
 
 ---
 
-## 1. Hybrid Search
+## 1. Retrieval and Discovery
 
-**Search across all imported sources** using both keyword matching and semantic similarity.
+The hybrid search flow is the primary entry point for source-agnostic retrieval. It combines lexical search with semantic matching so the system can find both literal and conceptually similar results.
 
 ```bash
 python examples/jira_hybrid_search.py
 ```
 
-**Best for:**
-- Finding similar documents quickly
-- Comparing keyword vs. semantic results
-- Tuning search weights
-- Works with any cached data (CSV, Markdown, PDFs, etc.)
+Typical outputs:
+- best keyword matches
+- best semantic matches
+- combined ranking scores
+- a tuning view for search quality
 
-See: `examples/jira_hybrid_search.py`
+See: [hybrid_search.md](hybrid_search.md)
 
 ---
 
-## 2. Knowledge Graph Explorer
+## 2. Graph-Based Understanding
 
-**Build and inspect the relationship graph** connecting your knowledge sources.
+The graph explorer answers questions like “which entities are connected?” and “what clusters or neighborhoods exist around this topic?” It works for any source that creates relationship edges in the graph store.
 
 ```bash
 python examples/jira_graph_explorer.py
 ```
 
-**Best for:**
-- Understanding how concepts relate
-- Finding neighbors and indirect connections
-- Exporting Cypher queries for analysis
-- Visualizing domain structure
-
-See: [`jira_graph_explorer.md`](jira_graph_explorer.md)
+See: [graph_explorer.md](graph_explorer.md)
 
 ---
 
-## 3. Semantic Chat (RAG)
+## 3. Grounded Q&A
 
-**Ask questions grounded in your knowledge sources** using Retrieval-Augmented Generation.
+The support chat is a retrieval-augmented assistant for the active knowledge base. It is designed to answer from indexed content rather than from generic model memory.
 
 ```bash
 python examples/jira_support_chat.py
 ```
 
-**Best for:**
-- Natural language Q&A
-- Sourced answers with citations
-- Multi-turn conversations
-- Domain-specific knowledge bases
-
-See: [`jira_support_chat.md`](jira_support_chat.md)
+See: [support_chat.md](support_chat.md)
 
 ---
 
-## 4. Cache Timeline
+## 4. Temporal Summaries
 
-**Analyze temporal patterns** and extract daily summaries from timestamped data.
+Timeline analysis aggregates timestamped records by day to reveal patterns, trends, or repeated themes across the imported domain.
 
 ```bash
 python examples/jira_daily_timeline.py
 ```
 
-**Best for:**
-- Tracking progress over time
-- Identifying trending topics
-- Creating event summaries
-- Narrative reconstruction
-
-See: [`jira_daily_timeline.md`](jira_daily_timeline.md)
+See: [daily_timeline.md](daily_timeline.md)
 
 ---
 
-## Environment Setup
+## Scope and architecture
 
-All tools use the same base configuration:
+These features are intentionally datasource-agnostic. They operate on the cached and indexed knowledge layer rather than on a single source implementation such as Jira. That means the same retrieval and analysis flows can be reused when the project ingests Markdown, PDF, OWL, Jira or any future source type.
+
+---
+
+## Environment setup
 
 ```bash
 # ~/.env or export these:
 
-# Data location
 KNOWLEDGE_DATA_ROOT=~/dev_data/ki-knowledge
-
-# Cache and graph databases
 KNOWLEDGE_CACHE_DB=~/.ki_cache.sqlite
 KNOWLEDGE_GRAPH_DB=~/.ki_graph.sqlite
-
-# Embeddings (optional, fallback to TF-IDF)
 KNOWLEDGE_EMBED_MODEL=nomic-embed-text
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
 ---
 
-## Common Workflows
+## Typical workflows
 
-### Workflow 1: Explore a New Domain
+### Workflow 1: Explore a new domain
 
-1. Import sources with `knowledge_block_import.py` or the API
-2. Run `jira_hybrid_search.py` to understand Jira content
-3. Use `jira_graph_explorer.py` to inspect structure
-4. Ask questions with `jira_support_chat.py`
+1. import new sources
+2. run hybrid search to understand topical coverage
+3. inspect graph relationships
+4. ask grounded questions in support chat
 
-### Workflow 2: Generate Insights
+### Workflow 2: Quality checks
 
-1. Import domain data
-2. Use `jira_daily_timeline.py` to find patterns
-3. Use `jira_support_chat.py` to dig deeper
-4. Export results via `jira_graph_explorer.py`
+1. search the current domain with different terms
+2. inspect graph neighborhoods
+3. compare timeline trends
+4. refine input sources if the coverage is weak
 
-### Workflow 3: Quality Control
+### Workflow 3: Operational monitoring
 
-1. Run `jira_hybrid_search.py` with test queries
-2. Review top results
-3. Inspect graph with `jira_graph_explorer.py`
-4. Refine domain or re-import if needed
-
----
-
-## Performance Tips
-
-- **Hybrid Search**: Keyword search is fast; embeddings slower but more accurate
-- **Graph Explorer**: First run rebuilds graph; subsequent runs are cached
-- **Timeline**: Best with chronologically sorted data
-- **Semantic Chat**: Provide good context; multi-turn builds history
+1. run timeline summaries across a time window
+2. identify patterns in activity or content density
+3. use support chat to answer follow-up questions with evidence
 
 ---
 
-## Troubleshooting
+## See also
 
-**Search returns poor results?**
-- Check data was imported with `knowledge_block_import.py` or `/api/knowledge/import`
-- Try `jira_hybrid_search.py` with different keywords
-- Increase `top_n` parameter in queries
-
-**Graph shows no relationships?**
-- Verify sources were processed (check cache)
-- Some sources (PDF text) don't auto-create relationships
-- Run `jira_graph_explorer.py` to rebuild
-
-**Chat answers are generic?**
-- Provide more context in questions
-- Use specific domain terminology
-- Check embeddings are working (`OLLAMA_BASE_URL`)
-
----
-
-## See Also
-
-- [`knowledge_blocks.md`](knowledge_blocks.md) – Import and knowledge artifacts
-- [`pdf_batch_import.md`](pdf_batch_import.md) – PDF batch processing
-- [`jira_support_chat.md`](jira_support_chat.md) – Detailed RAG guide
+- [knowledge_blocks.md](knowledge_blocks.md)
+- [pdf_batch_import.md](pdf_batch_import.md)
+- [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)

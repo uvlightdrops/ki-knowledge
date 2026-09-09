@@ -2,6 +2,7 @@
 {% block title %}Workspace · KICLI{% endblock %}
 {% block content %}
 <h1>Workspace</h1>
+<p class="muted">Vorbereitungsbereich für Quellen vor dem Import. Das ist die pre-import stage; das Ausgabe-Workflow bleibt separat.</p>
 <p class="muted">Data dir: {{ data_dir }}</p>
 
 <div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
@@ -11,11 +12,35 @@
     <a class="chip" href="{{ workspace_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
   </div>
 </div>
+
+<div class="grid" style="margin-bottom:18px;">
+  <div class="card">
+    <h3>1. Erfassen</h3>
+    <p class="muted">Quelle erkannt, Pfad verifiziert und in den Input-Workflow aufgenommen.</p>
+    <span class="chip">{% if markdown_files %}{{ markdown_files|length }} Dateien{% else %}0 Dateien{% endif %}</span>
+  </div>
+  <div class="card">
+    <h3>2. Prüfen</h3>
+    <p class="muted">Inhalt kurz ansehen, Format prüfen und bei Bedarf korrigieren.</p>
+    <span class="chip">{% if selected %}{{ selected|cut:data_dir }}{% else %}Noch keine Auswahl{% endif %}</span>
+  </div>
+  <div class="card">
+    <h3>3. Vorbereiten</h3>
+    <p class="muted">Workspace als Wagtail-ähnliche Workflow-Liste: Vorbereitung vor Import, nicht Output-Mix.</p>
+    <span class="chip">Vorbereitungsstufe</span>
+  </div>
+  <div class="card">
+    <h3>4. Importieren</h3>
+    <p class="muted">Wenn vorbereitet oder nicht nötig, als bereit markieren und importieren.</p>
+    <button type="button" onclick="location.href='{% url "sources" %}'">Zu Sources</button>
+  </div>
+</div>
+
 <div class="grid">
   <div class="card">
-    <h3>Markdown files</h3>
+    <h3>Source files</h3>
     <form method="get" action="{% url 'workspace' %}" style="margin-bottom:12px">
-      <input type="text" name="q" value="{{ query|default:'' }}" placeholder="Filter files..." style="width:100%">
+      <input type="text" name="q" value="{{ query|default:'' }}" placeholder="Filter source files..." style="width:100%">
     </form>
     {% if display_mode == "cards" %}
       <div class="grid">
@@ -31,7 +56,7 @@
             </form>
           </div>
         {% empty %}
-          <p class="muted">No markdown files found.</p>
+          <p class="muted">No source files found.</p>
         {% endfor %}
       </div>
     {% else %}
@@ -59,7 +84,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="2" class="muted">No markdown files found.</td></tr>
+            <tr><td colspan="2" class="muted">No source files found.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -74,7 +99,7 @@
         {% csrf_token %}
         <input type="hidden" name="path" value="{{ selected }}">
         <input type="hidden" name="next" value="workspace">
-        <button type="submit" name="import_type" value="file">Import selected file</button>
+        <button type="submit" name="import_type" value="file">Import selected source</button>
       </form>
       {% if source_preview_html %}
         <article style="margin-top:12px">{{ source_preview_html|safe }}</article>
@@ -82,7 +107,7 @@
         <p class="muted">Could not read file.</p>
       {% endif %}
     {% else %}
-      <p class="muted">Choose a file from the list.</p>
+      <p class="muted">Choose a source from the list.</p>
     {% endif %}
   </div>
 </div>

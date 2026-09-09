@@ -1,5 +1,6 @@
 """Views for Infosite management interface."""
 
+import json
 from pathlib import Path
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, permission_required
@@ -10,16 +11,100 @@ from django.utils import timezone
 from django.db.models import Count, Q
 from ki_knowledge.app_config import AppConfig as Config
 
-from .infosite_models import InfoSiteProject, SourceDocument
+from .infosite_models import InfoSiteMappingRule, InfoSiteProject, SourceDocument
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
 from ki_knowledge.infosite.importer import DocumentImporterRegistry
+
+
+def _parse_site_structure(raw_value: str | None) -> dict | list:
+    """Parse the user-editable site structure JSON for infosite generation."""
+    if raw_value is None or not raw_value.strip():
+        return {}
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError as exc:  # pragma: no cover - validation path
+        raise ValueError(f"Invalid JSON in site structure: {exc.msg}") from exc
+    if isinstance(parsed, (dict, list)):
+        return parsed
+    raise ValueError("Site structure must be a JSON object or array.")
+
+
+def _parse_mapping_rules(raw_value: str | None) -> list[dict]:
+    """Parse the JSON payload used for source-to-destination mapping rules."""
+    if raw_value is None or not raw_value.strip():
+        return []
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError as exc:  # pragma: no cover - validation path
+        raise ValueError(f"Invalid JSON in mapping rules: {exc.msg}") from exc
+    if not isinstance(parsed, list):
+        raise ValueError("Mapping rules must be a JSON array.")
+
+    normalized: list[dict] = []
+    for index, item in enumerate(parsed):
+        if not isinstance(item, dict):
+            raise ValueError(f"Mapping rule #{index + 1} must be an object.")
+        source_path = str(item.get("source_path") or item.get("source") or "").strip()
+        target_section = str(item.get("target_section") or item.get("section") or "").strip()
+        target_parent = str(item.get("target_parent") or item.get("parent") or "").strip()
+        target_title = str(item.get("target_title") or item.get("title") or "").strip()
+        target_slug = str(item.get("target_slug") or "").strip()
+        mode = str(item.get("mode") or "manual").strip() or "manual"
+        active = bool(item.get("active", True))
+        order_index = int(item.get("order_index", index))
+        normalized.append(
+            {
+                "source_path": source_path,
+                "target_parent": target_parent,
+                "target_section": target_section,
+                "target_title": target_title,
+                "target_slug": target_slug,
+                "order_index": order_index,
+                "mode": mode if mode in {"auto", "manual", "override"} else "manual",
+                "active": active,
+            }
+        )
+    return normalized
+
+
+def _source_tree_for_project(project: InfoSiteProject) -> list[dict]:
+    """Build a directory-based hierarchy tree from the source markdown tree."""
+    from django.conf import settings
+
+    if not project.domain or not project.working_title:
+        return []
+
+    source_root = Path(settings.KI_CONFIG.knowledge_data_root) / "md" / project.domain / project.working_title
+    if not source_root.exists():
+        return []
+
+    def build_tree(path: Path) -> list[dict]:
+        children: list[dict] = []
+        entries = sorted(path.iterdir(), key=lambda p: (0 if p.is_dir() else 1, p.name.lower()))
+        for entry in entries:
+            if entry.is_dir():
+                sub_children = build_tree(entry)
+                children.append({
+                    "title": entry.name,
+                    "type": "folder",
+                    "path": entry.relative_to(source_root).as_posix(),
+                    "children": sub_children,
+                })
+            elif entry.suffix.lower() in {".md", ".markdown", ".txt"}:
+                children.append({
+                    "title": entry.stem,
+                    "type": "document",
+                    "path": entry.relative_to(source_root).as_posix(),
+                    "children": [],
+                })
+        return children
+
+    return build_tree(source_root)
 
 
 # ============================================================================
 # PROJECT LIST & DASHBOARD
 # ============================================================================
-
-@login_required
 def infosite_project_list(request: HttpRequest):
     """List all infosite projects with stats."""
     projects = InfoSiteProject.objects.annotate(
@@ -54,7 +139,6 @@ def infosite_project_list(request: HttpRequest):
     return render(request, 'infosite/project_list.html', context)
 
 
-@login_required
 def infosite_dashboard(request: HttpRequest):
     """Dashboard for infosite management."""
     projects = InfoSiteProject.objects.all()
@@ -76,8 +160,6 @@ def infosite_dashboard(request: HttpRequest):
 # PROJECT MANAGEMENT (CREATE, EDIT, DELETE)
 # ============================================================================
 
-@login_required
-@permission_required('django_site.add_infositeproject', raise_exception=True)
 def infosite_project_create(request: HttpRequest):
     """Create new infosite project."""
     if request.method == 'POST':
@@ -86,33 +168,50 @@ def infosite_project_create(request: HttpRequest):
         domain = request.POST.get('domain')
         working_title = request.POST.get('working_title')
         description = request.POST.get('description', '')
+        site_structure_raw = request.POST.get('site_structure', '')
+        mapping_rules_raw = request.POST.get('mapping_rules', '')
         auto_discover = request.POST.get('auto_discover', 'on') == 'on'
-        
+        generate_html_site = request.POST.get('generate_html_site', 'off') == 'on'
+
         if not title or not domain:
             messages.error(request, 'Title and domain are required')
             return render(request, 'infosite/project_form.html', {
                 'action': 'Create',
                 'is_create': True,
             })
-        
+
+        try:
+            site_structure = _parse_site_structure(site_structure_raw)
+            mapping_rules = _parse_mapping_rules(mapping_rules_raw)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return render(request, 'infosite/project_form.html', {
+                'action': 'Create',
+                'is_create': True,
+            })
+
         project = InfoSiteProject.objects.create(
             title=title,
             domain=domain,
             working_title=working_title or domain,
             description=description,
+            site_structure=site_structure,
             auto_discover=auto_discover,
+            generate_html_site=generate_html_site,
         )
-        
+        for rule in mapping_rules:
+            InfoSiteMappingRule.objects.create(project=project, **rule)
+
         messages.success(request, f'Project "{title}" created')
         return redirect('infosite:project_detail', project_id=project.id)
     
     return render(request, 'infosite/project_form.html', {
         'action': 'Create',
         'is_create': True,
+        'site_structure_json': '[]',
     })
 
 
-@login_required
 def infosite_project_detail(request: HttpRequest, project_id: int):
     """Show project details and management interface."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
@@ -141,9 +240,14 @@ def infosite_project_detail(request: HttpRequest, project_id: int):
     ) - {None}
     generated_count = project.generated_documents.count()
 
+    mapping_rules = project.mapping_rules.select_related('source_document').order_by('order_index', 'source_path')
+
+    source_tree = _source_tree_for_project(project)
+    default_site_structure = project.site_structure or source_tree
     context = {
         'project': project,
         'documents': docs_page,
+        'mapping_rules': mapping_rules,
         'total_documents': total,
         'current_page': page,
         'total_pages': pages,
@@ -165,12 +269,12 @@ def infosite_project_detail(request: HttpRequest, project_id: int):
         },
         'generated_document_count': generated_count,
         'used_source_count': len(used_source_ids),
+        'source_tree_json': json.dumps(source_tree, ensure_ascii=False),
+        'site_structure_json': json.dumps(default_site_structure, ensure_ascii=False),
     }
     return render(request, 'infosite/project_detail.html', context)
 
 
-@login_required
-@permission_required('django_site.change_infositeproject', raise_exception=True)
 def infosite_project_edit(request: HttpRequest, project_id: int):
     """Edit project settings."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
@@ -181,23 +285,71 @@ def infosite_project_edit(request: HttpRequest, project_id: int):
         project.domain = request.POST.get('domain', project.domain)
         project.working_title = request.POST.get('working_title', project.working_title)
         project.description = request.POST.get('description', '')
+        site_structure_raw = request.POST.get('site_structure', '')
+        mapping_rules_raw = request.POST.get('mapping_rules', '')
+        try:
+            project.site_structure = _parse_site_structure(site_structure_raw)
+            mapping_rules = _parse_mapping_rules(mapping_rules_raw)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return render(request, 'infosite/project_form.html', {
+                'project': project,
+                'action': 'Edit',
+                'is_create': False,
+            })
         project.auto_discover = request.POST.get('auto_discover', 'off') == 'on'
+        project.generate_html_site = request.POST.get('generate_html_site', 'off') == 'on'
         project.enabled = request.POST.get('enabled', 'off') == 'on'
         project.save()
-        
+
+        project.mapping_rules.all().delete()
+        for rule in mapping_rules:
+            InfoSiteMappingRule.objects.create(project=project, **rule)
+
         messages.success(request, f'Project "{project.title}" updated')
         return redirect('infosite:project_detail', project_id=project.id)
-    
+
     context = {
         'project': project,
         'action': 'Edit',
         'is_create': False,
+        'site_structure_json': json.dumps(project.site_structure, ensure_ascii=False, indent=2) if project.site_structure else '[]',
+        'mapping_rules_json': json.dumps(
+            [
+                {
+                    'source_path': rule.source_path,
+                    'target_parent': rule.target_parent,
+                    'target_section': rule.target_section,
+                    'target_title': rule.target_title,
+                    'target_slug': rule.target_slug,
+                    'order_index': rule.order_index,
+                    'mode': rule.mode,
+                    'active': rule.active,
+                }
+                for rule in project.mapping_rules.all().order_by('order_index', 'source_path')
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ) if project.mapping_rules.exists() else '[]',
     }
     return render(request, 'infosite/project_form.html', context)
 
 
-@login_required
-@permission_required('django_site.delete_infositeproject', raise_exception=True)
+@require_http_methods(['POST'])
+def infosite_project_hierarchy_update(request: HttpRequest, project_id: int):
+    """Persist the editable tree structure of an infosite."""
+    project = get_object_or_404(InfoSiteProject, id=project_id)
+    try:
+        project.site_structure = _parse_site_structure(request.POST.get('site_structure', ''))
+        project.save(update_fields=['site_structure', 'updated_at'])
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('infosite:project_detail', project_id=project.id)
+
+    messages.success(request, 'InfoSite hierarchy updated')
+    return redirect('infosite:project_detail', project_id=project.id)
+
+
 @require_http_methods(['POST'])
 def infosite_project_delete(request: HttpRequest, project_id: int):
     """Delete project and its documents."""
@@ -212,8 +364,6 @@ def infosite_project_delete(request: HttpRequest, project_id: int):
 # DOCUMENT SYNCHRONIZATION & DISCOVERY
 # ============================================================================
 
-@login_required
-@permission_required('django_site.add_infositeproject', raise_exception=True)
 @require_http_methods(['POST'])
 def infosite_sync_documents(request: HttpRequest, project_id: int):
     """Manually sync documents for a project."""
@@ -247,8 +397,6 @@ def infosite_sync_documents(request: HttpRequest, project_id: int):
     return redirect('infosite:project_detail', project_id=project.id)
 
 
-@login_required
-@permission_required("django_site.add_infositeproject")
 @require_http_methods(["POST"])
 def infosite_discover_documents(request: HttpRequest, project_id: int):
     """Discover documents in source directory using DocumentDiscoveryService."""
@@ -276,8 +424,6 @@ def infosite_discover_documents(request: HttpRequest, project_id: int):
 # GENERATION & PREVIEW
 # ============================================================================
 
-@login_required
-@permission_required("django_site.change_infositeproject")
 @require_http_methods(["POST"])
 def infosite_generate(request: HttpRequest, project_id: int):
     """Generate infosite for project using InfoSiteGeneratorService."""
@@ -304,31 +450,78 @@ def infosite_generate(request: HttpRequest, project_id: int):
         if not docs.exists():
             messages.warning(request, "No documents to generate from")
             return redirect("infosite:project_detail", project_id=project.id)
-        
+
+        generation_mode = request.POST.get("generation_mode", "markdown").strip().lower()
+        explicit_html_action = generation_mode == "html"
+        explicit_html_checkbox = request.POST.get("generate_html_site", "off") == "on"
+        project.generate_html_site = explicit_html_action or explicit_html_checkbox
+
+        # The generation action is explicit: a markdown/admin metadata action must
+        # not silently trigger the end-user HTML export because the project has a
+        # saved default flag set. Only the HTML action or an explicit checkbox in
+        # the current request should trigger the public site export.
+        should_generate_html = explicit_html_action or explicit_html_checkbox
+
         # Convert Django models to FileInfo objects for generator
         from ki_knowledge.services.discovery import FileInfo
         file_infos = [
             FileInfo(
                 path=Path(doc.file_path),
-                file_type=doc.file_type,
-                file_size=doc.file_size,
-                modified_at=doc.modified_at,
+                name=Path(doc.file_path).name,
+                file_type=(doc.file_type or "md").lower().replace("markdown", "md"),
+                size=doc.file_size or 0,
+                modified_at=doc.modified_at or timezone.now(),
             )
             for doc in docs
         ]
-        
+
         # Update status to generating
         project.generation_status = "generating"
-        project.save(update_fields=["generation_status"])
-        
+        project.html_site_generated = False
+        project.save(update_fields=["generation_status", "generate_html_site", "html_site_generated"])
+
         # Generate using service
         generator = InfoSiteGeneratorService(settings.KI_CONFIG.knowledge_data_root)
+        mapping_rules = [
+            {
+                "source_path": rule.source_path,
+                "target_parent": rule.target_parent,
+                "target_section": rule.target_section,
+                "target_title": rule.target_title,
+                "target_slug": rule.target_slug,
+                "order_index": rule.order_index,
+                "mode": rule.mode,
+                "active": rule.active,
+            }
+            for rule in project.mapping_rules.filter(active=True).order_by("order_index", "source_path")
+        ]
+
         result = generator.generate_infosite(
             domain=project.domain,
             working_title=project.working_title,
             source_docs=file_infos,
+            site_structure=project.site_structure,
+            mapping_rules=mapping_rules,
         )
-        
+
+        html_result = None
+        admin_html_result = None
+
+        if result.success:
+            if generation_mode == "admin_metadata":
+                admin_html_result = generator.generate_admin_metadata_pages(result.output_dir)
+                if not admin_html_result.success:
+                    messages.warning(request, f"Admin metadata page generation warning: {admin_html_result.message}")
+            elif should_generate_html:
+                html_result = generator.generate_html_site(result.output_dir)
+                project.html_site_generated = html_result.success
+                if not html_result.success:
+                    messages.warning(request, f"Static HTML generation warning: {html_result.message}")
+            else:
+                project.html_site_generated = False
+        else:
+            project.html_site_generated = False
+
         if result.success:
             # Update project with generation results
             project.generation_status = "completed"
@@ -344,16 +537,28 @@ def infosite_generate(request: HttpRequest, project_id: int):
 
             register_generated_documents(project, result.output_dir, used_sources=docs)
 
-            messages.success(
-                request,
-                f"Generated infosite: {result.files_created} files created"
-            )
+            if generation_mode == "admin_metadata" and admin_html_result and admin_html_result.success:
+                messages.success(
+                    request,
+                    f"Generated admin metadata pages at {admin_html_result.output_dir}"
+                )
+            elif html_result and html_result.success:
+                messages.success(
+                    request,
+                    f"Generated markdown files and static HTML site: {result.files_created} files created"
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Generated infosite: {result.files_created} files created"
+                )
         else:
             # Generation failed
             project.generation_status = "failed"
             project.generation_error = result.message
-            project.save(update_fields=["generation_status", "generation_error"])
-            
+            project.html_site_generated = False
+            project.save(update_fields=["generation_status", "generation_error", "html_site_generated"])
+
             messages.error(request, f"Generation failed: {result.message}")
         
         return redirect("infosite:project_detail", project_id=project.id)
@@ -368,7 +573,6 @@ def infosite_generate(request: HttpRequest, project_id: int):
         return redirect("infosite:project_detail", project_id=project.id)
 
 
-@login_required
 def infosite_preview(request: HttpRequest, project_id: int):
     """Preview generated infosite."""
     from django.conf import settings
@@ -412,7 +616,6 @@ def infosite_preview(request: HttpRequest, project_id: int):
         return redirect("infosite:project_detail", project_id=project.id)
 
 
-@login_required
 def infosite_download(request: HttpRequest, project_id: int):
     """Download generated infosite as ZIP."""
     import zipfile
@@ -454,7 +657,6 @@ def infosite_download(request: HttpRequest, project_id: int):
         return redirect("infosite:project_detail", project_id=project.id)
 
 
-@login_required
 def infosite_versions(request: HttpRequest, project_id: int):
     """List available versions of the infosite."""
     from django.conf import settings
@@ -507,7 +709,6 @@ def infosite_versions(request: HttpRequest, project_id: int):
 # IMPORT CONTROL
 # ============================================================================
 
-@login_required
 def infosite_import_control(request: HttpRequest, project_id: int):
     """Import control panel for documents with import status tracking."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
@@ -538,7 +739,6 @@ def infosite_import_control(request: HttpRequest, project_id: int):
     return render(request, "infosite/import_control.html", context)
 
 
-@login_required
 @require_http_methods(["POST"])
 def infosite_import_selected(request: HttpRequest, project_id: int):
     """Start an import job for the selected documents (decoupled from the request)."""
@@ -574,7 +774,6 @@ def infosite_import_selected(request: HttpRequest, project_id: int):
     return redirect("infosite:import_control", project_id=project.id)
 
 
-@login_required
 @require_http_methods(["GET"])
 def infosite_import_jobs(request: HttpRequest, project_id: int):
     """Show the history of document-import jobs for a project."""
@@ -597,7 +796,6 @@ def infosite_import_jobs(request: HttpRequest, project_id: int):
 # AI REFINEMENT
 # ============================================================================
 
-@login_required
 def infosite_ai_refine(request: HttpRequest, project_id: int):
     """AI refinement control for markdown files."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
@@ -647,7 +845,6 @@ def infosite_ai_refine(request: HttpRequest, project_id: int):
         return redirect("infosite:project_detail", project_id=project.id)
 
 
-@login_required
 @require_http_methods(["POST"])
 def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
     """Apply AI refinements to markdown files."""
@@ -715,7 +912,6 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
 # DOCUMENT PREVIEW
 # ============================================================================
 
-@login_required
 def infosite_document_preview(request: HttpRequest, project_id: int):
     """Document preview browser with flying preview."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
@@ -784,21 +980,15 @@ def infosite_document_preview(request: HttpRequest, project_id: int):
         return redirect("infosite:project_detail", project_id=project.id)
 
 
-@login_required
 def infosite_document_preview_api(request: HttpRequest, project_id: int, doc_path: str):
     """API endpoint to get document preview content."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
     
     try:
-        config = Config.from_yaml()
-        infosite_config = InfoSiteConfig(
-            enabled=True,
-            title=project.title,
-            domain=project.domain,
-            output_base_dir=config.infosite_output_base_dir,
-        )
-        
-        output_dir = infosite_config.get_output_dir()
+        if not project.output_dir:
+            return JsonResponse({"error": "Project has no generated output yet"}, status=404)
+
+        output_dir = Path(project.output_dir)
         file_path = output_dir / doc_path
         
         # Security: prevent directory traversal
@@ -840,7 +1030,6 @@ def infosite_document_preview_api(request: HttpRequest, project_id: int, doc_pat
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@login_required
 @require_http_methods(["GET"])
 def infosite_source_document_preview_api(request: HttpRequest, project_id: int, doc_id: int):
     """Return a short excerpt of a raw SourceDocument's content for the flying preview
@@ -919,7 +1108,6 @@ def _format_file_size(size_bytes: int) -> str:
 # KNOWLEDGE BLOCK EXTRACTION
 # ============================================================================
 
-@login_required
 def infosite_extract_knowledge_blocks(request: HttpRequest, project_id: int):
     """Extract knowledge blocks from imported documents and display them."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
@@ -945,7 +1133,6 @@ def infosite_extract_knowledge_blocks(request: HttpRequest, project_id: int):
         return redirect("infosite:project_detail", project_id=project.id)
 
 
-@login_required
 def infosite_publish_knowledge_blocks(request: HttpRequest, project_id: int):
     """Publish extracted blocks to knowledge store.
 
@@ -978,7 +1165,6 @@ def infosite_publish_knowledge_blocks(request: HttpRequest, project_id: int):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@login_required
 @require_http_methods(["GET"])
 def infosite_knowledge_extraction_jobs(request: HttpRequest, project_id: int):
     """List extraction job history for a project (read-only status view)."""

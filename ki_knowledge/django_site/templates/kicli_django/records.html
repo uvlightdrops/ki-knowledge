@@ -4,7 +4,7 @@
 {% block content %}
 <h1>Records</h1>
 <p class="muted"><strong>Gesamtzahl Records:</strong> {{ total_record_count }} · angezeigt: {{ records|length }}</p>
-<p class="muted">Filter source_id: {{ source_id }} · block_type: {{ block_type }}</p>
+<p class="muted">Filter source_id: {{ source_id }} · block_type: {{ block_type }} · Seite {{ page }}</p>
 
 <div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
   <div class="muted">Ansicht</div>
@@ -68,21 +68,12 @@
               <th>Path</th>
             </tr>
           </thead>
-          <tbody>
-            {% for record in display_records %}
-            <tr>
-              <td><input type="checkbox" name="record_ids" value="{{ record.block_id }}"></td>
-              <td class="mono">{{ record.block_id|short_id }}</td>
-              <td class="mono"><a href="{% url 'source-detail' record.source_id %}" title="{{ record.display_source_id }}">{{ record.display_source_id|short_id }}</a></td>
-              <td><span class="chip">{{ record.block_type }}</span></td>
-              <td>{{ record.title }}</td>
-              <td class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        </div>
-      {% endif %}
+      <tbody id="records-table-body">
+        {% include 'kicli_django/records_rows_fragment.html' %}
+      </tbody>
+    </table>
+    </div>
+  {% endif %}
     {% else %}
     <p>No records.</p>
     {% endif %}

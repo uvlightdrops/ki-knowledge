@@ -1,0 +1,26 @@
+{% load ui_extras %}
+{% for record in records %}
+  <tr>
+    <td><input type="checkbox" name="record_ids" value="{{ record.block_id }}"></td>
+    <td class="mono">{{ record.block_id|short_id }}</td>
+    <td class="mono"><a href="{% url 'source-detail' record.source_id %}" title="{{ record.display_source_id }}">{{ record.display_source_id|short_id }}</a></td>
+    <td><span class="chip">{{ record.block_type }}</span></td>
+    <td>{{ record.title }}</td>
+    <td class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</td>
+  </tr>
+{% empty %}
+  <tr><td colspan="6" class="muted">No records.</td></tr>
+{% endfor %}
+{% if has_more %}
+  <tr id="records-load-more-row" hx-swap-oob="outerHTML:#records-load-more-row">
+    <td colspan="6">
+      <button type="button"
+              hx-get="{{ next_page_url }}"
+              hx-target="#records-table-body"
+              hx-swap="beforeend"
+              hx-trigger="click">
+        Mehr laden
+      </button>
+    </td>
+  </tr>
+{% endif %}

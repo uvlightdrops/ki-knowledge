@@ -1,0 +1,35 @@
+{% load ui_extras %}
+{% for term in terms %}
+<tr>
+  <td><strong>{{ term.term }}</strong></td>
+  <td>{{ term.count }}</td>
+  <td>{{ term.issue_count }}</td>
+  <td>{{ term.sources|join:", " }}</td>
+  <td>{{ term.sample_issue_keys|join:", " }}</td>
+  <td>
+    <form method="post" action="{% url 'jira-exclusions' %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="exclude_and_forget">
+      <input type="hidden" name="kind" value="exception">
+      <input type="hidden" name="term" value="{{ term.term }}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit">Ausschließen & löschen</button>
+    </form>
+  </td>
+</tr>
+{% empty %}
+  <tr><td colspan="6" class="muted">Keine DomainTerms gefunden. Importiere zuerst Jira-CSV in den Cache.</td></tr>
+{% endfor %}
+{% if has_more %}
+  <tr id="jira-domain-terms-load-more-row" hx-swap-oob="outerHTML:#jira-domain-terms-load-more-row">
+    <td colspan="6">
+      <button type="button"
+              hx-get="{{ next_page_url }}"
+              hx-target="#jira-domain-terms-table-body"
+              hx-swap="beforeend"
+              hx-trigger="click">
+        Mehr laden
+      </button>
+    </td>
+  </tr>
+{% endif %}

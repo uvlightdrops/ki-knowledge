@@ -12,6 +12,7 @@ urlpatterns = [
     path("project/create/", infosite_views.infosite_project_create, name="project_create"),
     path("project/<int:project_id>/", infosite_views.infosite_project_detail, name="project_detail"),
     path("project/<int:project_id>/edit/", infosite_views.infosite_project_edit, name="project_edit"),
+    path("project/<int:project_id>/hierarchy/", infosite_views.infosite_project_hierarchy_update, name="project_hierarchy_update"),
     path("project/<int:project_id>/delete/", infosite_views.infosite_project_delete, name="project_delete"),
     
     # Document discovery & sync

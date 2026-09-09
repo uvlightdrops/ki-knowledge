@@ -15,6 +15,13 @@
     <p><strong>Created:</strong> {{ job.created_at|date:"Y-m-d H:i:s" }}</p>
     <p><strong>Updated:</strong> {{ job.updated_at|date:"Y-m-d H:i:s" }}</p>
     <p><strong>Retry:</strong> {{ job.next_retry_at|date:"Y-m-d H:i:s"|default:"—" }}</p>
+    {% if job.status != 'cancelled' and job.status != 'done' %}
+      <form method="post" style="margin-top: 12px;" onsubmit="return confirm('Job wirklich abbrechen?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="cancel">
+        <button type="submit">Job abbrechen</button>
+      </form>
+    {% endif %}
     {% if job.error_message %}
       <p><strong>Error:</strong> {{ job.error_message }}</p>
     {% endif %}

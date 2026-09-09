@@ -7,7 +7,14 @@ Wagtail root page if they don't already exist. Safe to re-run.
 from django.core.management.base import BaseCommand
 from wagtail.models import Page, Site
 
-from ki_knowledge.wagtail_cms.models import DataSourceIndexPage, KnowledgeBlockIndexPage
+from ki_knowledge.django_site.infosite_models import InfoSiteProject
+from ki_knowledge.wagtail_cms.models import (
+    DataSourceDetailPage,
+    DataSourceIndexPage,
+    KnowledgeBlockDetailPage,
+    KnowledgeBlockIndexPage,
+    ensure_project_detail_page,
+)
 
 
 class Command(BaseCommand):
@@ -22,8 +29,24 @@ class Command(BaseCommand):
             return
         root_page = site.root_page
 
-        self._create_data_source_index(root_page)
-        self._create_knowledge_block_index(root_page)
+        data_index = self._create_data_source_index(root_page)
+        knowledge_index = self._create_knowledge_block_index(root_page)
+
+        for project in InfoSiteProject.objects.filter(enabled=True).order_by("title"):
+            ensure_project_detail_page(
+                data_index,
+                project,
+                DataSourceDetailPage,
+                title=f"{project.title} — Data Sources",
+                slug_prefix="data-source",
+            )
+            ensure_project_detail_page(
+                knowledge_index,
+                project,
+                KnowledgeBlockDetailPage,
+                title=f"{project.title} — Knowledge Blocks",
+                slug_prefix="knowledge-blocks",
+            )
 
     def _create_data_source_index(self, root_page):
         existing = DataSourceIndexPage.objects.first()
@@ -31,7 +54,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 f"DataSourceIndexPage already exists: {existing.title} (id={existing.id})"
             ))
-            return
+            return existing
 
         index_page = DataSourceIndexPage(
             title="Data Sources",
@@ -44,6 +67,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"Created DataSourceIndexPage (id={index_page.id}) under root page '{root_page.title}'."
         ))
+        return index_page
 
     def _create_knowledge_block_index(self, root_page):
         existing = KnowledgeBlockIndexPage.objects.first()
@@ -51,7 +75,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 f"KnowledgeBlockIndexPage already exists: {existing.title} (id={existing.id})"
             ))
-            return
+            return existing
 
         index_page = KnowledgeBlockIndexPage(
             title="Knowledge Blocks",
@@ -64,3 +88,4 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"Created KnowledgeBlockIndexPage (id={index_page.id}) under root page '{root_page.title}'."
         ))
+        return index_page

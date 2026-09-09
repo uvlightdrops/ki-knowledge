@@ -30,16 +30,6 @@ cli:
         graph:
           help: "Visualize knowledge graph"
 
-    config:
-      help: "Configuration Management"
-      commands:
-        show:
-          help: "Show current configuration"
-        validate:
-          help: "Validate configuration"
-        init:
-          help: "Initialize configuration file"
-
     dev:
       help: "Development Tools"
       commands:

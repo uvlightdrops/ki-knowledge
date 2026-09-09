@@ -1,33 +1,19 @@
-# jira_support_chat.py
+# Deprecated Jira naming: support chat
 
-## Zweck
+The older Jira-specific name remains only for compatibility. The canonical documentation is now source-agnostic and lives here:
 
-Grounded RAG-Chat über Jira-Daten. Das Tool kombiniert CSV-Cache, Suche, Embeddings und optional den Wissensgraphen.
+- [support_chat.md](support_chat.md)
+- [knowledge_retrieval.md](knowledge_retrieval.md)
 
-## Was es kann
+## Status
 
-- CSV in SQLite-Cache importieren
-- Hybrid Retrieval über Keyword + Embeddings
-- Fallback auf TF-IDF, wenn Ollama-Embeddings fehlen
-- Graph-Erweiterung über verwandte Issues
-- Interaktiven Chat mit Quellenanzeige
+Support chat is built on retrieved context from the active knowledge layer. It can answer questions grounded in Markdown, PDF, OWL, Jira, or any other source that has been ingested into the cache or vector store.
 
-## Eingaben
+## Example
 
-- `JIRA_CSV_PATH`
-- `JIRA_CACHE_DB`
-- `JIRA_GRAPH_DB`
-- `JIRA_EMBED_MODEL`
-- `JIRA_USE_HYBRID_SEARCH`
-- `JIRA_USE_GRAPH`
+```bash
+python examples/jira_support_chat.py
+```
 
-## Ausgabe
-
-- Antwort des Assistenten
-- Quellen-Keys
-- optional graph-erweiterte Issue-Keys
-
-## Wann verwenden
-
-Wenn du aus Jira-Daten einen echten Support-Assistenten machen willst, der Antworten begründet und nicht frei halluziniert.
+The call still works, but the feature is no longer specific to Jira data.
 

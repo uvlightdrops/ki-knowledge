@@ -1,0 +1,25 @@
+{% load ui_extras %}
+{% for artifact in artifacts %}
+  <tr>
+    <td><input type="checkbox" name="artifact_ids" value="{{ artifact.artifact_id }}"></td>
+    <td>{{ artifact.artifact_type }}</td>
+    <td class="mono">{{ artifact.artifact_id|short_id }}</td>
+    <td class="mono" title="{{ artifact.display_source_id }}">{{ artifact.display_source_id|short_id }}</td>
+    <td>{{ artifact.display_preview|default:"-" }}</td>
+  </tr>
+{% empty %}
+  <tr><td colspan="5" class="muted">No artifacts.</td></tr>
+{% endfor %}
+{% if has_more %}
+  <tr id="artifacts-load-more-row" hx-swap-oob="outerHTML:#artifacts-load-more-row">
+    <td colspan="5">
+      <button type="button"
+              hx-get="{{ next_page_url }}"
+              hx-target="#artifacts-table-body"
+              hx-swap="beforeend"
+              hx-trigger="click">
+        Mehr laden
+      </button>
+    </td>
+  </tr>
+{% endif %}

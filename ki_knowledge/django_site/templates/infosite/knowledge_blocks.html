@@ -44,23 +44,38 @@
     <div class="tree-header">📄 Knowledge Blocks Hierarchy</div>
     <div class="tree-content">
       {% for file_path, blocks in blocks_by_file.items %}
-      <div class="file-section">
-        <div class="file-name">📄 {{ file_path }}</div>
+      <div class="file-section" data-file-section>
+        <div class="file-header">
+          <div class="file-controls">
+            <a href="#" class="file-control-link" data-expand-blocks title="Expand all below" aria-label="Expand all below">⊞</a>
+            <a href="#" class="file-control-link" data-collapse-blocks title="Collapse all below" aria-label="Collapse all below">⊟</a>
+          </div>
+          <div class="file-name">📄 {{ file_path }}</div>
+        </div>
         <div class="block-count">{{ blocks|length }} blocks</div>
         
         {% for block in blocks %}
-        <div class="block-item level-{{ block.level }}">
-          <div>
-            {% if block.level == 1 %}📌{% elif block.level == 2 %}📍{% elif block.level == 3 %}🔹{% else %}📌{% endif %}
-            {{ block.title }}
-          </div>
-          <div class="block-meta">
-            <span class="block-type">{{ block.block_type }}</span>
-            {% if block.parent_index %}
-            <span>Parent: block[{{ block.parent_index }}]</span>
+        <details class="block-item level-{{ block.level }}"{% if block.level == 1 %} open{% endif %}>
+          <summary class="block-summary">
+            <span class="block-summary__title">
+              {% if block.level == 1 %}📌{% elif block.level == 2 %}📍{% elif block.level == 3 %}🔹{% else %}📌{% endif %}
+              {{ block.title }}
+            </span>
+            <span class="block-meta">
+              <span class="block-type">{{ block.block_type }}</span>
+              {% if block.parent_index %}
+              <span>Parent: block[{{ block.parent_index }}]</span>
+              {% endif %}
+            </span>
+          </summary>
+          <div class="block-content">
+            {% if block.content %}
+            <pre>{{ block.content }}</pre>
+            {% else %}
+            <div class="block-empty">Kein Textinhalt vorhanden.</div>
             {% endif %}
           </div>
-        </div>
+        </details>
         {% endfor %}
       </div>
       {% endfor %}
@@ -145,5 +160,23 @@ function exportJSON() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('[data-file-section]').forEach(function (section) {
+    const blocks = section.querySelectorAll('.block-item');
+    section.querySelector('[data-expand-blocks]')?.addEventListener('click', function (event) {
+      event.preventDefault();
+      blocks.forEach(function (block) {
+        block.open = true;
+      });
+    });
+    section.querySelector('[data-collapse-blocks]')?.addEventListener('click', function (event) {
+      event.preventDefault();
+      blocks.forEach(function (block) {
+        block.open = false;
+      });
+    });
+  });
+});
 </script>
 {% endblock %}

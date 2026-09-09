@@ -4,30 +4,21 @@
 
 {% block extra_css %}
 {% load static %}
+<link rel="stylesheet" href="{% static 'infosite/css/theme.css' %}">
 <link rel="stylesheet" href="{% static 'infosite/css/ai-refine.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <h1>✨ AI Content Refinement - {{ project.title }}</h1>
-            <p class="text-muted">Enhance markdown files with AI assistance</p>
+<div class="infosite-shell">
+    <section class="infosite-hero">
+        <div class="infosite-hero__content">
+            <h1>AI Content Refinement</h1>
+            <p>{{ project.title }} · Enhance generated markdown with a darker, clearer workflow.</p>
         </div>
-    </div>
+    </section>
 
-    {% if messages %}
-    <div class="row mt-3">
-        <div class="col-md-12">
-            {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="row mt-4">
-        <div class="col-md-12">
+    <section class="infosite-surface">
+        <div class="infosite-surface__body">
             <div class="card">
                 <div class="card-header">
                     <h5>🎯 Refinement Modes</h5>
@@ -48,10 +39,10 @@
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <div class="row mt-4">
-        <div class="col-md-12">
+    <section class="infosite-surface">
+        <div class="infosite-surface__body">
             <div class="card">
                 <div class="card-header">
                     <h5>📄 Markdown Files</h5>
@@ -125,15 +116,11 @@
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <div class="alert alert-warning">
-                <strong>⚠️ Note:</strong> AI refinement will overwrite your existing markdown files. 
-                Make sure to backup important content before applying refinements.
-            </div>
-        </div>
+    <div class="alert alert-warning">
+        <strong>⚠️ Note:</strong> AI refinement will overwrite your existing markdown files.
+        Make sure to backup important content before applying refinements.
     </div>
 </div>
 

@@ -2,7 +2,53 @@
 {% block title %}Layout settings · KICLI{% endblock %}
 {% block content %}
   <h1>Layout settings</h1>
-  <p class="muted">Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+    <p class="muted"><a href="{% url 'settings-layout-builder' %}">→ Dashboard Builder öffnen</a></p>
+
+  <div class="section card" style="margin-bottom: 20px;">
+    <h3>Widget taxonomy</h3>
+    <p class="muted">Widgets sind nach funktionalen Bereichen organisiert und nicht mehr nach der alten Dashboard-Frontpage.</p>
+    <div style="display:grid; gap:12px; margin-top:12px;">
+      {% for area_entry in widget_area_entries %}
+        <div style="border:1px solid #334155; border-radius:10px; background:rgba(15,23,42,0.38); padding:12px;">
+          <h4 style="margin:0 0 8px; text-transform:capitalize;">{{ area_entry.area }}</h4>
+          <div style="display:grid; gap:8px;">
+            {% for category_entry in area_entry.categories %}
+              <div style="padding:8px 10px; border:1px solid #243244; border-radius:8px; background:rgba(15,23,42,0.3);">
+                <strong style="display:block; margin-bottom:6px;">{{ category_entry.name }}</strong>
+                {% for spec in category_entry.widgets %}
+                  <div style="display:flex; justify-content:space-between; gap:12px; margin-top:6px; padding:6px 8px; border:1px solid #1f2937; border-radius:6px; background:rgba(15,23,42,0.2);">
+                    <div>
+                      <code style="color:#cbd5e1; font-size:0.78rem;">{{ spec.widget_id }}</code>
+                      <div style="color:#94a3b8; font-size:0.8rem;">{{ spec.label }}</div>
+                    </div>
+                    <span class="chip">{{ spec.default_size }}</span>
+                  </div>
+                {% empty %}
+                  <div style="color:#94a3b8; font-size:0.8rem;">No widgets in this category yet.</div>
+                {% endfor %}
+              </div>
+            {% empty %}
+              <div style="color:#94a3b8; font-size:0.8rem;">No categories configured for this area.</div>
+            {% endfor %}
+          </div>
+        </div>
+      {% empty %}
+        <div style="color:#94a3b8; font-size:0.8rem;">No widget areas configured.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="section card" style="margin-bottom: 20px;">
+    <h3>Frontpage overview widgets</h3>
+    <p class="muted">Dieser Aggregator soll die Überblickskacheln aus echten Funktionsbereichen zusammensetzen.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+      {% for widget in frontpage_overview_widgets %}
+        <span class="chip">{{ widget }}</span>
+      {% empty %}
+        <span class="muted">Keine Aggregate konfiguriert.</span>
+      {% endfor %}
+    </div>
+  </div>
 
   <div class="section card">
     <h3>GUI layout registry</h3>

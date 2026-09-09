@@ -44,7 +44,14 @@ def register_back_to_main_site_menu_item():
     )
 
 
-class SourceDocumentViewSet(SnippetViewSet):
+class EditorialSnippetViewSet(SnippetViewSet):
+    """Shared defaults for CMS-enabled editorial entities."""
+
+    list_per_page = 25
+    inspect_view_enabled = True
+
+
+class SourceDocumentViewSet(EditorialSnippetViewSet):
     """Editorial listing/edit UI for discovered source documents.
 
     Read-heavy pipeline fields (file_path, file_type, size, import_status)
@@ -87,7 +94,7 @@ class SourceDocumentViewSet(SnippetViewSet):
 register_snippet(SourceDocumentViewSet)
 
 
-class GeneratedDocumentViewSet(SnippetViewSet):
+class GeneratedDocumentViewSet(EditorialSnippetViewSet):
     """Editorial listing/edit UI for generated/refined InfoSite output files.
 
     Rows are upserted automatically by ki_knowledge.services.output_registry

@@ -1,38 +1,18 @@
-# jira_graph_explorer.py
+# Deprecated Jira naming: graph explorer
 
-## Zweck
+This legacy file name remains for compatibility. The underlying functionality is datasource-agnostic and is documented here as the canonical graph feature:
 
-Erstellt den Wissensgraphen aus dem Jira-Cache und macht seine Struktur sichtbar.
+- [graph_explorer.md](graph_explorer.md)
+- [knowledge_retrieval.md](knowledge_retrieval.md)
 
-## Was es kann
+## Status
 
-- Graph aus Cache neu aufbauen
-- Knoten und Kanten zählen
-- Nachbarn eines Issues anzeigen
-- Cypher-Export für Neo4j oder Lernzwecke schreiben
+The graph explorer reads from the cached knowledge graph and can visualize relationships generated from imported Markdown, PDF, ontology, Jira or other structured source material.
 
-## Eingaben
-
-- `JIRA_CSV_PATH`
-- `JIRA_CACHE_DB`
-- `JIRA_GRAPH_CYPHER_PATH`
-- `JIRA_GRAPH_ISSUE_KEY`
-- CLI-Argument: `issue_key`
-
-## Ausgabe
-
-- Graph-Statistik
-- direkte Nachbarn eines Beispiel-Issues
-- optional `.cypher`-Datei
-
-## Aufruf
+## Example
 
 ```bash
 python examples/jira_graph_explorer.py AE-123
 ```
 
-Wenn kein Issue übergeben wird, nutzt das Tool `JIRA_GRAPH_ISSUE_KEY` oder sonst das erste Issue aus dem Cache.
-
-## Wann verwenden
-
-Wenn du Beziehungsstrukturen, Clustering oder graphbasierte Erweiterungen nachvollziehen willst.
+This still works, but the feature is no longer treated as Jira-specific.

@@ -59,16 +59,8 @@
                 <th>Preview</th>
               </tr>
             </thead>
-            <tbody>
-              {% for artifact in display_artifacts %}
-                <tr>
-                  <td><input type="checkbox" name="artifact_ids" value="{{ artifact.artifact_id }}"></td>
-                  <td>{{ artifact.artifact_type }}</td>
-                  <td class="mono">{{ artifact.artifact_id|short_id }}</td>
-                  <td class="mono" title="{{ artifact.display_source_id }}">{{ artifact.display_source_id|short_id }}</td>
-                  <td>{{ artifact.display_preview|default:"-" }}</td>
-                </tr>
-              {% endfor %}
+            <tbody id="artifacts-table-body">
+              {% include 'kicli_django/artifacts_rows_fragment.html' %}
             </tbody>
           </table>
         </div>

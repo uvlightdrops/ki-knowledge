@@ -35,109 +35,144 @@
     </div>
     {% endif %}
 
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Total Documents</h6>
-                    <h2 class="card-text">{{ stats.total }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Discovered</h6>
-                    <h2 class="card-text"><span class="badge bg-info">{{ stats.discovered }}</span></h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Imported</h6>
-                    <h2 class="card-text"><span class="badge bg-success">{{ stats.imported }}</span></h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Sync Status</h6>
-                    <p class="card-text">
-                        {% if project.sync_status == 'completed' %}
-                            <span class="badge bg-success">✓ OK</span>
-                        {% elif project.sync_status == 'failed' %}
-                            <span class="badge bg-danger">✗ Failed</span>
-                        {% else %}
-                            <span class="badge bg-warning">{{ project.sync_status }}</span>
-                        {% endif %}
-                    </p>
-                    {% if project.last_sync_at %}
-                    <small class="text-muted">{{ project.last_sync_at|date:"Y-m-d H:i" }}</small>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
+    <link rel="stylesheet" href="{% static 'infosite/css/project-detail.css' %}">
 
-    <!-- Generation Status Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Generation Status</h6>
-                    <p class="card-text">
-                        {% if project.generation_status == 'completed' %}
-                            <span class="badge bg-success">✓ Generated</span>
-                        {% elif project.generation_status == 'generating' %}
-                            <span class="badge bg-info">⟳ Generating...</span>
-                        {% elif project.generation_status == 'failed' %}
-                            <span class="badge bg-danger">✗ Failed</span>
+    <div class="project-summary-grid">
+        <div class="project-summary-box">
+            <div class="project-summary-header">Meta</div>
+            <div class="project-summary-list">
+                <div class="project-summary-key">Domain</div>
+                <div class="project-summary-value"><code>{{ project.domain }}</code></div>
+
+                <div class="project-summary-key">Working title</div>
+                <div class="project-summary-value"><code>{{ project.working_title|default:"—" }}</code></div>
+
+                <div class="project-summary-key">Source Dir</div>
+                <div class="project-summary-value"><code>{{ project.display_source_dir|default:project.source_directory|default:"—" }}</code></div>
+
+                <div class="project-summary-key">Output Dir</div>
+                <div class="project-summary-value"><code>{{ project.display_output_dir|default:project.output_dir|default:"—" }}</code></div>
+
+                <div class="project-summary-key">Status</div>
+                <div class="project-summary-value">
+                    <div class="project-summary-flag-row">
+                        <span class="status-inline-item">Sync: {{ project.sync_status }}</span>
+                        <span class="status-inline-item">Generation: {{ project.generation_status }}</span>
+                        {% if project.html_site_generated %}
+                            <span class="status-inline-item status-inline-item--success">HTML ready</span>
                         {% else %}
-                            <span class="badge bg-secondary">{{ project.generation_status }}</span>
+                            <span class="status-inline-item status-inline-item--warning">HTML pending</span>
                         {% endif %}
-                    </p>
+                        {% if project.enabled %}
+                            <span class="status-inline-item status-inline-item--success">Enabled</span>
+                        {% else %}
+                            <span class="status-inline-item status-inline-item--muted">Disabled</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Generated At</h6>
-                    {% if project.generated_at %}
-                        <p class="card-text">
-                            <small>{{ project.generated_at|date:"Y-m-d H:i" }}</small>
-                        </p>
-                    {% else %}
-                        <p class="card-text text-muted">—</p>
-                    {% endif %}
-                </div>
+
+        <div class="project-summary-box">
+            <div class="project-summary-header">Action</div>
+            <div class="project-summary-actions">
+                {% if perms.django_site.add_infositeproject %}
+                <form method="post" action="{% url 'infosite:sync' project.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-sm" title="Manually sync documents">
+                        🔄 Sync Documents
+                    </button>
+                </form>
+                {% endif %}
+                <form method="post" action="{% url 'infosite:generate' project.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="generation_mode" value="markdown">
+                    <button type="submit" class="btn btn-success btn-sm">
+                        📝 Generate markdown files
+                    </button>
+                </form>
+                <form method="post" action="{% url 'infosite:generate' project.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="generation_mode" value="admin_metadata">
+                    <button type="submit" class="btn btn-success btn-sm">
+                        🧾 Generate admin metadata pages
+                    </button>
+                </form>
+                <form method="post" action="{% url 'infosite:generate' project.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="generation_mode" value="html">
+                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                        🌐 Generate end-user HTML site
+                    </button>
+                </form>
+                <a href="{% url 'infosite:ai_refine' project.id %}" class="btn btn-warning btn-sm">
+                    ✨ AI Refine
+                </a>
+                <a href="{% url 'infosite:preview' project.id %}" class="btn btn-secondary btn-sm">
+                    👁️ Preview
+                </a>
+                <a href="{% url 'infosite:import_control' project.id %}" class="btn btn-info btn-sm">
+                    📥 Import Control
+                </a>
+                <a href="{% url 'infosite:knowledge_blocks' project.id %}" class="btn btn-outline-success btn-sm" title="Extract and view knowledge blocks">
+                    📚 Knowledge Blocks
+                </a>
+                {% if project.generation_status == 'completed' %}
+                <a href="{% url 'infosite:download' project.id %}" class="btn btn-outline-primary btn-sm">
+                    ⬇️ Download ZIP
+                </a>
+                <a href="{% url 'infosite:versions' project.id %}" class="btn btn-outline-info btn-sm">
+                    📚 Versions
+                </a>
+                {% endif %}
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Versions</h6>
-                    <h3 class="card-text">{{ project.version_count|default:"0" }}</h3>
+
+        <div class="project-summary-box">
+            <div class="project-summary-header">
+                <span>Hierarchy</span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Hierarchy actions">
+                    <button type="button" class="btn btn-outline-secondary" id="hierarchy-expand-btn">Expand all</button>
+                    <button type="button" class="btn btn-outline-secondary" id="hierarchy-collapse-btn">Collapse all</button>
+                    <button type="button" class="btn btn-outline-secondary" id="hierarchy-reset-btn">Source tree</button>
+                    <button type="button" class="btn btn-primary" id="hierarchy-save-btn">Save hierarchy</button>
                 </div>
             </div>
+            <div class="project-summary-flat">
+                <p class="text-muted small mb-3">The project source tree can be reordered and nested here.</p>
+                <form method="post" action="{% url 'infosite:project_hierarchy_update' project.id %}" id="hierarchy-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="site_structure" id="site-structure-hidden" value='{{ site_structure_json|escapejs }}'>
+                    <div id="hierarchy-tree" class="hierarchy-tree"></div>
+                </form>
+            </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h6 class="card-title text-muted">Output Dir</h6>
-                    {% if project.output_dir %}
-                        <p class="card-text">
-                            <small class="font-monospace" title="{{ project.output_dir }}">
-                                ...{{ project.output_dir|truncatechars:30 }}
-                            </small>
-                        </p>
-                    {% else %}
-                        <p class="card-text text-muted">—</p>
-                    {% endif %}
+
+        <div class="project-summary-box project-summary-box--flat">
+            <div class="project-summary-header">Flat</div>
+            <div class="project-summary-flat">
+                {% if project.description %}
+                <div class="project-summary-flat-item">
+                    <div class="project-summary-key">Description</div>
+                    <div class="project-summary-value">{{ project.description }}</div>
                 </div>
+                {% endif %}
+
+                {% if generated_document_count %}
+                <div class="project-summary-flat-item">
+                    <div class="project-summary-key">Input ↔ Output</div>
+                    <div class="project-summary-value">
+                        <strong>{{ used_source_count }}</strong> von <strong>{{ total_documents }}</strong>
+                        Quelldateien wurden in <strong>{{ generated_document_count }}</strong> generierte(n)
+                        Output-Datei(en) verwendet.
+                        <div class="mt-2">
+                            <a href="/cms-admin/snippets/django_site/generateddocument/?project={{ project.id }}" class="btn btn-sm btn-outline-secondary">
+                                📤 Output-Dokumente in Wagtail ansehen/freigeben
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -149,78 +184,177 @@
     </div>
     {% endif %}
 
-    <!-- Actions -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">🎯 Actions</h5>
-        </div>
-        <div class="card-body">
-            <div class="btn-group" role="group" style="flex-wrap: wrap; gap: 0.5rem;">
-                {% if perms.django_site.add_infositeproject %}
-                <form method="post" action="{% url 'infosite:sync' project.id %}" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-primary" title="Manually sync documents">
-                        🔄 Sync Documents
-                    </button>
-                </form>
-                {% endif %}
-                <a href="{% url 'infosite:import_control' project.id %}" class="btn btn-info">
-                    📥 Import Control
-                </a>
-                <form method="post" action="{% url 'infosite:generate' project.id %}" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success">
-                        ⚙️ Generate
-                    </button>
-                </form>
-                <a href="{% url 'infosite:ai_refine' project.id %}" class="btn btn-warning">
-                    ✨ AI Refine
-                </a>
-                <a href="{% url 'infosite:preview' project.id %}" class="btn btn-secondary">
-                    👁️ Preview
-                </a>
-                <a href="{% url 'infosite:knowledge_blocks' project.id %}" class="btn btn-outline-success" title="Extract and view knowledge blocks">
-                    📚 Knowledge Blocks
-                </a>
-                {% if project.generation_status == 'completed' %}
-                <a href="{% url 'infosite:download' project.id %}" class="btn btn-outline-primary">
-                    ⬇️ Download ZIP
-                </a>
-                <a href="{% url 'infosite:versions' project.id %}" class="btn btn-outline-info">
-                    📚 Versions
-                </a>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    <script type="application/json" id="source-tree-json">{{ source_tree_json|safe }}</script>
+    <script type="application/json" id="initial-site-structure-json">{{ site_structure_json|safe }}</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/jstree.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/themes/default/style.min.css">
+    <script>
+        (() => {
+            const hiddenInput = document.getElementById('site-structure-hidden');
+            const saveBtn = document.getElementById('hierarchy-save-btn');
+            const resetBtn = document.getElementById('hierarchy-reset-btn');
+            const expandBtn = document.getElementById('hierarchy-expand-btn');
+            const collapseBtn = document.getElementById('hierarchy-collapse-btn');
+            const rawTree = document.getElementById('initial-site-structure-json');
+            const sourceTree = document.getElementById('source-tree-json');
 
-    <!-- Description -->
-    {% if project.description %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">📝 Description</h5>
-        </div>
-        <div class="card-body">
-            {{ project.description }}
-        </div>
-    </div>
-    {% endif %}
+            if (!hiddenInput || !saveBtn || !resetBtn || !expandBtn || !collapseBtn) {
+                return;
+            }
 
-    <!-- Input/Output traceability -->
-    {% if generated_document_count %}
+            function persistCurrentTree() {
+                const tree = $('#hierarchy-tree').jstree(true);
+                const raw = tree.get_json('#', { flat: false });
+                const payload = Array.isArray(raw) ? raw.map(serializeTree) : [];
+                hiddenInput.value = JSON.stringify(payload, null, 2);
+            }
+
+            function toJsTree(node) {
+                if (typeof node === 'string') {
+                    return { text: node, children: [] };
+                }
+                if (!node || typeof node !== 'object') {
+                    return { text: 'Untitled', children: [] };
+                }
+
+                const title = node.title || node.name || node.slug || 'Untitled';
+                const result = {
+                    text: title,
+                    children: Array.isArray(node.children) ? node.children.map(toJsTree) : [],
+                    icon: node.type === 'document' ? 'fa fa-file-alt' : 'fa fa-folder'
+                };
+                if (node.type) {
+                    result.type = node.type;
+                }
+                if (node.path) {
+                    result.li_attr = { 'data-path': node.path };
+                }
+                return result;
+            }
+
+            function serializeTree(node) {
+                if (!node || typeof node !== 'object') {
+                    return { title: String(node || 'Untitled'), children: [] };
+                }
+                const payload = {
+                    title: node.text || node.title || 'Untitled',
+                    children: Array.isArray(node.children) ? node.children.map(serializeTree) : []
+                };
+                if (node.type) {
+                    payload.type = node.type;
+                }
+                if (node.li_attr && node.li_attr['data-path']) {
+                    payload.path = node.li_attr['data-path'];
+                }
+                return payload;
+            }
+
+            function buildTreeData(valueElement) {
+                const parsed = valueElement ? JSON.parse(valueElement.textContent || '[]') : [];
+                const value = Array.isArray(parsed) ? parsed : [parsed];
+                return value.map(toJsTree);
+            }
+
+            function refreshTree() {
+                const $tree = $('#hierarchy-tree');
+                if ($tree.data('jstree')) {
+                    $tree.jstree('destroy');
+                }
+                $tree.jstree({
+                    core: {
+                        data: buildTreeData(rawTree),
+                        check_callback: true,
+                        multiple: false,
+                        themes: {
+                            dots: true,
+                            stripes: true,
+                            responsive: true
+                        },
+                        expand_selected_onload: true
+                    },
+                    plugins: ['wholerow', 'dnd', 'types'],
+                    types: {
+                        default: {
+                            icon: 'fa-solid fa-folder'
+                        },
+                        folder: {
+                            icon: 'fa-solid fa-folder'
+                        },
+                        document: {
+                            icon: 'fa-solid fa-file-alt'
+                        }
+                    }
+                });
+                $tree.jstree('open_all');
+            }
+
+            saveBtn.addEventListener('click', () => {
+                persistCurrentTree();
+                document.getElementById('hierarchy-form').submit();
+            });
+
+            resetBtn.addEventListener('click', () => {
+                const baseline = sourceTree ? JSON.parse(sourceTree.textContent || '[]') : [];
+                rawTree.textContent = JSON.stringify(baseline, null, 2);
+                refreshTree();
+                persistCurrentTree();
+            });
+
+            expandBtn.addEventListener('click', () => {
+                $('#hierarchy-tree').jstree('open_all');
+            });
+
+            collapseBtn.addEventListener('click', () => {
+                $('#hierarchy-tree').jstree('close_all');
+            });
+
+            $('#hierarchy-tree').on('move_node.jstree', function (event, data) {
+                const parentId = data.parent;
+                if (parentId && parentId !== '#') {
+                    $('#hierarchy-tree').jstree('open_node', parentId);
+                }
+                persistCurrentTree();
+            });
+
+            $('#hierarchy-tree').on('changed.jstree', function () {
+                persistCurrentTree();
+            });
+
+            refreshTree();
+            persistCurrentTree();
+        })();
+    </script>
+
+    {% if mapping_rules %}
     <div class="card mb-4">
         <div class="card-header">
-            <h5 class="mb-0">🔗 Input ↔ Output</h5>
+            <h5 class="mb-0">🧭 Source → Destination mappings</h5>
         </div>
-        <div class="card-body">
-            <p class="mb-1">
-                <strong>{{ used_source_count }}</strong> von <strong>{{ total_documents }}</strong>
-                Quelldateien wurden in <strong>{{ generated_document_count }}</strong> generierte(n)
-                Output-Datei(en) verwendet.
-            </p>
-            <a href="/cms-admin/snippets/django_site/generateddocument/?project={{ project.id }}" class="btn btn-sm btn-outline-secondary">
-                📤 Output-Dokumente in Wagtail ansehen/freigeben
-            </a>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Source</th>
+                        <th>Parent</th>
+                        <th>Section</th>
+                        <th>Title</th>
+                        <th>Mode</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in mapping_rules %}
+                    <tr>
+                        <td><code>{{ rule.source_path|default:rule.source_document.display_path|default:"—" }}</code></td>
+                        <td>{{ rule.target_parent|default:"—" }}</td>
+                        <td>{{ rule.target_section|default:"—" }}</td>
+                        <td>{{ rule.target_title|default:rule.target_slug|default:"—" }}</td>
+                        <td><span class="badge bg-secondary">{{ rule.mode }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
     {% endif %}
@@ -268,10 +402,10 @@
                     {% for doc in documents %}
                     <tr>
                         <td>
-                            <code style="font-size: 0.85rem;">{{ doc.file_path }}</code>
+                            <code style="font-size: 0.85rem;">{{ doc.display_path|default:doc.file_path }}</code>
                         </td>
                         <td>
-                            <span class="badge bg-secondary">
+                            <span class="badge bg-secondary doc-type-badge">
                                 {{ doc.get_file_type_display|default:"other" }}
                             </span>
                         </td>
@@ -284,15 +418,15 @@
                         </td>
                         <td>
                             {% if doc.import_status == 'imported' %}
-                                <span class="badge bg-success">✓ Imported</span>
+                                <span class="badge bg-success doc-status-badge">✓ Imported</span>
                             {% elif doc.import_status == 'pending' %}
-                                <span class="badge bg-warning">⏳ Pending</span>
+                                <span class="badge bg-warning doc-status-badge">⏳ Pending</span>
                             {% elif doc.import_status == 'discovered' %}
-                                <span class="badge bg-info">🔷 Discovered</span>
+                                <span class="badge bg-info doc-status-badge">🔷 Discovered</span>
                             {% elif doc.import_status == 'failed' %}
-                                <span class="badge bg-danger">✗ Failed</span>
+                                <span class="badge bg-danger doc-status-badge">✗ Failed</span>
                             {% else %}
-                                <span class="badge bg-secondary">{{ doc.get_import_status_display }}</span>
+                                <span class="badge bg-secondary doc-status-badge">{{ doc.get_import_status_display }}</span>
                             {% endif %}
                         </td>
                         <td>

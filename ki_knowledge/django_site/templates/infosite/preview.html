@@ -3,44 +3,149 @@
 
 {% block title %}Preview - {{ project.title }}{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-    <h1>Preview: {{ project.title }}</h1>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'infosite/css/theme.css' %}">
+{% endblock %}
 
-    <div class="alert alert-info mb-4">
-        <strong>Output Directory:</strong> <code>{{ output_dir }}</code>
-    </div>
+{% block content %}
+<div class="infosite-shell">
+    <section class="infosite-hero">
+        <div class="infosite-hero__content">
+            <h1>Preview</h1>
+            <p>{{ project.title }} · <code>{{ project.domain }}/{{ project.working_title }}</code></p>
+        </div>
+        <div class="infosite-hero__actions">
+            <a href="{% url 'infosite:project_detail' project.id %}" class="btn">← Projekt</a>
+        </div>
+    </section>
+
+    <section class="infosite-surface">
+        <div class="infosite-surface__body">
+            <div class="infosite-section-title">Output</div>
+            <div class="infosite-kv">
+                <div class="infosite-kv__key">Verzeichnis</div>
+                <div class="infosite-kv__value"><code>{{ output_dir }}</code></div>
+            </div>
+        </div>
+    </section>
 
     {% if files %}
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Generated Files ({{ files|length }})</h5>
+    <section class="infosite-surface">
+        <div class="infosite-surface__body">
+            <div class="infosite-preview-layout">
+                <div class="infosite-index">
+                    <div class="infosite-index__header">
+                        <div>
+                            <div class="infosite-section-title">Datei-Index</div>
+                            <div class="infosite-index__summary">{{ files|length }} Markdown-Dateien im Output</div>
+                        </div>
+                        <div class="infosite-index__select">
+                            <label for="preview-file-select" class="infosite-section-title">Schnellauswahl</label>
+                            <select id="preview-file-select" class="form-select">
+                                <option value="">Datei wählen…</option>
+                                {% for file in files %}
+                                <option value="{{ file.path|urlencode }}">{{ file.path }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="infosite-file-list" id="preview-file-list">
+                        {% for file in files %}
+                        <button
+                            type="button"
+                            class="infosite-file-row"
+                            data-file-path="{{ file.path }}"
+                            data-preview-url="{% url 'infosite:document_api' project.id file.path %}"
+                        >
+                            <code>{{ file.path }}</code>
+                            <span class="infosite-file-row__meta">{{ file.size|filesizeformat }}</span>
+                            <span class="infosite-file-row__meta">{{ file.mtime|date:"Y-m-d H:i" }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="infosite-preview-panel">
+                    <div class="infosite-preview-panel__header">
+                        <div>
+                            <div class="infosite-section-title">Markdown Preview</div>
+                            <div class="infosite-index__summary" id="preview-file-name">Datei auswahlen, um den Inhalt zu laden.</div>
+                        </div>
+                    </div>
+                    <textarea
+                        id="preview-content"
+                        class="infosite-preview-textarea"
+                        readonly
+                    >Bitte links eine Datei auswahlen.</textarea>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <table class="table table-sm table-hover">
-                <thead>
-                    <tr>
-                        <th>File</th>
-                        <th>Size</th>
-                        <th>Modified</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for file in files %}
-                    <tr>
-                        <td><code>{{ file.path }}</code></td>
-                        <td><small>{{ file.size|filesizeformat }}</small></td>
-                        <td><small>{{ file.mtime|date:"Y-m-d H:i" }}</small></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+    </section>
     {% else %}
     <div class="alert alert-warning">
         No files generated yet. <a href="{% url 'infosite:project_detail' project.id %}">Generate infosite</a>
     </div>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const select = document.getElementById('preview-file-select');
+    const fileButtons = Array.from(document.querySelectorAll('.infosite-file-row[data-preview-url]'));
+    const previewContent = document.getElementById('preview-content');
+    const previewFileName = document.getElementById('preview-file-name');
+
+    if (!select || !previewContent || !previewFileName || fileButtons.length === 0) {
+        return;
+    }
+
+    function setActiveButton(activeButton) {
+        fileButtons.forEach(function (button) {
+            button.classList.toggle('is-active', button === activeButton);
+        });
+    }
+
+    async function loadPreview(button) {
+        setActiveButton(button);
+        previewFileName.textContent = button.dataset.filePath;
+        previewContent.value = 'Lade Datei...';
+
+        try {
+            const response = await fetch(button.dataset.previewUrl);
+            const data = await response.json();
+            if (!response.ok || data.error) {
+                previewContent.value = data.error || 'Datei konnte nicht geladen werden.';
+                return;
+            }
+
+            previewContent.value = data.content || '';
+        } catch (error) {
+            previewContent.value = 'Datei konnte nicht geladen werden.';
+        }
+    }
+
+    fileButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            select.value = encodeURIComponent(button.dataset.filePath);
+            loadPreview(button);
+        });
+    });
+
+    select.addEventListener('change', function () {
+        if (!this.value) {
+            return;
+        }
+        const decodedPath = decodeURIComponent(this.value);
+        const target = fileButtons.find(function (button) {
+            return button.dataset.filePath === decodedPath;
+        });
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            loadPreview(target);
+        }
+    });
+
+    loadPreview(fileButtons[0]);
+});
+</script>
 {% endblock %}
