@@ -76,6 +76,7 @@ def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str
         elif widget_id == "datasources.jobs.recent.v1":
             preview_html = (
                 "<div class='card'>"
+                "<p><strong>Pending:</strong> 2</p>"
                 "<p><a href='/knowledge/jobs/'>View semantic jobs</a></p>"
                 "<p><a href='/data-sources/pdf/'>View PDF jobs</a></p>"
                 "</div>"
@@ -90,8 +91,23 @@ def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str
         elif widget_id == "datasources.ai.summary.v1":
             preview_html = (
                 "<div class='card'>"
-                "<p>Ollama chat overview.</p>"
+                "<p><strong>Domain:</strong> default</p>"
+                "<p>Markdown + PDF + Ollama workflow active.</p>"
                 "<p><a href='/knowledge/chat/ollama/'>Open chat</a></p>"
+                "</div>"
+            )
+        elif widget_id == "datasources.markdown.files.v1":
+            preview_html = (
+                "<div class='card'>"
+                "<p><strong>Markdown files:</strong> 81</p>"
+                "<p><a href='/data-sources/workspace/'>Open workspace</a></p>"
+                "</div>"
+            )
+        elif widget_id == "datasources.ontology.overview.v1":
+            preview_html = (
+                "<div class='card'>"
+                "<p><strong>Ontology files:</strong> 3</p>"
+                "<p><strong>OWL sources:</strong> 2</p>"
                 "</div>"
             )
         elif widget_id == "knowledge.overview.summary.v1":
@@ -121,6 +137,10 @@ def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str
             preview_html = "<div class='card'><p><strong>Records:</strong> 132</p><p><a href='/knowledge/records/'>Open records</a></p></div>"
         elif widget_id == "knowledge.artifacts.summary.v1":
             preview_html = "<div class='card'><p><strong>Artifacts:</strong> 19</p><p><a href='/knowledge/artifacts/'>Open artifacts</a></p></div>"
+        elif widget_id == "knowledge.api.browser.v1":
+            preview_html = "<div class='card'><p><strong>Domain:</strong> default</p><p><a href='/knowledge/api/'>Open Knowledge API</a></p></div>"
+        elif widget_id == "knowledge.jobs.recent.v1":
+            preview_html = "<div class='card'><p><strong>Active jobs:</strong> 4</p><p><a href='/knowledge/jobs/'>Open jobs</a></p></div>"
         elif widget_id == "knowledge.tools.summary.v1":
             preview_html = (
                 "<div class='card'>"
@@ -128,6 +148,8 @@ def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str
                 "<div class='card'><h5>Records</h5><p>Browse records.</p></div>"
                 "</div>"
             )
+        elif widget_id == "knowledge.graph.overview.v1":
+            preview_html = "<div class='card'><p><strong>Concepts:</strong> 84</p><p><a href='/knowledge/semantic/graph-explorer/'>Open graph explorer</a></p></div>"
         elif widget_id == "infooutput.overview.summary.v1":
             preview_html = "<div class='card'><p><a href='/output/infosite/dashboard/'>Open infosite dashboard</a></p></div>"
         elif widget_id == "infooutput.infosite.recent.v1":
@@ -138,6 +160,8 @@ def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str
                 "<tr><td>daily-overview.md</td><td>demo</td></tr>"
                 "</tbody></table></div>"
             )
+        elif widget_id == "infooutput.generated.documents.v1":
+            preview_html = "<div class='card'><p><strong>Generated documents:</strong> 12</p><p><a href='/output/infosite/dashboard/'>Open dashboard</a></p></div>"
         elif widget_id == "infooutput.formats.summary.v1":
             preview_html = "<div class='card'><p>Infosite <span class='chip'>aktiv</span></p><p>Quiz <span class='chip'>geplant</span></p></div>"
         elif widget_id == "infooutput.domain.overview.v1":
@@ -156,10 +180,14 @@ def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str
             )
         elif widget_id == "admin.system.status.v1":
             preview_html = "<div class='card'><p><strong>Builder:</strong> active</p><p><strong>Admin area:</strong> enabled</p></div>"
+        elif widget_id == "admin.workspace.config.v1":
+            preview_html = "<div class='card'><p><strong>Knowledge DB:</strong> active</p><p><a href='/settings/config/'>Open config summary</a></p></div>"
         elif widget_id == "settings.layout.registry.v1":
             preview_html = "<div class='card'><p>Layout registry</p><p>Configuration for layout preferences.</p></div>"
         elif widget_id == "settings.config.summary.v1":
             preview_html = "<div class='card'><p>Config summary</p><p>Current workspace configuration overview.</p></div>"
+        elif widget_id == "settings.layout.preview.v1":
+            preview_html = "<div class='card'><p><strong>Preview:</strong> builder state</p><p>Layout snapshot available.</p></div>"
         else:
             preview_html = f"<div class='card'><p class='muted'>{spec.description}</p></div>"
 
@@ -252,6 +280,9 @@ def build_data_sources_widget_cards(
             )
         elif widget_id == "datasources.jobs.recent.v1":
             body = (
+                f"<p><strong>Pending:</strong> {int(pdf_jobs.get('pending', 0))}</p>"
+                f"<p><strong>Processing:</strong> {int(pdf_jobs.get('processing', 0))}</p>"
+                f"<p><strong>Jira issues:</strong> {jira_issues}</p>"
                 "<p><a href=\"/knowledge/jobs/\">View semantic jobs</a></p>"
                 "<p><a href=\"/data-sources/pdf/\">View PDF jobs</a></p>"
             )
@@ -403,6 +434,12 @@ def build_output_widget_cards(
                     for doc in recent_documents[:5]
                 )
                 + "</tbody></table>"
+            )
+        elif widget_id == "infooutput.generated.documents.v1":
+            body = (
+                f"<p><strong>Generated:</strong> {len(recent_documents)}</p>"
+                f"<p><strong>Active domain:</strong> {active_domain}</p>"
+                "<p><a href=\"/output/infosite/dashboard/\">Open infosite dashboard</a></p>"
             )
         elif widget_id == "infooutput.formats.summary.v1":
             entries = []
