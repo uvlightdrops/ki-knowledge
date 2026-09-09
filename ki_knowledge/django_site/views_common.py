@@ -300,10 +300,25 @@ def _frontpage_dashboard_widgets(
                 body += "<p class='muted' style='margin:10px 0 0;'>No generated documents yet.</p>"
             return (spec.label, spec.default_size, body)
 
+        if spec.area == "admin":
+            rows = []
+            for entry in []:
+                rows.append(entry)
+            return (
+                spec.label,
+                spec.default_size,
+                f"<p><strong>Active domain:</strong> {active_domain}</p><p><strong>Area:</strong> {spec.area}</p><p><a href='{reverse('admin-overview')}'>Open admin overview</a></p>",
+            )
+        if spec.area == "settings":
+            return (
+                spec.label,
+                spec.default_size,
+                f"<p><strong>Active domain:</strong> {active_domain}</p><p><strong>Area:</strong> {spec.area}</p><p><a href='{reverse('settings')}'>Open settings</a></p>",
+            )
         return (
             spec.label,
             spec.default_size,
-            f"<p class='muted' style='margin:0;'>This widget is available in the registry and stores its selection persistently.</p>",
+            f"<p class='muted' style='margin:0;'>{spec.description}</p>",
         )
 
     widget_specs = []

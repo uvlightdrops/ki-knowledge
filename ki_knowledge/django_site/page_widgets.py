@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.conf import settings as django_settings
 from django.middleware.csrf import get_token
 from django.urls import reverse
 
@@ -424,5 +425,102 @@ def build_output_widget_cards(
         else:
             body = f"<p class='muted'>{spec.description}</p>"
         width = _widget_width(spec, widget_widths=widget_widths)
+        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+    return cards
+
+
+def build_admin_widget_cards(
+    *,
+    active_domain: str,
+    domain_rows: list[dict[str, Any]],
+    widget_ids: list[str],
+    widget_widths: dict[str, int] | None = None,
+) -> list[dict[str, str]]:
+    cards: list[dict[str, str]] = []
+    for widget_id in widget_ids:
+        spec = widget_by_id(widget_id)
+        if spec is None:
+            continue
+        width = _widget_width(spec, widget_widths=widget_widths)
+        if widget_id == "admin.domain.management.v1":
+            domain_chips = "".join(
+                f"<a class='chip' href='?domain={entry['slug']}' {'style=\'border-color:#60a5fa;color:#fff\'' if entry['is_active'] else ''}>{entry['display_name']}</a>"
+                for entry in domain_rows
+            )
+            body = (
+                f"<p><strong>Active domain:</strong> {active_domain}</p>"
+                f"<p><strong>Registered domains:</strong> {len(domain_rows)}</p>"
+                f"<div style='display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;'>{domain_chips}</div>"
+                "<p class='section'><a href=\"/settings/layout/builder/?area=admin\">Open admin layout</a></p>"
+            )
+        elif widget_id == "admin.domain.db.overview.v1":
+            rows = "".join(
+                f"<tr><td><strong>{entry['display_name']}</strong>{' <span class=\'chip\'>active</span>' if entry['is_active'] else ''}</td>"
+                f"<td>{entry['knowledge_sources']}</td><td>{entry['knowledge_records']}</td>"
+                f"<td>{entry['infosite_project_count']}</td><td>{entry['infosite_source_count']}</td></tr>"
+                for entry in domain_rows
+            )
+            body = (
+                "<table><thead><tr><th>Domain</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead><tbody>"
+                + rows
+                + "</tbody></table>"
+            )
+        elif widget_id == "admin.system.status.v1":
+            body = (
+                f"<p><strong>Builder:</strong> active</p>"
+                f"<p><strong>Admin area:</strong> enabled</p>"
+                f"<p><strong>Active domain:</strong> {active_domain}</p>"
+                f"<p><strong>Configured domains:</strong> {len(domain_rows) if domain_rows else 0}</p>"
+                "<p><a href=\"/settings/\">Open settings</a></p>"
+            )
+        elif widget_id == "admin.workspace.config.v1":
+            body = (
+                f"<p><strong>Knowledge DB:</strong> {django_settings.KNOWLEDGE_DB_PATH}</p>"
+                f"<p><strong>Active domain:</strong> {active_domain}</p>"
+                "<p><a href=\"/settings/config/\">Open config summary</a></p>"
+            )
+        else:
+            body = f"<p class='muted'>{spec.description}</p>"
+        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+    return cards
+
+
+def build_settings_widget_cards(
+    *,
+    active_domain: str,
+    config_summary: dict[str, Any],
+    widget_ids: list[str],
+    widget_widths: dict[str, int] | None = None,
+) -> list[dict[str, str]]:
+    cards: list[dict[str, str]] = []
+    for widget_id in widget_ids:
+        spec = widget_by_id(widget_id)
+        if spec is None:
+            continue
+        width = _widget_width(spec, widget_widths=widget_widths)
+        if widget_id == "settings.layout.registry.v1":
+            body = (
+                f"<p><strong>Active area:</strong> {config_summary.get('active_area', 'settings')}</p>"
+                "<p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p>"
+                "<p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>"
+            )
+        elif widget_id == "settings.config.summary.v1":
+            llm = config_summary.get("llm_provider", "ki")
+            knowledge_root = config_summary.get("knowledge_root", "—")
+            infosite = config_summary.get("infosite_enabled", False)
+            body = (
+                f"<p><strong>LLM:</strong> {llm}</p>"
+                f"<p><strong>Knowledge root:</strong> {knowledge_root}</p>"
+                f"<p><strong>Infosite:</strong> {'enabled' if infosite else 'disabled'}</p>"
+                "<p><a href=\"/settings/config/\">Open config details</a></p>"
+            )
+        elif widget_id == "settings.layout.preview.v1":
+            body = (
+                f"<p><strong>Active domain:</strong> {active_domain}</p>"
+                "<p><strong>Current view:</strong> settings</p>"
+                "<p><a href=\"/settings/layout/builder/\">Preview builder state</a></p>"
+            )
+        else:
+            body = f"<p class='muted'>{spec.description}</p>"
         cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
     return cards

@@ -21,8 +21,10 @@ from .dashboard_registry import (
 )
 from .infosite_models import Domain, GeneratedDocument
 from .page_widgets import (
+    build_admin_widget_cards,
     build_knowledge_widget_cards,
     build_output_widget_cards,
+    build_settings_widget_cards,
     build_widget_preview_payload,
 )
 from .services import (
@@ -148,11 +150,27 @@ def dashboard(request: HttpRequest):
                 ),
             )
         else:
-            label, default_size, body = (
-                spec.label,
-                spec.default_size,
-                f"<p class='muted' style='margin:0;'>This widget is available in the registry and stores its selection persistently.</p>",
-            )
+            if spec.area in {"admin", "settings"}:
+                domain_rows = domain_registry_overview(active_domain)
+                helper_cards = build_admin_widget_cards(
+                    active_domain=active_domain,
+                    domain_rows=domain_rows,
+                    widget_ids=[widget_id],
+                    widget_widths=widget_widths,
+                ) if spec.area == "admin" else build_settings_widget_cards(
+                    active_domain=active_domain,
+                    config_summary={"active_area": spec.area, "active_domain": active_domain},
+                    widget_ids=[widget_id],
+                    widget_widths=widget_widths,
+                )
+                helper_card = helper_cards[0] if helper_cards else {"label": spec.label, "body": f"<p class='muted'>{spec.description}</p>", "width": widget_widths.get(widget_id, spec.default_w if spec is not None else 6)}
+                label, default_size, body = (helper_card["label"], spec.default_size, helper_card["body"])
+            else:
+                label, default_size, body = (
+                    spec.label,
+                    spec.default_size,
+                    f"<p class='muted' style='margin:0;'>{spec.description}</p>",
+                )
         dashboard_widgets.append({
             "widget_id": widget_id,
             "label": label,
@@ -420,44 +438,13 @@ def admin_overview_view(request: HttpRequest):
         fallback=default_widget_ids_for_area("admin"),
     )
     widget_widths = _load_dashboard_widget_widths(request, area_key="admin")
-    widget_cards: list[dict[str, str | int]] = []
-    for widget_id in configured_widget_ids:
-        spec = widget_by_id(widget_id)
-        if spec is None:
-            continue
-        width = max(3, min(int(widget_widths.get(widget_id, spec.default_w)), 12))
-        if widget_id == "admin.domain.management.v1":
-            body = (
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                "<p><a href=\"/settings/layout/builder/?area=admin\">Open admin layout</a></p>"
-            )
-        elif widget_id == "admin.domain.db.overview.v1":
-            domain_rows = domain_registry_overview(active_domain)
-            if domain_rows:
-                rows = "".join(
-                    f"<tr><td><strong>{entry['display_name']}</strong>{' <span class=\'chip\'>active</span>' if entry['is_active'] else ''}</td>"
-                    f"<td>{entry['knowledge_sources']}</td>"
-                    f"<td>{entry['knowledge_records']}</td>"
-                    f"<td>{entry['infosite_project_count']}</td>"
-                    f"<td>{entry['infosite_source_count']}</td></tr>"
-                    for entry in domain_rows
-                )
-                body = (
-                    "<table><thead><tr><th>Domain</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead><tbody>"
-                    + rows
-                    + "</tbody></table>"
-                )
-            else:
-                body = "<p class='muted'>No domain inventory available yet.</p>"
-        elif widget_id == "admin.system.status.v1":
-            body = (
-                "<p><strong>Builder:</strong> active</p>"
-                "<p><strong>Admin area:</strong> enabled</p>"
-                "<p><a href=\"/settings/\">Open settings</a></p>"
-            )
-        else:
-            body = f"<p class='muted'>{spec.description}</p>"
-        widget_cards.append({"label": spec.label, "description": spec.description, "body": body, "width": width})
+    domain_rows = domain_registry_overview(active_domain)
+    widget_cards = build_admin_widget_cards(
+        active_domain=active_domain,
+        domain_rows=domain_rows,
+        widget_ids=configured_widget_ids,
+        widget_widths=widget_widths,
+    )
     return render(
         request,
         "kicli_django/admin_overview.html",
@@ -477,11 +464,31 @@ def admin_overview_view(request: HttpRequest):
 
 def settings_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="settings",
+        fallback=default_widget_ids_for_area("settings"),
+    )
+    widget_widths = _load_dashboard_widget_widths(request, area_key="settings")
+    config_summary = {
+        "active_area": "settings",
+        "active_domain": active_domain,
+        "llm_provider": "ki",
+        "knowledge_root": "/data/knowledge",
+        "infosite_enabled": True,
+    }
+    widget_cards = build_settings_widget_cards(
+        active_domain=active_domain,
+        config_summary=config_summary,
+        widget_ids=widget_ids,
+        widget_widths=widget_widths,
+    )
     return render(
         request,
         "kicli_django/settings.html",
         {
             "active_domain": active_domain,
+            "widget_cards": widget_cards,
             "quick_links": [
                 ("Configuration", "/settings/config/", "View active AppConfig values (LLM providers, knowledge paths, infosite, jira). Secrets are shown as set/not set only."),
                 ("Dashboard Builder", "/settings/layout/builder/", "Arrange widgets by area and drag them into the active layout grid."),

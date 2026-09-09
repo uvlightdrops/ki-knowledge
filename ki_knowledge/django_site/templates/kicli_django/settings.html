@@ -2,7 +2,19 @@
 {% block title %}Settings · KICLI{% endblock %}
 {% block content %}
   <h1>Settings</h1>
-  
+
+  {% if widget_cards %}
+    <div class="widget-grid section">
+      {% for card in widget_cards %}
+        <div class="card" style="grid-column: span {{ card.width|default:6 }};">
+          <h3>{{ card.label }}</h3>
+          {% if card.description %}<p class="muted">{{ card.description }}</p>{% endif %}
+          {{ card.body|safe }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <div class="section panel-grid panel-grid--auto">
     {% for label, url, description in quick_links %}
       <div class="card">
