@@ -26,6 +26,7 @@ from .page_widgets import (
     build_output_widget_cards,
     build_settings_widget_cards,
     build_widget_preview_payload,
+    render_widget_data,
 )
 from .services import (
     available_data_domains,
@@ -90,87 +91,8 @@ def dashboard(request: HttpRequest):
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        if widget_id == "datasources.overview.summary.v1":
-            recent_source = sources[0] if sources else None
-            recent_source_title = _obj_attr_or_key(recent_source, "title", "—")
-            label, default_size, body = (
-                "Data Sources Overview",
-                "wide",
-                "<table class='dashboard-monitor-table' style='width:100%; border-collapse:collapse;'><tbody>"
-                f"<tr><th style='text-align:left; width:60%;'>Sources</th><td>{int(scoped_knowledge['sources'])}</td></tr>"
-                f"<tr><th style='text-align:left; width:60%;'>Recent source</th><td>{recent_source_title}</td></tr>"
-                f"<tr><th style='text-align:left; width:60%;'>Active domain</th><td>{active_domain}</td></tr>"
-                "</tbody></table>"
-                + (
-                    "<ul style='margin:10px 0 0; padding-left:18px;'>"
-                    + "".join(
-                        f"<li><a href='{reverse('source-detail', args=[_obj_attr_or_key(source, 'source_id', '')])}'>{_obj_attr_or_key(source, 'title', 'Untitled source')}</a></li>"
-                        for source in sources[:3]
-                    )
-                    + "</ul>"
-                    if sources else "<p class='muted' style='margin:10px 0 0;'>No sources yet.</p>"
-                ),
-            )
-        elif widget_id == "knowledge.overview.summary.v1":
-            label, default_size, body = (
-                "Knowledge Overview",
-                "balanced",
-                "<table class='dashboard-monitor-table' style='width:100%; border-collapse:collapse;'><tbody>"
-                f"<tr><th style='text-align:left; width:60%;'>Sources</th><td>{int(scoped_knowledge['sources'])}</td></tr>"
-                f"<tr><th style='text-align:left; width:60%;'>Records</th><td>{int(scoped_knowledge['records'])}</td></tr>"
-                f"<tr><th style='text-align:left; width:60%;'>Artifacts</th><td>{int(scoped_knowledge['artifacts'])}</td></tr>"
-                "</tbody></table>"
-                "<div class='dashboard-actions' style='margin-top:10px;'>"
-                f"<a href='{reverse('knowledge')}'><button type='button'>Open knowledge</button></a>"
-                f"<a href='{reverse('records')}'><button type='button'>Records</button></a>"
-                "</div>",
-            )
-        elif widget_id == "infooutput.overview.summary.v1":
-            recent_docs = (
-                GeneratedDocument.objects.filter(project__domain=active_domain)
-                .select_related("project")
-                .order_by("-generated_at")[:3]
-            )
-            label, default_size, body = (
-                "Info Output Overview",
-                "balanced",
-                "<table class='dashboard-monitor-table' style='width:100%; border-collapse:collapse;'><tbody>"
-                f"<tr><th style='text-align:left; width:60%;'>Generated documents</th><td>{len(recent_docs)}</td></tr>"
-                f"<tr><th style='text-align:left; width:60%;'>Artifacts</th><td>{int(scoped_knowledge['artifacts'])}</td></tr>"
-                f"<tr><th style='text-align:left; width:60%;'>Active domain</th><td>{active_domain}</td></tr>"
-                "</tbody></table>"
-                + (
-                    "<ul style='margin:10px 0 0; padding-left:18px;'>"
-                   + "".join(
-                       f"<li>{_obj_attr_or_key(doc, 'display_path', _obj_attr_or_key(doc, 'file_path', 'Generated document'))}</li>"
-                       for doc in recent_docs
-                   )
-                   + "</ul>"
-                   if recent_docs else "<p class='muted' style='margin:10px 0 0;'>No generated documents yet.</p>"
-                ),
-            )
-        else:
-            if spec.area in {"admin", "settings"}:
-                domain_rows = domain_registry_overview(active_domain)
-                helper_cards = build_admin_widget_cards(
-                    active_domain=active_domain,
-                    domain_rows=domain_rows,
-                    widget_ids=[widget_id],
-                    widget_widths=widget_widths,
-                ) if spec.area == "admin" else build_settings_widget_cards(
-                    active_domain=active_domain,
-                    config_summary={"active_area": spec.area, "active_domain": active_domain},
-                    widget_ids=[widget_id],
-                    widget_widths=widget_widths,
-                )
-                helper_card = helper_cards[0] if helper_cards else {"label": spec.label, "body": f"<p class='muted'>{spec.description}</p>", "width": widget_widths.get(widget_id, spec.default_w if spec is not None else 6)}
-                label, default_size, body = (helper_card["label"], spec.default_size, helper_card["body"])
-            else:
-                label, default_size, body = (
-                    spec.label,
-                    spec.default_size,
-                    f"<p class='muted' style='margin:0;'>{spec.description}</p>",
-                )
+        rendered = render_widget_data(widget_id)
+        label, default_size, body = (rendered["label"], spec.default_size, rendered.get("body") or f"<p style='margin:0;'>{spec.description}</p>")
         dashboard_widgets.append({
             "widget_id": widget_id,
             "label": label,
@@ -264,17 +186,7 @@ def knowledge_landing_view(request: HttpRequest):
     widget_cards = build_knowledge_widget_cards(
         active_domain=active_domain,
         scoped_knowledge=scoped_knowledge,
-        quick_links=[
-            ("Knowledge API", "/knowledge/api/", "Search knowledge sources and inspect the browser context."),
-            ("Sources", "/data-sources/sources/", "Browse all ingested sources in the active domain."),
-            ("Records", "/knowledge/records/", "Inspect available records and their metadata."),
-            ("Artifacts", "/knowledge/artifacts/", "Review generated artifacts and summaries."),
-            ("Jobs", "/knowledge/jobs/", "Check background tasks and sync jobs."),
-            ("Knowledge Blocks", "/output/infosite/dashboard/", "Open Infosite projects to extract and inspect knowledge blocks."),
-            ("Semantic Layer", "/knowledge/semantic/", "Explore the semantic vocabulary, term extraction and concept graph."),
-            ("Support Chat", "/knowledge/chat/support/", "Ask questions across the available source types."),
-            ("Ollama Chat", "/knowledge/chat/ollama/", "Local LLM chat for ad-hoc exploration of the knowledge base."),
-        ],
+        quick_links=[],
         widget_ids=configured_widget_ids,
         widget_widths=widget_widths,
     )
@@ -287,17 +199,7 @@ def knowledge_landing_view(request: HttpRequest):
             "record_count": int(scoped_knowledge["records"]),
             "artifact_count": int(scoped_knowledge["artifacts"]),
             "widget_cards": widget_cards,
-            "quick_links": [
-                ("Knowledge API", "/knowledge/api/", "Search knowledge sources and inspect the browser context."),
-                ("Sources", "/data-sources/sources/", "Browse all ingested sources in the active domain."),
-                ("Records", "/knowledge/records/", "Inspect available records and their metadata."),
-                ("Artifacts", "/knowledge/artifacts/", "Review generated artifacts and summaries."),
-                ("Jobs", "/knowledge/jobs/", "Check background tasks and sync jobs."),
-                ("Knowledge Blocks", "/output/infosite/dashboard/", "Open Infosite projects to extract and inspect knowledge blocks."),
-                ("Semantic Layer", "/knowledge/semantic/", "Explore the semantic vocabulary, term extraction and concept graph."),
-                ("Support Chat", "/knowledge/chat/support/", "Ask questions across the available source types."),
-                ("Ollama Chat", "/knowledge/chat/ollama/", "Local LLM chat for ad-hoc exploration of the knowledge base."),
-            ],
+            "quick_links": [],
         },
     )
 
@@ -708,7 +610,7 @@ def widget_catalog_view(request: HttpRequest):
         for widget_id in widget_ids()
         if widget_by_id(widget_id) is not None and (area_filter == "all" or widget_by_id(widget_id).area == area_filter)
     ]
-    widget_payload = build_widget_preview_payload(widget_ids=[spec.widget_id for spec in catalog])
+    widget_payload = [preview_payload_for_widget(spec.widget_id) for spec in catalog]
     payload_by_id = {item["widget_id"]: item for item in widget_payload}
     return render(
         request,

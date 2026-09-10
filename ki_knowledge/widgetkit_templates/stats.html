@@ -1,0 +1,7 @@
+{% if widget.stats %}
+<div class="widget-preview-stats">
+  {% for stat in widget.stats %}
+    <div class="db-preview-metric"><strong>{{ stat.label }}:</strong> {{ stat.value }}</div>
+  {% endfor %}
+</div>
+{% endif %}

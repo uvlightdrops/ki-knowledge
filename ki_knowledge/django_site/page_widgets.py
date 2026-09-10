@@ -2,12 +2,46 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.conf import settings as django_settings
 from django.middleware.csrf import get_token
-from django.urls import reverse
 
-from .dashboard_registry import widget_by_id
-from .infosite_models import Domain, GeneratedDocument
+from .dashboard_registry import widget_adapter_key, widget_by_id
+from .infosite_models import GeneratedDocument
+from .services import domain_knowledge_summary, domain_registry_overview
+from ..widgetkit_core import empty_payload
+from ..widgetkit_renderer import render_fragment, render_card
+from ..widgetkit_integration import register_integration_adapter, resolve_integration_adapter
+
+
+def _preview_rows(*rows: tuple[str, str]) -> list[dict[str, str]]:
+    return [{"label": label, "value": value} for label, value in rows]
+
+
+def _preview_links(*links: tuple[str, str]) -> list[dict[str, str]]:
+    return [{"label": label, "url": url} for label, url in links]
+
+
+def _preview_stats(*stats: tuple[str, str]) -> list[dict[str, str]]:
+    return [{"label": label, "value": value} for label, value in stats]
+
+
+def _widget_preview_from_spec(spec: Any) -> dict[str, Any]:
+    payload = empty_payload(spec.widget_id, spec.label, spec.description)
+    payload["stats"] = _preview_stats(("Preview", spec.label))
+    return payload
+
+
+def preview_payload_for_widget(widget_id: str) -> dict[str, Any]:
+    spec = widget_by_id(widget_id)
+    if spec is None:
+        return {"widget_id": widget_id, "label": widget_id, "description": "", "stats": [], "rows": [], "links": []}
+    payload = build_widget_preview_payload(widget_ids=[widget_id])
+    if payload:
+        return payload[0]
+    return _widget_preview_from_spec(spec)
+
+
+def render_widget_preview(spec: Any) -> dict[str, Any]:
+    return resolve_adapter(widget_adapter_key(spec.widget_id), _widget_preview_from_spec)(spec)
 
 
 def _card(widget_id: str, *, label: str, description: str, body: str, width: int = 6) -> dict[str, Any]:
@@ -25,179 +59,159 @@ def _widget_width(spec: Any, *, widget_widths: dict[str, int] | None = None) -> 
     return max(3, min(width, 12))
 
 
-def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, str]]:
-    """Return lightweight HTML payloads for the dashboard builder preview pane.
+def _adapter_domain_overview(spec: Any) -> dict[str, Any]:
+    domain_rows = domain_registry_overview("default")
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(("Domains", str(len(domain_rows))), ("Active", "default")),
+        "rows": _preview_rows(
+            *[
+                (
+                    row["display_name"],
+                    f"{row['knowledge_sources']} sources / {row['knowledge_records']} records",
+                )
+                for row in domain_rows[:5]
+            ]
+        ),
+        "links": _preview_links(("Open data sources", "/data-sources/")),
+    }
 
-    The preview should show the effective card layout and the exact HTML source
-    that would be embedded for a widget, without dumping raw registry metadata as
-    JSON in the UI.
-    """
-    payload: list[dict[str, str]] = []
+
+def _adapter_datasource_summary(spec: Any) -> dict[str, Any]:
+    summary = domain_knowledge_summary("default")
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(
+            ("Sources", str(int(summary["sources"]))),
+            ("Records", str(int(summary["records"]))),
+            ("Artifacts", str(int(summary["artifacts"]))),
+        ),
+        "rows": [],
+        "links": _preview_links(("Open data sources", "/data-sources/")),
+    }
+
+
+def _adapter_import_quick(spec: Any) -> dict[str, Any]:
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": [],
+        "rows": [],
+        "links": _preview_links(("Import", "/data-sources/import/"), ("Workspace", "/data-sources/workspace/"), ("PDF jobs", "/data-sources/pdf/")),
+    }
+
+
+def _adapter_datasource_discovery(spec: Any) -> dict[str, Any]:
+    summary = domain_knowledge_summary("default")
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(("Files", str(len(summary["recent_sources"]))), ("Sources", str(int(summary["sources"])))),
+        "rows": [],
+        "links": _preview_links(("Open sources", "/data-sources/sources/")),
+    }
+
+
+def _adapter_knowledge_overview(spec: Any) -> dict[str, Any]:
+    summary = domain_knowledge_summary("default")
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(("Sources", str(int(summary["sources"]))), ("Records", str(int(summary["records"]))), ("Artifacts", str(int(summary["artifacts"])))),
+        "rows": [],
+        "links": _preview_links(("Open knowledge", "/knowledge/"), ("Records", "/knowledge/records/")),
+    }
+
+
+def _adapter_output_overview(spec: Any) -> dict[str, Any]:
+    docs = GeneratedDocument.objects.select_related("project").order_by("-generated_at")[:5]
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(("Generated", str(docs.count())), ("Active", "default")),
+        "rows": _preview_rows(*[(doc.display_path, doc.project.title) for doc in docs]),
+        "links": _preview_links(("Open output", "/output/infosite/dashboard/")),
+    }
+
+
+def _adapter_admin_domain_db(spec: Any) -> dict[str, Any]:
+    rows = domain_registry_overview("default")
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(("Domains", str(len(rows))), ("Configured", "yes")),
+        "rows": _preview_rows(*[(row["display_name"], f"{row['knowledge_sources']} / {row['infosite_project_count']}") for row in rows[:5]]),
+        "links": _preview_links(("Open admin", "/admin-overview/")),
+    }
+
+
+@register_integration_adapter("datasources.domain_overview")
+def _registered_datasources_domain_overview(spec: Any) -> dict[str, Any]:
+    return _adapter_domain_overview(spec)
+
+
+@register_integration_adapter("datasources.summary")
+def _registered_datasources_summary(spec: Any) -> dict[str, Any]:
+    return _adapter_datasource_summary(spec)
+
+
+@register_integration_adapter("datasources.import_quick")
+def _registered_datasources_import_quick(spec: Any) -> dict[str, Any]:
+    return _adapter_import_quick(spec)
+
+
+@register_integration_adapter("datasources.discovery")
+def _registered_datasources_discovery(spec: Any) -> dict[str, Any]:
+    return _adapter_datasource_discovery(spec)
+
+
+@register_integration_adapter("knowledge.overview")
+def _registered_knowledge_overview(spec: Any) -> dict[str, Any]:
+    return _adapter_knowledge_overview(spec)
+
+
+@register_integration_adapter("infooutput.overview")
+def _registered_infooutput_overview(spec: Any) -> dict[str, Any]:
+    return _adapter_output_overview(spec)
+
+
+@register_integration_adapter("admin.domain_db")
+def _registered_admin_domain_db(spec: Any) -> dict[str, Any]:
+    return _adapter_admin_domain_db(spec)
+
+
+def render_widget_data(widget_id: str) -> dict[str, Any]:
+    spec = widget_by_id(widget_id)
+    if spec is None:
+        return {"widget_id": widget_id, "label": widget_id, "description": "", "stats": [], "rows": [], "links": []}
+    return resolve_integration_adapter(widget_adapter_key(widget_id), _widget_preview_from_spec)(spec)
+
+
+def render_widget_html(widget_id: str) -> str:
+    return render_card(render_widget_data(widget_id))
+
+
+def render_widget_stats(widget_id: str) -> str:
+    return render_fragment("stats", {"widget": render_widget_data(widget_id)})
+
+
+def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
 
-        if widget_id == "datasources.domain.overview.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<h4>Domains</h4>"
-                "<table><thead><tr><th>Domain</th><th>Sources</th><th>Records</th></tr></thead><tbody>"
-                "<tr><td>default</td><td>12</td><td>48</td></tr>"
-                "<tr><td>demo</td><td>7</td><td>21</td></tr>"
-                "</tbody></table>"
-                "</div>"
-            )
-        elif widget_id == "datasources.overview.summary.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Sources:</strong> 19</p>"
-                "<p><strong>Markdown files:</strong> 81</p>"
-                "<p><strong>OWL sources:</strong> 3</p>"
-                "</div>"
-            )
-        elif widget_id == "datasources.import.quick.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><a href='/data-sources/import/'>Import</a></p>"
-                "<p><a href='/data-sources/workspace/'>Workspace</a></p>"
-                "<p><a href='/data-sources/pdf/'>PDF jobs</a></p>"
-                "<button type='button'>Import PDF</button>"
-                "</div>"
-            )
-        elif widget_id == "datasources.sources.discovery.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Files:</strong> 81</p>"
-                "<p><strong>Sources:</strong> 19</p>"
-                "<p><a href='/data-sources/sources/'>Open sources</a></p>"
-                "</div>"
-            )
-        elif widget_id == "datasources.jobs.recent.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Pending:</strong> 2</p>"
-                "<p><a href='/knowledge/jobs/'>View semantic jobs</a></p>"
-                "<p><a href='/data-sources/pdf/'>View PDF jobs</a></p>"
-                "</div>"
-            )
-        elif widget_id == "datasources.source.list.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<h4>Source list</h4>"
-                "<div class='grid'><div class='card'><h5>Article</h5><p>source metadata</p></div></div>"
-                "</div>"
-            )
-        elif widget_id == "datasources.ai.summary.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Domain:</strong> default</p>"
-                "<p>Markdown + PDF + Ollama workflow active.</p>"
-                "<p><a href='/knowledge/chat/ollama/'>Open chat</a></p>"
-                "</div>"
-            )
-        elif widget_id == "datasources.markdown.files.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Markdown files:</strong> 81</p>"
-                "<p><a href='/data-sources/workspace/'>Open workspace</a></p>"
-                "</div>"
-            )
-        elif widget_id == "datasources.ontology.overview.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Ontology files:</strong> 3</p>"
-                "<p><strong>OWL sources:</strong> 2</p>"
-                "</div>"
-            )
-        elif widget_id == "knowledge.overview.summary.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><strong>Sources:</strong> 26</p>"
-                "<p><strong>Records:</strong> 132</p>"
-                "<p><strong>Artifacts:</strong> 19</p>"
-                "</div>"
-            )
-        elif widget_id == "knowledge.semantic.monitor.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><a href='/knowledge/semantic/'>Semantic Layer</a></p>"
-                "<p><a href='/knowledge/jobs/'>Jobs</a></p>"
-                "</div>"
-            )
-        elif widget_id == "knowledge.semantic.quick.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<p><a href='/knowledge/semantic/domain-analysis/'>Domain analysis</a></p>"
-                "<p><a href='/knowledge/semantic/hybrid-search/'>Hybrid search</a></p>"
-                "<p><a href='/knowledge/semantic/graph-explorer/'>Graph explorer</a></p>"
-                "</div>"
-            )
-        elif widget_id == "knowledge.records.summary.v1":
-            preview_html = "<div class='card'><p><strong>Records:</strong> 132</p><p><a href='/knowledge/records/'>Open records</a></p></div>"
-        elif widget_id == "knowledge.artifacts.summary.v1":
-            preview_html = "<div class='card'><p><strong>Artifacts:</strong> 19</p><p><a href='/knowledge/artifacts/'>Open artifacts</a></p></div>"
-        elif widget_id == "knowledge.api.browser.v1":
-            preview_html = "<div class='card'><p><strong>Domain:</strong> default</p><p><a href='/knowledge/api/'>Open Knowledge API</a></p></div>"
-        elif widget_id == "knowledge.jobs.recent.v1":
-            preview_html = "<div class='card'><p><strong>Active jobs:</strong> 4</p><p><a href='/knowledge/jobs/'>Open jobs</a></p></div>"
-        elif widget_id == "knowledge.tools.summary.v1":
-            preview_html = (
-                "<div class='card'>"
-                "<div class='card'><h5>Knowledge API</h5><p>Search and inspect browser context.</p></div>"
-                "<div class='card'><h5>Records</h5><p>Browse records.</p></div>"
-                "</div>"
-            )
-        elif widget_id == "knowledge.graph.overview.v1":
-            preview_html = "<div class='card'><p><strong>Concepts:</strong> 84</p><p><a href='/knowledge/semantic/graph-explorer/'>Open graph explorer</a></p></div>"
-        elif widget_id == "infooutput.overview.summary.v1":
-            preview_html = "<div class='card'><p><a href='/output/infosite/dashboard/'>Open infosite dashboard</a></p></div>"
-        elif widget_id == "infooutput.infosite.recent.v1":
-            preview_html = "<div class='card'><p><a href='/output/infosite/dashboard/'>Open recent infosites</a></p></div>"
-        elif widget_id == "infooutput.documents.recent.v1":
-            preview_html = (
-                "<div class='card'><table><thead><tr><th>File</th><th>Project</th></tr></thead><tbody>"
-                "<tr><td>daily-overview.md</td><td>demo</td></tr>"
-                "</tbody></table></div>"
-            )
-        elif widget_id == "infooutput.generated.documents.v1":
-            preview_html = "<div class='card'><p><strong>Generated documents:</strong> 12</p><p><a href='/output/infosite/dashboard/'>Open dashboard</a></p></div>"
-        elif widget_id == "infooutput.formats.summary.v1":
-            preview_html = "<div class='card'><p>Infosite <span class='chip'>aktiv</span></p><p>Quiz <span class='chip'>geplant</span></p></div>"
-        elif widget_id == "infooutput.domain.overview.v1":
-            preview_html = (
-                "<div class='card'><table><thead><tr><th>Domain</th><th>Total</th></tr></thead><tbody>"
-                "<tr><td>default</td><td>42</td></tr>"
-                "</tbody></table></div>"
-            )
-        elif widget_id == "admin.domain.management.v1":
-            preview_html = "<div class='card'><p><strong>Active domain:</strong> default</p><p><a href='/settings/layout/builder/?area=admin'>Open admin layout</a></p></div>"
-        elif widget_id == "admin.domain.db.overview.v1":
-            preview_html = (
-                "<div class='card'><table><thead><tr><th>Domain</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead>"
-                "<tbody><tr><td>default</td><td>12</td><td>48</td><td>3</td><td>11</td></tr>"
-                "<tr><td>demo</td><td>7</td><td>21</td><td>2</td><td>9</td></tr></tbody></table></div>"
-            )
-        elif widget_id == "admin.system.status.v1":
-            preview_html = "<div class='card'><p><strong>Builder:</strong> active</p><p><strong>Admin area:</strong> enabled</p></div>"
-        elif widget_id == "admin.workspace.config.v1":
-            preview_html = "<div class='card'><p><strong>Knowledge DB:</strong> active</p><p><a href='/settings/config/'>Open config summary</a></p></div>"
-        elif widget_id == "settings.layout.registry.v1":
-            preview_html = "<div class='card'><p>Layout registry</p><p>Configuration for layout preferences.</p></div>"
-        elif widget_id == "settings.config.summary.v1":
-            preview_html = "<div class='card'><p>Config summary</p><p>Current workspace configuration overview.</p></div>"
-        elif widget_id == "settings.layout.preview.v1":
-            preview_html = "<div class='card'><p><strong>Preview:</strong> builder state</p><p>Layout snapshot available.</p></div>"
-        else:
-            preview_html = f"<div class='card'><p class='muted'>{spec.description}</p></div>"
-
-        payload.append(
-            {
-                "widget_id": widget_id,
-                "preview_html": preview_html,
-                "source_html": preview_html,
-            }
-        )
+        payload.append(render_widget_data(widget_id))
     return payload
 
 
@@ -230,97 +244,17 @@ def build_data_sources_widget_cards(
             continue
         width = _widget_width(spec, widget_widths=widget_widths)
         if widget_id == "datasources.domain.overview.v1":
-            rows = []
-            for domain in all_domains:
-                rows.append(
-                    "<tr>"
-                    f"<td><strong>{domain['display_name']}</strong></td>"
-                    f"<td>{domain['knowledge_sources']}</td>"
-                    f"<td>{domain['knowledge_records']}</td>"
-                    f"<td>{domain['infosite_project_count']}</td>"
-                    f"<td>{domain['infosite_source_count']}</td>"
-                    "</tr>"
-                )
-            body = (
-                "<table><thead><tr><th>Domain</th><th>Sources</th><th>Records</th><th>InfoSites</th><th>Files</th></tr></thead><tbody>"
-                + "".join(rows)
-                + "</tbody></table>"
-                + "<div style='display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;'>"
-                + "".join(
-                    f"<a class='chip' href='?domain={d['slug']}' {'style=\'border-color:#60a5fa;color:#fff\'' if d['is_active'] else ''}>{d['display_name']}</a>"
-                    for d in all_domains
-                )
-                + "</div>"
-            )
+            body = render_fragment("datasources_domain_overview", {"all_domains": all_domains})
         elif widget_id == "datasources.overview.summary.v1":
-            body = (
-                f"<p><strong>Sources:</strong> {len(sources)}</p>"
-                f"<p><strong>Markdown files:</strong> {markdown_count}</p>"
-                f"<p><strong>OWL sources:</strong> {owl_sources}</p>"
-            )
+            body = render_fragment("datasources_overview_summary", {"sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources})
         elif widget_id == "datasources.import.quick.v1":
-            body = (
-                "<p><a href=\"/data-sources/import/\">Import</a></p>"
-                "<p><a href=\"/data-sources/workspace/\">Workspace</a></p>"
-                "<p><a href=\"/data-sources/pdf/\">PDF jobs</a></p>"
-                "<form id='pdf-import-form' method='post' action='/data-sources/import/' class='section'>"
-                "<input type='hidden' name='import_type' value='directory'>"
-                "<input type='hidden' name='next' value='data-sources'>"
-                f"<input type='hidden' name='csrfmiddlewaretoken' value='{csrf_token}'>"
-                "<label for='pdf_path'>PDF path or folder</label><br>"
-                "<input id='pdf_path' name='path' type='text' value='' placeholder='/path/to/file.pdf oder /path/to/folder' style='width:100%;margin-top:6px'>"
-                "<div style='margin-top:8px'><button type='submit'>Import PDF</button></div>"
-                "</form>"
-            )
+            body = render_fragment("datasources_import_quick", {"csrf_token": csrf_token})
         elif widget_id == "datasources.sources.discovery.v1":
-            body = (
-                f"<p><strong>Files:</strong> {markdown_count}</p>"
-                f"<p><strong>Sources:</strong> {len(sources)}</p>"
-                "<p><a href=\"/data-sources/sources/\">Open sources</a></p>"
-            )
+            body = render_fragment("datasources_sources_discovery", {"markdown_count": markdown_count, "sources": sources})
         elif widget_id == "datasources.jobs.recent.v1":
-            body = (
-                f"<p><strong>Pending:</strong> {int(pdf_jobs.get('pending', 0))}</p>"
-                f"<p><strong>Processing:</strong> {int(pdf_jobs.get('processing', 0))}</p>"
-                f"<p><strong>Jira issues:</strong> {jira_issues}</p>"
-                "<p><a href=\"/knowledge/jobs/\">View semantic jobs</a></p>"
-                "<p><a href=\"/data-sources/pdf/\">View PDF jobs</a></p>"
-            )
-        elif widget_id == "datasources.source.list.v1":
-            source_cards = []
-            for source in sources[:12]:
-                title = getattr(source, "title", None) or str(source.get("title", "Untitled source"))
-                source_id = getattr(source, "source_id", None) or str(source.get("source_id", ""))
-                loc = getattr(source, "location", None) or str(source.get("location", ""))
-                source_cards.append(
-                    "<div class='card'>"
-                    f"<h4><a href='{reverse('source-detail', args=[source_id])}'>{title}</a></h4>"
-                    f"<p class='muted'><span class='chip'>{getattr(source, 'source_type', None) or str(source.get('source_type', 'source'))}</span></p>"
-                    f"<p class='mono'>{loc}</p>"
-                    "</div>"
-                )
-            body = "<div class='grid'>" + "".join(source_cards) + "</div>" if source_cards else "<p class='muted'>No sources.</p>"
-        elif widget_id == "datasources.markdown.files.v1":
-            body = (
-                f"<p><strong>Markdown files:</strong> {markdown_count}</p>"
-                "<p><a href=\"/data-sources/workspace/\">Open workspace</a></p>"
-                "<p><a href=\"/data-sources/sources/\">Browse sources</a></p>"
-            )
-        elif widget_id == "datasources.ontology.overview.v1":
-            body = (
-                f"<p><strong>Ontology files:</strong> {ontology_count}</p>"
-                f"<p><strong>OWL sources:</strong> {owl_sources}</p>"
-                f"<p><a href=\"{ontology_dir}\">Open ontology folder</a></p>"
-            )
-        elif widget_id == "datasources.ai.summary.v1":
-            body = (
-                f"<p><strong>Domain:</strong> {active_domain}</p>"
-                "<p><strong>Workspace:</strong> markdown + OCR/PDF import pipeline</p>"
-                "<p><a href=\"/knowledge/chat/ollama/\">Ollama Chat öffnen</a></p>"
-                "<p><a href=\"/knowledge/chat/support/\">Support Chat</a></p>"
-            )
+            body = render_fragment("datasources_jobs_recent", {"pdf_jobs": pdf_jobs, "jira_issues": jira_issues})
         else:
-            body = f"<p class='muted'>{spec.description}</p>"
+            body = f"<p>{spec.description}</p>"
         width = _widget_width(spec, widget_widths=widget_widths)
         cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
     return cards
@@ -328,7 +262,6 @@ def build_data_sources_widget_cards(
 
 def build_knowledge_widget_cards(
     *,
-    active_domain: str,
     scoped_knowledge: dict[str, Any],
     quick_links: list[tuple[str, str, str]],
     widget_ids: list[str],
@@ -339,70 +272,10 @@ def build_knowledge_widget_cards(
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        if widget_id == "knowledge.overview.summary.v1":
-            body = (
-                "<p><strong>Sources:</strong> "
-                f"{int(scoped_knowledge['sources'])}</p>"
-                "<p><strong>Records:</strong> "
-                f"{int(scoped_knowledge['records'])}</p>"
-                "<p><strong>Artifacts:</strong> "
-                f"{int(scoped_knowledge['artifacts'])}</p>"
-            )
-        elif widget_id == "knowledge.semantic.monitor.v1":
-            body = (
-                "<p><a href=\"/knowledge/semantic/\">Semantic Layer</a></p>"
-                "<p><a href=\"/knowledge/jobs/\">Jobs</a></p>"
-            )
-        elif widget_id == "knowledge.semantic.quick.v1":
-            body = (
-                "<p><a href=\"/knowledge/semantic/domain-analysis/\">Domain analysis</a></p>"
-                "<p><a href=\"/knowledge/semantic/hybrid-search/\">Hybrid search</a></p>"
-                "<p><a href=\"/knowledge/semantic/graph-explorer/\">Graph explorer</a></p>"
-            )
-        elif widget_id == "knowledge.records.summary.v1":
-            body = (
-                f"<p><strong>Records:</strong> {int(scoped_knowledge['records'])}</p>"
-                "<p><a href=\"/knowledge/records/\">Open records</a></p>"
-            )
-        elif widget_id == "knowledge.artifacts.summary.v1":
-            body = (
-                f"<p><strong>Artifacts:</strong> {int(scoped_knowledge['artifacts'])}</p>"
-                "<p><a href=\"/knowledge/artifacts/\">Open artifacts</a></p>"
-            )
-        elif widget_id == "knowledge.api.browser.v1":
-            body = (
-                f"<p><strong>Domain:</strong> {active_domain}</p>"
-                f"<p><strong>Sources:</strong> {int(scoped_knowledge['sources'])}</p>"
-                f"<p><strong>Records:</strong> {int(scoped_knowledge['records'])}</p>"
-                "<p><a href=\"/knowledge/api/\">Open Knowledge API</a></p>"
-                "<p><a href=\"/knowledge/records/\">Browse records</a></p>"
-            )
-        elif widget_id == "knowledge.jobs.recent.v1":
-            body = (
-                f"<p><strong>Domain:</strong> {active_domain}</p>"
-                "<p><a href=\"/knowledge/jobs/\">Open jobs</a></p>"
-                "<p><a href=\"/knowledge/semantic/\">Semantic layer</a></p>"
-                f"<p><strong>Artifacts:</strong> {int(scoped_knowledge['artifacts'])}</p>"
-            )
-        elif widget_id == "knowledge.graph.overview.v1":
-            body = (
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                f"<p><strong>Records:</strong> {int(scoped_knowledge['records'])}</p>"
-                f"<p><strong>Sources:</strong> {int(scoped_knowledge['sources'])}</p>"
-                "<p><a href=\"/knowledge/semantic/graph-explorer/\">Open graph explorer</a></p>"
-            )
-        elif widget_id == "knowledge.tools.summary.v1":
-            items = []
-            for label, url, description in quick_links:
-                items.append(
-                    "<div class='card'>"
-                    f"<h4><a href='{url}' title='{description}'>{label}</a></h4>"
-                    f"<p class='muted'>{description}</p>"
-                    "</div>"
-                )
-            body = "<div class='grid'>" + "".join(items) + "</div>"
-        else:
-            body = f"<p class='muted'>{spec.description}</p>"
+        body = _render_widget_body(
+            widget_id,
+            {"scoped_knowledge": scoped_knowledge, "quick_links": quick_links},
+        ) or f"<p>{spec.description}</p>"
         width = _widget_width(spec, widget_widths=widget_widths)
         cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
     return cards
@@ -410,7 +283,6 @@ def build_knowledge_widget_cards(
 
 def build_output_widget_cards(
     *,
-    active_domain: str,
     domain_stats: list[dict[str, Any]],
     recent_documents: list[Any],
     formats: list[dict[str, Any]],
@@ -422,45 +294,10 @@ def build_output_widget_cards(
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        if widget_id == "infooutput.overview.summary.v1":
-            body = "<p><a href=\"/output/infosite/dashboard/\">Open infosite dashboard</a></p>"
-        elif widget_id == "infooutput.infosite.recent.v1":
-            body = "<p><a href=\"/output/infosite/dashboard/\">Open recent infosites</a></p>"
-        elif widget_id == "infooutput.documents.recent.v1":
-            body = (
-                "<table><thead><tr><th>File</th><th>Project</th><th>Status</th></tr></thead><tbody>"
-                + "".join(
-                    f"<tr><td class='mono'><a href='{reverse('infosite:project_detail', args=[doc.project_id])}'>{doc.display_path}</a></td><td>{doc.project.title}</td><td><span class='chip'>{doc.get_review_status_display()}</span></td></tr>"
-                    for doc in recent_documents[:5]
-                )
-                + "</tbody></table>"
-            )
-        elif widget_id == "infooutput.generated.documents.v1":
-            body = (
-                f"<p><strong>Generated:</strong> {len(recent_documents)}</p>"
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                "<p><a href=\"/output/infosite/dashboard/\">Open infosite dashboard</a></p>"
-            )
-        elif widget_id == "infooutput.formats.summary.v1":
-            entries = []
-            for fmt in formats:
-                if fmt.get("url"):
-                    entries.append(f"<p><a href='{fmt['url']}'>{fmt['label']}</a> <span class='chip'>{fmt['status']}</span></p>")
-                else:
-                    entries.append(f"<p>{fmt['label']} <span class='chip'>{fmt['status']}</span></p>")
-            body = "".join(entries)
-        elif widget_id == "infooutput.domain.overview.v1":
-            rows = "".join(
-                f"<tr><td><strong>{d['display_name']}</strong></td><td>{d['total']}</td><td>{d['none']}</td><td>{d['in_review']}</td><td>{d['approved']}</td><td>{d['rejected']}</td></tr>"
-                for d in domain_stats
-            )
-            body = (
-                "<table><thead><tr><th>Domain</th><th>Total</th><th>None</th><th>In review</th><th>Approved</th><th>Rejected</th></tr></thead><tbody>"
-                + rows
-                + "</tbody></table>"
-            )
-        else:
-            body = f"<p class='muted'>{spec.description}</p>"
+        body = _render_widget_body(
+            widget_id,
+            {"domain_stats": domain_stats, "recent_documents": recent_documents, "formats": formats},
+        ) or f"<p>{spec.description}</p>"
         width = _widget_width(spec, widget_widths=widget_widths)
         cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
     return cards
@@ -468,7 +305,6 @@ def build_output_widget_cards(
 
 def build_admin_widget_cards(
     *,
-    active_domain: str,
     domain_rows: list[dict[str, Any]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
@@ -479,52 +315,16 @@ def build_admin_widget_cards(
         if spec is None:
             continue
         width = _widget_width(spec, widget_widths=widget_widths)
-        if widget_id == "admin.domain.management.v1":
-            domain_chips = "".join(
-                f"<a class='chip' href='?domain={entry['slug']}' {'style=\'border-color:#60a5fa;color:#fff\'' if entry['is_active'] else ''}>{entry['display_name']}</a>"
-                for entry in domain_rows
-            )
-            body = (
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                f"<p><strong>Registered domains:</strong> {len(domain_rows)}</p>"
-                f"<div style='display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;'>{domain_chips}</div>"
-                "<p class='section'><a href=\"/settings/layout/builder/?area=admin\">Open admin layout</a></p>"
-            )
-        elif widget_id == "admin.domain.db.overview.v1":
-            rows = "".join(
-                f"<tr><td><strong>{entry['display_name']}</strong>{' <span class=\'chip\'>active</span>' if entry['is_active'] else ''}</td>"
-                f"<td>{entry['knowledge_sources']}</td><td>{entry['knowledge_records']}</td>"
-                f"<td>{entry['infosite_project_count']}</td><td>{entry['infosite_source_count']}</td></tr>"
-                for entry in domain_rows
-            )
-            body = (
-                "<table><thead><tr><th>Domain</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead><tbody>"
-                + rows
-                + "</tbody></table>"
-            )
-        elif widget_id == "admin.system.status.v1":
-            body = (
-                f"<p><strong>Builder:</strong> active</p>"
-                f"<p><strong>Admin area:</strong> enabled</p>"
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                f"<p><strong>Configured domains:</strong> {len(domain_rows) if domain_rows else 0}</p>"
-                "<p><a href=\"/settings/\">Open settings</a></p>"
-            )
-        elif widget_id == "admin.workspace.config.v1":
-            body = (
-                f"<p><strong>Knowledge DB:</strong> {django_settings.KNOWLEDGE_DB_PATH}</p>"
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                "<p><a href=\"/settings/config/\">Open config summary</a></p>"
-            )
-        else:
-            body = f"<p class='muted'>{spec.description}</p>"
+        body = _render_widget_body(
+            widget_id,
+            {"domain_rows": domain_rows},
+        ) or f"<p>{spec.description}</p>"
         cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
     return cards
 
 
 def build_settings_widget_cards(
     *,
-    active_domain: str,
     config_summary: dict[str, Any],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
@@ -535,29 +335,9 @@ def build_settings_widget_cards(
         if spec is None:
             continue
         width = _widget_width(spec, widget_widths=widget_widths)
-        if widget_id == "settings.layout.registry.v1":
-            body = (
-                f"<p><strong>Active area:</strong> {config_summary.get('active_area', 'settings')}</p>"
-                "<p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p>"
-                "<p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>"
-            )
-        elif widget_id == "settings.config.summary.v1":
-            llm = config_summary.get("llm_provider", "ki")
-            knowledge_root = config_summary.get("knowledge_root", "—")
-            infosite = config_summary.get("infosite_enabled", False)
-            body = (
-                f"<p><strong>LLM:</strong> {llm}</p>"
-                f"<p><strong>Knowledge root:</strong> {knowledge_root}</p>"
-                f"<p><strong>Infosite:</strong> {'enabled' if infosite else 'disabled'}</p>"
-                "<p><a href=\"/settings/config/\">Open config details</a></p>"
-            )
-        elif widget_id == "settings.layout.preview.v1":
-            body = (
-                f"<p><strong>Active domain:</strong> {active_domain}</p>"
-                "<p><strong>Current view:</strong> settings</p>"
-                "<p><a href=\"/settings/layout/builder/\">Preview builder state</a></p>"
-            )
-        else:
-            body = f"<p class='muted'>{spec.description}</p>"
+        body = _render_widget_body(
+            widget_id,
+            {"config_summary": config_summary},
+        ) or f"<p>{spec.description}</p>"
         cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
     return cards

@@ -1,0 +1,11 @@
+<p><a href="/data-sources/import/">Import</a></p>
+<p><a href="/data-sources/workspace/">Workspace</a></p>
+<p><a href="/data-sources/pdf/">PDF jobs</a></p>
+<form id="pdf-import-form" method="post" action="/data-sources/import/" class="section">
+  <input type="hidden" name="import_type" value="directory">
+  <input type="hidden" name="next" value="data-sources">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <label for="pdf_path">PDF path or folder</label><br>
+  <input id="pdf_path" name="path" type="text" value="" placeholder="/path/to/file.pdf oder /path/to/folder" style="width:100%;margin-top:6px">
+  <div style="margin-top:8px"><button type="submit">Import PDF</button></div>
+</form>

@@ -37,6 +37,10 @@ class WidgetSpec:
     default_size: str = "balanced"
     default_w: int = 6
     default_h: int = 1
+    render_kind: str = "card"
+    preview_kind: str = "summary"
+    config_schema: tuple[str, ...] = ()
+    data_adapter: str = ""
     legacy_aliases: Tuple[str, ...] = ()
 
 
@@ -50,6 +54,10 @@ def _widget(
     default_size: str = "balanced",
     default_w: int = 6,
     default_h: int = 1,
+    render_kind: str = "card",
+    preview_kind: str = "summary",
+    config_schema: Iterable[str] = (),
+    data_adapter: str = "",
     legacy_aliases: Iterable[str] = (),
 ) -> WidgetSpec:
     return WidgetSpec(
@@ -61,8 +69,17 @@ def _widget(
         default_size=default_size,
         default_w=default_w,
         default_h=default_h,
+        render_kind=render_kind,
+        preview_kind=preview_kind,
+        config_schema=tuple(config_schema),
+        data_adapter=data_adapter,
         legacy_aliases=tuple(legacy_aliases),
     )
+
+
+def widget_adapter_key(widget_id: str) -> str:
+    spec = widget_by_id(widget_id)
+    return spec.data_adapter if spec is not None else ""
 
 
 # Canonical registry: business-function based, not page-based. The legacy
@@ -77,6 +94,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="wide",
         default_w=8,
         default_h=1,
+        data_adapter="datasources.domain_overview",
     ),
     "datasources.overview.summary.v1": _widget(
         widget_id="datasources.overview.summary.v1",
@@ -87,6 +105,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="wide",
         default_w=8,
         default_h=1,
+        data_adapter="knowledge.overview",
     ),
     "datasources.import.quick.v1": _widget(
         widget_id="datasources.import.quick.v1",
@@ -97,6 +116,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="balanced",
         default_w=6,
         default_h=1,
+        data_adapter="datasources.import_quick",
         legacy_aliases=("quick-import",),
     ),
     "datasources.sources.discovery.v1": _widget(
@@ -108,6 +128,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="balanced",
         default_w=4,
         default_h=1,
+        data_adapter="datasources.discovery",
     ),
     "datasources.jobs.recent.v1": _widget(
         widget_id="datasources.jobs.recent.v1",
@@ -118,6 +139,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="wide",
         default_w=8,
         default_h=1,
+        data_adapter="infooutput.overview",
     ),
     "datasources.source.list.v1": _widget(
         widget_id="datasources.source.list.v1",
@@ -128,6 +150,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="wide",
         default_w=8,
         default_h=1,
+        data_adapter="admin.domain_db",
     ),
     "datasources.ai.summary.v1": _widget(
         widget_id="datasources.ai.summary.v1",
@@ -138,6 +161,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_size="balanced",
         default_w=4,
         default_h=1,
+        data_adapter="datasources.discovery",
     ),
     "datasources.markdown.files.v1": _widget(
         widget_id="datasources.markdown.files.v1",

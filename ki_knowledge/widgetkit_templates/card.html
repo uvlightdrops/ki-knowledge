@@ -1,0 +1,24 @@
+<div class="card">
+  <div class="widget-preview-head">
+    <span class="widget-preview-title">{{ widget.label }}</span>
+    <span class="chip">{{ widget.widget_id }}</span>
+  </div>
+  {% include "stats.html" %}
+  {% if widget.rows %}
+    <table class="widget-preview-table">
+      <tbody>
+        {% for row in widget.rows %}
+          <tr><th>{{ row.label }}</th><td>{{ row.value }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+  {% if widget.links %}
+    <div class="widget-preview-links">
+      {% for link in widget.links %}
+        <a class="chip" href="{{ link.url }}">{{ link.label }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <p>{{ widget.description }}</p>
+</div>

@@ -243,7 +243,7 @@ def _frontpage_dashboard_widgets(
     def widget_body(widget_id: str) -> tuple[str, str, str]:
         spec = widget_by_id(widget_id)
         if spec is None:
-            return (widget_id, "custom", "<p class='muted'>Widget unavailable.</p>")
+            return (widget_id, "custom", "<p>Widget unavailable.</p>")
 
         if widget_id == "datasources.overview.summary.v1":
             source_items = list(sources[:3])
@@ -313,7 +313,7 @@ def _frontpage_dashboard_widgets(
             return (
                 spec.label,
                 spec.default_size,
-                f"<p><strong>Active domain:</strong> {active_domain}</p><p><strong>Area:</strong> {spec.area}</p><p><a href='{reverse('settings')}'>Open settings</a></p>",
+                f"<p><strong>Active domain:</strong> {active_domain}</p><p><strong>Area:</strong> {spec.area}</p>",
             )
         return (
             spec.label,
