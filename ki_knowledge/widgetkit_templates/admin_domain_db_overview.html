@@ -1,0 +1,11 @@
+<table><thead><tr><th>Domain</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead><tbody>
+{% for entry in domain_rows %}
+<tr>
+  <td><strong>{{ entry.display_name }}</strong>{% if entry.is_active %} <span class="chip">active</span>{% endif %}</td>
+  <td>{{ entry.knowledge_sources }}</td>
+  <td>{{ entry.knowledge_records }}</td>
+  <td>{{ entry.infosite_project_count }}</td>
+  <td>{{ entry.infosite_source_count }}</td>
+</tr>
+{% endfor %}
+</tbody></table>

@@ -110,7 +110,7 @@ def _field_embedding_backend(cache: JiraIssueCache, assistant: JiraSupportAssist
     tfidf = TFIDFEmbeddingProvider()
     corpus = cache.semantic_text_corpus(issue_limit=issue_limit)
     if not corpus:
-        raise HTTPException(status_code=503, detail="No description/comment texts available")
+        return tfidf, "tfidf-fields-empty"
     tfidf.fit(corpus)
     return tfidf, "tfidf-fields"
 

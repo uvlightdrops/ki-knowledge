@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Widget Shell Builder · KICLI{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'django_site/css/widget-shell-builder.css' %}">
+
+<h1>Widget Shell Builder</h1>
+<p class="muted">Create the shell first. Data adapters can be attached later.</p>
+
+<div class="shell-builder" data-widget-shell-builder data-active-preset='{{ active_preset_json|default:"{}"|escapejs }}'>
+  <aside class="shell-panel">
+    <h3>Presets</h3>
+    <div class="shell-help">Available groups: {% for area in builtins %}<span class="chip">{{ area }}</span> {% endfor %}</div>
+    <div class="shell-list" id="preset-list">
+      {% for group, items in grouped_presets.items %}
+        <div class="shell-group" data-group="{{ group }}">
+          <div class="shell-group-title">
+            <span>{{ group }}</span>
+            <span class="chip">{{ items|length }}</span>
+          </div>
+          {% for preset in items %}
+            <button class="shell-item{% if preset.widget_id == active_widget_id or forloop.first and forloop.parentloop.first %} is-active{% endif %}" type="button" data-group="{{ group }}" data-widget-id="{{ preset.widget_id }}">
+              <strong>{{ preset.label }}</strong><br>
+              <span class="muted" style="font-size:0.76rem;">{{ preset.area }}/{{ preset.category }}</span>
+            </button>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <section class="shell-panel">
+    <h3>Preview</h3>
+    <div class="shell-preview-card">
+      <div class="shell-preview-head">
+        <strong id="preview-label">Widget</strong>
+        <span class="chip" id="preview-area">custom</span>
+      </div>
+      <div id="preview-stats" class="shell-preview-grid"></div>
+      <div id="preview-rows"></div>
+      <div id="preview-links" class="shell-preview-links"></div>
+      <p id="preview-description"></p>
+    </div>
+
+    <h3>Editor</h3>
+    <form class="shell-form" id="shell-form" method="post" action="{% url 'settings-layout-shells-save' %}">
+      {% csrf_token %}
+      <input type="hidden" name="widget_id" id="shell-widget-id" value="">
+      <input type="hidden" name="payload" id="shell-payload" value="">
+      <div class="shell-editor-actions">
+        <button type="submit" class="shell-add-button shell-save-button">Save shell</button>
+      </div>
+      <label>Label <input name="label" value=""></label>
+      <label>Description <textarea name="description" rows="3"></textarea></label>
+      <label>Group / Area <input name="area" value="custom" placeholder="optional, z.B. datasources oder knowledge"></label>
+      <label>Category <input name="category" value="overview"></label>
+      <label>Width <select name="width">{% for w in widths %}<option value="{{ w }}">{{ w }}</option>{% endfor %}</select></label>
+      <label>Height <select name="height"><option>1</option><option>2</option><option>3</option></select></label>
+      <div class="shell-widget-chooser">
+        <span class="chip shell-size-chip">{{ active_preset_json.width|default:'6' }}x{{ active_preset_json.height|default:'1' }}</span>
+      </div>
+      <div class="shell-editor-actions">
+        <button type="submit" class="shell-add-button shell-save-button">Save shell</button>
+      </div>
+    </form>
+
+    <h4>Stats</h4>
+    <div class="shell-stats" id="stats-list"></div>
+    <button type="button" id="add-stat" class="shell-add-button" data-action="add-stat">Add stat</button>
+    <div class="shell-help">Each stat is a label/value pair.</div>
+
+    <h4>Links</h4>
+    <div class="shell-links" id="links-list"></div>
+    <button type="button" id="add-link" class="shell-add-button" data-action="add-link">Add link</button>
+    <div class="shell-help">Each link becomes a chip in the preview.</div>
+
+    <h4>Rows</h4>
+    <div class="shell-rows" id="rows-list"></div>
+    <button type="button" id="add-row" class="shell-add-button" data-action="add-row">Add row</button>
+    <div class="shell-help">Rows are shown as key/value lines below the stats.</div>
+  </section>
+</div>
+
+<script>
+  window.widgetShellBuilderConfig = {
+    presetJsonUrlTemplate: "{% url 'settings-layout-shell-builder-json' 'PRESET_ID' %}"
+  };
+</script>
+<script src="{% static 'django_site/js/widget-shell-builder.js' %}"></script>
+{% endblock %}

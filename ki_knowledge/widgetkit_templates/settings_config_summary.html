@@ -1,0 +1,4 @@
+<p><strong>LLM:</strong> {{ config_summary.llm_provider or "ki" }}</p>
+<p><strong>Knowledge root:</strong> {{ config_summary.knowledge_root or "—" }}</p>
+<p><strong>Infosite:</strong> {% if config_summary.infosite_enabled %}enabled{% else %}disabled{% endif %}</p>
+<p><a href="/settings/config/">Open config details</a></p>

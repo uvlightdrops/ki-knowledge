@@ -30,6 +30,7 @@ _OLLAMA_CHAT_SESSION_KEY = "ollama_chat_history"
 _KNOWLEDGE_API_URL_SESSION_KEY = "knowledge_api_url"
 _SEMANTIC_DOMAIN_SESSION_KEY = "semantic_active_domain"
 _DASHBOARD_BUILDER_SESSION_KEY = "dashboard_builder_widgets"
+_SHELL_BUILDER_SESSION_KEY = "shell_builder_state"
 
 
 def _active_semantic_domain(request: HttpRequest) -> str:
@@ -216,6 +217,46 @@ def _sync_dashboard_selection(request: HttpRequest, *, area_key: str = "settings
     return selections
 
 
+def _load_shell_builder_state(request: HttpRequest) -> dict[str, dict[str, object]]:
+    from .widget_shell_models import WidgetShellDefinition
+    try:
+        return {
+            row.widget_id: {
+                "widget_id": row.widget_id,
+                "label": row.label,
+                "description": row.description,
+                "area": row.area,
+                "category": row.category,
+                "width": row.width,
+                "height": row.height,
+                "stats": row.stats,
+                "links": row.links,
+                "rows": row.rows,
+            }
+            for row in WidgetShellDefinition.objects.all()
+        }
+    except Exception:
+        return {}
+
+
+def _save_shell_builder_state(request: HttpRequest, state: dict[str, dict[str, object]]) -> None:
+    from .widget_shell_models import WidgetShellDefinition
+    WidgetShellDefinition.objects.all().delete()
+    for widget_id, data in state.items():
+        WidgetShellDefinition.objects.create(
+            widget_id=widget_id,
+            label=str(data.get("label", "")),
+            description=str(data.get("description", "")),
+            area=str(data.get("area", "")),
+            category=str(data.get("category", "")),
+            width=str(data.get("width", "6")),
+            height=str(data.get("height", "1")),
+            stats=list(data.get("stats", [])),
+            links=list(data.get("links", [])),
+            rows=list(data.get("rows", [])),
+        )
+
+
 
 def _frontpage_dashboard_widgets(
     request: HttpRequest,
@@ -399,4 +440,3 @@ def _obj_attr_or_key(item: object, name: str, default: str = "—") -> str:
     if isinstance(item, dict):
         return str(item.get(name, default))
     return str(getattr(item, name, default))
-

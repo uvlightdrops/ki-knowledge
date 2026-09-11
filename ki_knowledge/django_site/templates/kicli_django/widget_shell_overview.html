@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Widget Shell Overview · KICLI{% endblock %}
+{% block content %}
+<h1>Widget Shell Overview</h1>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Widget ID</th>
+      <th>Label</th>
+      <th>Area</th>
+      <th>Category</th>
+      <th>Width</th>
+      <th>Height</th>
+      <th>Stats</th>
+      <th>Links</th>
+      <th>Rows</th>
+      <th>Edit</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for shell in shells %}
+      <tr>
+        <td>{{ shell.widget_id }}</td>
+        <td>{{ shell.label }}</td>
+        <td>{{ shell.area }}</td>
+        <td>{{ shell.category }}</td>
+        <td>{{ shell.width }}</td>
+        <td>{{ shell.height }}</td>
+        <td>{{ shell.stats|length }}</td>
+        <td>{{ shell.links|length }}</td>
+        <td>{{ shell.rows|length }}</td>
+        <td><a href="{% url 'settings-layout-shells-edit' shell.widget_id %}">Edit</a></td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

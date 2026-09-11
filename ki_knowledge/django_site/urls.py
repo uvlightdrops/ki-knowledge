@@ -74,6 +74,12 @@ urlpatterns = [
     path("settings/layout/", views.layout_settings_view, name="settings-layout"),
     path("settings/layout/widgets/", views.widget_catalog_view, name="settings-layout-widgets"),
     path("settings/layout/builder/", views.dashboard_builder_view, name="settings-layout-builder"),
+    path("settings/layout/shells/", views.widget_shell_overview_view, name="settings-layout-shells"),
+    path("settings/layout/shell-builder/", views.widget_shell_builder_list_view, name="settings-layout-shell-builder"),
+    path("settings/layout/shell-builder/api/<path:preset_id>/", views.widget_shell_builder_preset_json_view, name="settings-layout-shell-builder-json"),
+    path("settings/layout/shells/new/<path:preset_id>/", views.widget_shell_builder_new_view, name="settings-layout-shells-new"),
+    path("settings/layout/shells/<path:preset_id>/", views.widget_shell_builder_edit_view, name="settings-layout-shells-edit"),
+    path("settings/layout/shells/save/", views.widget_shell_builder_save_view, name="settings-layout-shells-save"),
 
     # Wagtail page serving must stay last so it acts as a catch-all under /cms/
     path("cms/", include(wagtail_urls)),

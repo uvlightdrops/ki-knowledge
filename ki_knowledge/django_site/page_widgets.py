@@ -59,6 +59,33 @@ def _widget_width(spec: Any, *, widget_widths: dict[str, int] | None = None) -> 
     return max(3, min(width, 12))
 
 
+def _build_widget_card(body: str, spec: Any, *, widget_widths: dict[str, int] | None = None) -> dict[str, str]:
+    return _card(spec.widget_id, label=spec.label, description=spec.description, body=body, width=_widget_width(spec, widget_widths=widget_widths))
+
+
+def _widget_fragment_handlers() -> dict[str, Any]:
+    return {
+        "datasources.domain.overview.v1": lambda ctx: render_fragment("datasources_domain_overview", {"all_domains": ctx["all_domains"]}),
+        "datasources.overview.summary.v1": lambda ctx: render_fragment("datasources_overview_summary", {"sources": ctx["sources"], "markdown_count": ctx["markdown_count"], "owl_sources": ctx["owl_sources"]}),
+        "datasources.import.quick.v1": lambda ctx: render_fragment("datasources_import_quick", {"csrf_token": ctx["csrf_token"]}),
+        "datasources.sources.discovery.v1": lambda ctx: render_fragment("datasources_sources_discovery", {"markdown_count": ctx["markdown_count"], "sources": ctx["sources"]}),
+        "datasources.jobs.recent.v1": lambda ctx: render_fragment("datasources_jobs_recent", {"pdf_jobs": ctx["pdf_jobs"], "jira_issues": ctx["jira_issues"]}),
+        "knowledge.overview.summary.v1": lambda ctx: render_fragment("knowledge_overview_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.semantic.monitor.v1": lambda ctx: render_fragment("knowledge_semantic_monitor", {"active_domain": ctx["active_domain"]}),
+        "knowledge.semantic.quick.v1": lambda ctx: render_fragment("knowledge_semantic_quick", {"active_domain": ctx["active_domain"]}),
+        "knowledge.records.summary.v1": lambda ctx: render_fragment("knowledge_records_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.artifacts.summary.v1": lambda ctx: render_fragment("knowledge_artifacts_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.api.browser.v1": lambda ctx: render_fragment("knowledge_api_browser", {"active_domain": ctx["active_domain"], "scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.jobs.recent.v1": lambda ctx: render_fragment("knowledge_jobs_recent", {"active_domain": ctx["active_domain"], "scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.graph.overview.v1": lambda ctx: render_fragment("knowledge_graph_overview", {"active_domain": ctx["active_domain"], "scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.tools.summary.v1": lambda ctx: render_fragment("knowledge_tools_summary", {"quick_links": ctx["quick_links"]}),
+        "admin.domain.db.overview.v1": lambda ctx: render_fragment("admin_domain_db_overview", {"domain_rows": ctx["domain_rows"]}),
+        "settings.layout.registry.v1": lambda ctx: f"<p><strong>Active area:</strong> {ctx['config_summary'].get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>",
+        "settings.config.summary.v1": lambda ctx: render_fragment("settings_config_summary", {"config_summary": ctx["config_summary"]}),
+        "settings.layout.preview.v1": lambda ctx: render_fragment("settings_layout_preview", {"active_domain": ctx["active_domain"]}),
+    }
+
+
 def _adapter_domain_overview(spec: Any) -> dict[str, Any]:
     domain_rows = domain_registry_overview("default")
     return {
@@ -238,51 +265,40 @@ def build_data_sources_widget_cards(
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
     csrf_token = get_token(request) if request is not None else ""
+    handlers = _widget_fragment_handlers()
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        width = _widget_width(spec, widget_widths=widget_widths)
-        if widget_id == "datasources.domain.overview.v1":
-            body = render_fragment("datasources_domain_overview", {"all_domains": all_domains})
-        elif widget_id == "datasources.overview.summary.v1":
-            body = render_fragment("datasources_overview_summary", {"sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources})
-        elif widget_id == "datasources.import.quick.v1":
-            body = render_fragment("datasources_import_quick", {"csrf_token": csrf_token})
-        elif widget_id == "datasources.sources.discovery.v1":
-            body = render_fragment("datasources_sources_discovery", {"markdown_count": markdown_count, "sources": sources})
-        elif widget_id == "datasources.jobs.recent.v1":
-            body = render_fragment("datasources_jobs_recent", {"pdf_jobs": pdf_jobs, "jira_issues": jira_issues})
-        else:
-            body = f"<p>{spec.description}</p>"
-        width = _widget_width(spec, widget_widths=widget_widths)
-        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+        handler = handlers.get(widget_id)
+        body = handler({"all_domains": all_domains, "sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources, "csrf_token": csrf_token, "pdf_jobs": pdf_jobs, "jira_issues": jira_issues}) if handler else f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
 
 def build_knowledge_widget_cards(
     *,
+    active_domain: str,
     scoped_knowledge: dict[str, Any],
     quick_links: list[tuple[str, str, str]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
+    handlers = _widget_fragment_handlers()
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        body = _render_widget_body(
-            widget_id,
-            {"scoped_knowledge": scoped_knowledge, "quick_links": quick_links},
-        ) or f"<p>{spec.description}</p>"
-        width = _widget_width(spec, widget_widths=widget_widths)
-        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+        handler = handlers.get(widget_id)
+        body = handler({"active_domain": active_domain, "scoped_knowledge": scoped_knowledge, "quick_links": quick_links}) if handler else f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
 
 def build_output_widget_cards(
     *,
+    active_domain: str,
     domain_stats: list[dict[str, Any]],
     recent_documents: list[Any],
     formats: list[dict[str, Any]],
@@ -290,54 +306,64 @@ def build_output_widget_cards(
     widget_widths: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
+    handlers = _widget_fragment_handlers()
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        body = _render_widget_body(
-            widget_id,
-            {"domain_stats": domain_stats, "recent_documents": recent_documents, "formats": formats},
-        ) or f"<p>{spec.description}</p>"
-        width = _widget_width(spec, widget_widths=widget_widths)
-        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+        handler = handlers.get(widget_id)
+        body = handler({"domain_stats": domain_stats, "recent_documents": recent_documents, "formats": formats}) if handler else f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
 
 def build_admin_widget_cards(
     *,
+    active_domain: str,
     domain_rows: list[dict[str, Any]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
+    handlers = _widget_fragment_handlers()
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        width = _widget_width(spec, widget_widths=widget_widths)
-        body = _render_widget_body(
-            widget_id,
-            {"domain_rows": domain_rows},
-        ) or f"<p>{spec.description}</p>"
-        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+        handler = handlers.get(widget_id)
+        if widget_id == "admin.domain.management.v1":
+            body = f"<p><strong>Active domain:</strong> {active_domain}</p><p><strong>Registered domains:</strong> {len(domain_rows)}</p>"
+        elif widget_id == "admin.system.status.v1":
+            body = f"<p><strong>Builder:</strong> active</p><p><strong>Admin area:</strong> enabled</p><p><strong>Active domain:</strong> {active_domain}</p><p><a href=\"/settings/\">Open settings</a></p>"
+        elif widget_id == "admin.workspace.config.v1":
+            body = f"<p><strong>Knowledge DB:</strong> /data/knowledge</p><p><strong>Active domain:</strong> {active_domain}</p><p><a href=\"/settings/config/\">Open config summary</a></p>"
+        elif handler:
+            body = handler({"domain_rows": domain_rows})
+        else:
+            body = f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
 
 def build_settings_widget_cards(
     *,
+    active_domain: str,
     config_summary: dict[str, Any],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
+    handlers = _widget_fragment_handlers()
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        width = _widget_width(spec, widget_widths=widget_widths)
-        body = _render_widget_body(
-            widget_id,
-            {"config_summary": config_summary},
-        ) or f"<p>{spec.description}</p>"
-        cards.append(_card(widget_id, label=spec.label, description=spec.description, body=body, width=width))
+        handler = handlers.get(widget_id)
+        if widget_id == "settings.layout.registry.v1":
+            body = f"<p><strong>Active area:</strong> {config_summary.get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>"
+        elif handler:
+            body = handler({"config_summary": config_summary, "active_domain": active_domain})
+        else:
+            body = f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards

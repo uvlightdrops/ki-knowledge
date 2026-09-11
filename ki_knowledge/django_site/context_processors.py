@@ -75,20 +75,22 @@ NAV_AREAS = [
     },
     {
         "key": "layout-builder",
-        "prefixes": ["/settings/layout/builder/", "/settings/layout/widgets/"],
-        "submenu": [
-            ("Builder", "/settings/layout/builder/", "Widget-Layout pro Area verwalten."),
-            ("Widget catalog", "/settings/layout/widgets/", "Preview aller Widgets und ihres HTML-Codes."),
-        ],
+        "prefixes": ["/settings/layout/builder/", "/settings/layout/widgets/", "/settings/layout/shells/"],
+        "submenu": [],
     },
     {
         "key": "settings",
         "prefixes": ["/settings/"],
-        "submenu": [
-            ("Configuration", "/settings/config/", "Aktive AppConfig-Werte anzeigen."),
-            ("Widget catalog", "/settings/layout/widgets/", "Preview aller Widgets und ihres HTML-Codes."),
-        ],
+        "submenu": [],
     },
+]
+
+SETTINGS_SUBMENU = [
+    ("Configuration", "/settings/config/", "Aktive AppConfig-Werte anzeigen."),
+    ("Builder", "/settings/layout/builder/", "Widget-Layout pro Area verwalten."),
+    ("Widget catalog", "/settings/layout/widgets/", "Preview aller Widgets und ihres HTML-Codes."),
+    ("Widget shell builder", "/settings/layout/shell-builder/", "Widget-Shells ohne Live-Daten zusammenklicken."),
+    ("Widget shell overview table", "/settings/layout/shells/", "Tabellarische Übersicht aller gespeicherten Widget-Shells."),
 ]
 
 
@@ -104,7 +106,13 @@ def nav_areas(request):
             if path.startswith(prefix) and len(prefix) > best_len:
                 best_key = area["key"]
                 best_len = len(prefix)
+    nav_areas = []
+    for area in NAV_AREAS:
+        if area["key"] in {"settings", "layout-builder"}:
+            nav_areas.append({**area, "submenu": SETTINGS_SUBMENU})
+        else:
+            nav_areas.append(area)
     return {
         "nav_active_area": best_key,
-        "nav_areas": NAV_AREAS,
+        "nav_areas": nav_areas,
     }

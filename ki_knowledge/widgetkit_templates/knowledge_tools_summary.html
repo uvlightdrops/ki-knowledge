@@ -1,0 +1,6 @@
+{% for label, url, description in quick_links %}
+  <div class="card">
+    <h4><a href="{{ url }}" title="{{ description }}">{{ label }}</a></h4>
+    <p class="muted">{{ description }}</p>
+  </div>
+{% endfor %}
