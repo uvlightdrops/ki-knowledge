@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}Widget Shell Builder · KICLI{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{% static 'django_site/css/widget-shell-builder.css' %}">
+<link rel="stylesheet" href="{% static 'django_site/css/widget-shell-builder.css' %}?v=20260912b">
 
 <h1>Widget Shell Builder</h1>
 <p class="muted">Create the shell first. Data adapters can be attached later.</p>
@@ -84,7 +84,7 @@
         <div class="shell-editor-column shell-editor-column-1">
           <div class="shell-help">widget_id: <strong id="shell-widget-id-display">—</strong></div>
           <div class="shell-editor-actions">
-            <button type="submit" class="shell-add-button shell-save-button">Save shell</button>
+            <button type="button" id="shell-save-button" class="shell-add-button shell-save-button">Save shell</button>
           </div>
           <label class="shell-field"><span>Label</span><input name="label" value=""></label>
           <label class="shell-field"><span>Description</span><textarea name="description" rows="3"></textarea></label>
@@ -129,8 +129,9 @@
     presetJsonUrlTemplate: "{% url 'settings-layout-shell-builder-json' 'PRESET_ID' %}",
     activePresetId: "{{ active_widget_id|default:''|escapejs }}",
     builderUrl: "{% url 'settings-layout-shell-builder' %}",
+    saveUrl: "{% url 'settings-layout-shells-save' %}",
     activePreset: activePresetNode ? JSON.parse(activePresetNode.textContent) : null
   };
 </script>
-<script src="{% static 'django_site/js/widget-shell-builder.js' %}"></script>
+<script src="{% static 'django_site/js/widget-shell-builder.js' %}?v=20260912b"></script>
 {% endblock %}

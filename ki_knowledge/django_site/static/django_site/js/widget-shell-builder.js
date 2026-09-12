@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const presetList = root.querySelector('#preset-list');
   const shellSizeChip = root.querySelector('#shell-size-chip');
   const widgetIdDisplay = root.querySelector('#shell-widget-id-display');
+  const csrfTokenInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+  const saveButton = root.querySelector('#shell-save-button');
   const livePreview = {
     box: document.getElementById('shell-live-preview-box'),
     label: document.getElementById('shell-live-preview-label'),
@@ -53,8 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!form || !livePreview.box) return;
     const width = Math.max(Number(data.width || 1), 1);
     const height = Math.max(Number(data.height || 1), 1);
-    livePreview.box.style.gridColumn = `span ${width}`;
-    livePreview.box.style.gridRow = `span ${height}`;
+    livePreview.box.style.setProperty('--shell-live-width', String(width));
+    livePreview.box.style.setProperty('--shell-live-height', String(height));
+    livePreview.box.style.minHeight = `calc(${height} * var(--shell-grid-row-height) + ${(height - 1) * 10}px)`;
     if (livePreview.label) livePreview.label.textContent = data.label || 'Widget';
     if (livePreview.meta) livePreview.meta.textContent = `${data.area || 'custom'} · ${data.category || 'overview'} · ${width}x${height}`;
     if (livePreview.description) livePreview.description.textContent = data.description || 'Select a preset to preview it here.';
@@ -128,6 +131,31 @@ document.addEventListener('DOMContentLoaded', () => {
     shellSizeChip.textContent = `${width}x${height}`;
   }
 
+  async function saveShell(event) {
+    event.preventDefault();
+    if (!widgetIdInput.value && activeWidgetId) {
+      widgetIdInput.value = activeWidgetId;
+    }
+    syncHiddenPayload();
+    const serialized = payloadInput ? payloadInput.value : form.dataset.payload || '';
+    const response = await fetch(config.saveUrl || form.action, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRFToken': csrfTokenInput ? csrfTokenInput.value : '',
+      },
+      body: serialized,
+    });
+    if (!response.ok) throw new Error('Failed to save shell');
+    const savedPreset = await response.json();
+    activeWidgetId = savedPreset.widget_id || activeWidgetId;
+    setFormFromPreset(savedPreset);
+    syncHiddenPayload();
+    renderChooserSize();
+    render();
+  }
+
   function wireAdd(buttonId, container, placeholderLeft, placeholderRight) {
     const button = root.querySelector(`#${buttonId}`);
     if (!button) return;
@@ -167,19 +195,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // noop: presence of the flag tells us the POST reached the server
   }
 
-  form.addEventListener('submit', () => {
-    if (!widgetIdInput.value && activeWidgetId) {
-      widgetIdInput.value = activeWidgetId;
-    }
-    if (widgetIdInput.value && widgetIdDisplay) {
-      widgetIdDisplay.textContent = widgetIdInput.value;
-    }
-    syncHiddenPayload();
-  });
+  if (saveButton) {
+    saveButton.addEventListener('click', (event) => {
+      saveShell(event).catch(() => {});
+    });
+  }
 
   form.addEventListener('input', render);
+  form.addEventListener('change', render);
   form.addEventListener('input', syncHiddenPayload);
+  form.addEventListener('change', syncHiddenPayload);
   form.addEventListener('input', renderChooserSize);
+  form.addEventListener('change', renderChooserSize);
   syncHiddenPayload();
   renderChooserSize();
   render();
