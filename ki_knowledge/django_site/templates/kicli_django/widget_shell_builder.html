@@ -7,7 +7,52 @@
 <h1>Widget Shell Builder</h1>
 <p class="muted">Create the shell first. Data adapters can be attached later.</p>
 
-<div class="shell-builder" data-widget-shell-builder data-active-preset='{{ active_preset_json|default:"{}"|escapejs }}'>
+<div class="shell-grid-row shell-grid-row-top">
+  <div class="shell-grid-row-frame" id="shell-grid-row-frame">
+    <div class="shell-grid-row-label">Grid Row</div>
+    <div class="shell-grid-row-boxes">
+      <div class="shell-grid-box shell-grid-box-test">
+        <strong>{{ active_widget_id|default:"widget.demo" }}</strong>
+        <span>3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content.</span>
+      </div>
+      <div class="shell-grid-box shell-grid-box-test">
+        <strong>{{ active_widget_id|default:"widget.demo" }}</strong>
+        <span>3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content. 3 × 3 preview box with sample content.</span>
+      </div>
+      <div class="shell-grid-box shell-grid-box-test shell-grid-box-short shell-grid-box-short-a">
+        <strong>{{ active_widget_id|default:"widget.demo" }}</strong>
+        <span>3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content.</span>
+      </div>
+      <div class="shell-grid-box shell-grid-box-test shell-grid-box-short shell-grid-box-short-b">
+        <strong>{{ active_widget_id|default:"widget.demo" }}</strong>
+        <span>3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content. 3 × 2 preview box with sample content.</span>
+      </div>
+      <div class="shell-grid-box shell-grid-box-test shell-grid-box-flat shell-grid-box-short-c">
+        <strong>{{ active_widget_id|default:"widget.demo" }}</strong>
+        <span>3 × 2 preview box with sample content. 3 × 2 preview box with sample content.</span>
+      </div>
+      <div class="shell-grid-box shell-grid-box-test shell-grid-box-flat shell-grid-box-short-d">
+        <strong>{{ active_widget_id|default:"widget.demo" }}</strong>
+        <span>3 × 2 preview box with sample content. 3 × 2 preview box with sample content.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="shell-grid-row shell-grid-row-top">
+  <div class="shell-grid-row-frame shell-grid-row-frame-empty">
+    <div class="shell-grid-row-label">Live Preview</div>
+    <div class="shell-grid-row-boxes shell-grid-row-boxes-live" id="shell-live-preview">
+      <div class="shell-grid-box shell-grid-box-live" id="shell-live-preview-box">
+        <strong id="shell-live-preview-label">Widget</strong>
+        <span id="shell-live-preview-meta">custom · overview · 1x1</span>
+        <span id="shell-live-preview-description">Select a preset to preview it here.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="shell-builder" data-widget-shell-builder>
   <aside class="shell-panel">
     <h3>Presets</h3>
     <div class="shell-help">Available groups: {% for area in builtins %}<span class="chip">{{ area }}</span> {% endfor %}</div>
@@ -19,7 +64,7 @@
             <span class="chip">{{ items|length }}</span>
           </div>
           {% for preset in items %}
-            <button class="shell-item{% if preset.widget_id == active_widget_id or forloop.first and forloop.parentloop.first %} is-active{% endif %}" type="button" data-group="{{ group }}" data-widget-id="{{ preset.widget_id }}">
+            <button class="shell-item{% if forloop.first and forloop.parentloop.first %} is-active{% endif %}" type="button" data-group="{{ group }}" data-widget-id="{{ preset.widget_id }}">
               <strong>{{ preset.label }}</strong><br>
               <span class="muted" style="font-size:0.76rem;">{{ preset.area }}/{{ preset.category }}</span>
             </button>
@@ -29,61 +74,62 @@
     </div>
   </aside>
 
-  <section class="shell-panel">
-    <h3>Preview</h3>
-    <div class="shell-preview-card">
-      <div class="shell-preview-head">
-        <strong id="preview-label">Widget</strong>
-        <span class="chip" id="preview-area">custom</span>
-      </div>
-      <div id="preview-stats" class="shell-preview-grid"></div>
-      <div id="preview-rows"></div>
-      <div id="preview-links" class="shell-preview-links"></div>
-      <p id="preview-description"></p>
+  <section class="shell-panel shell-main-panel">
+    <div class="shell-editor-frame">
+      <h3>Editor</h3>
+      <form class="shell-form shell-editor-grid" id="shell-form" method="post" action="{% url 'settings-layout-shells-save' %}">
+        {% csrf_token %}
+        <input type="hidden" name="widget_id" id="shell-widget-id" value="">
+        <input type="hidden" name="payload" id="shell-payload" value="">
+        <div class="shell-editor-column shell-editor-column-1">
+          <div class="shell-help">widget_id: <strong id="shell-widget-id-display">—</strong></div>
+          <div class="shell-editor-actions">
+            <button type="submit" class="shell-add-button shell-save-button">Save shell</button>
+          </div>
+          <label class="shell-field"><span>Label</span><input name="label" value=""></label>
+          <label class="shell-field"><span>Description</span><textarea name="description" rows="3"></textarea></label>
+        </div>
+
+        <div class="shell-editor-column shell-editor-column-2">
+          <label class="shell-field"><span>Group / Area</span><input name="area" value="custom" placeholder="optional, z.B. datasources oder knowledge"></label>
+          <label class="shell-field"><span>Category</span><input name="category" value="overview"></label>
+          <label class="shell-field"><span>Width</span><select name="width">{% for w in widths %}<option value="{{ w }}">{{ w }}</option>{% endfor %}</select></label>
+          <label class="shell-field"><span>Height</span><select name="height"><option>1</option><option>2</option><option>3</option></select></label>
+          <div class="shell-widget-chooser">
+            <span class="chip shell-size-chip" id="shell-size-chip">—</span>
+          </div>
+        </div>
+
+        <div class="shell-editor-column shell-editor-column-3">
+          <h4>Stats</h4>
+          <div class="shell-stats" id="stats-list"></div>
+          <button type="button" id="add-stat" class="shell-add-button" data-action="add-stat">Add stat</button>
+          <div class="shell-help">Each stat is a label/value pair.</div>
+
+          <h4>Links</h4>
+          <div class="shell-links" id="links-list"></div>
+          <button type="button" id="add-link" class="shell-add-button" data-action="add-link">Add link</button>
+          <div class="shell-help">Each link becomes a chip in the preview.</div>
+
+          <h4>Rows</h4>
+          <div class="shell-rows" id="rows-list"></div>
+          <button type="button" id="add-row" class="shell-add-button" data-action="add-row">Add row</button>
+          <div class="shell-help">Rows are shown as key/value lines below the stats.</div>
+        </div>
+      </form>
     </div>
 
-    <h3>Editor</h3>
-    <form class="shell-form" id="shell-form" method="post" action="{% url 'settings-layout-shells-save' %}">
-      {% csrf_token %}
-      <input type="hidden" name="widget_id" id="shell-widget-id" value="">
-      <input type="hidden" name="payload" id="shell-payload" value="">
-      <div class="shell-editor-actions">
-        <button type="submit" class="shell-add-button shell-save-button">Save shell</button>
-      </div>
-      <label>Label <input name="label" value=""></label>
-      <label>Description <textarea name="description" rows="3"></textarea></label>
-      <label>Group / Area <input name="area" value="custom" placeholder="optional, z.B. datasources oder knowledge"></label>
-      <label>Category <input name="category" value="overview"></label>
-      <label>Width <select name="width">{% for w in widths %}<option value="{{ w }}">{{ w }}</option>{% endfor %}</select></label>
-      <label>Height <select name="height"><option>1</option><option>2</option><option>3</option></select></label>
-      <div class="shell-widget-chooser">
-        <span class="chip shell-size-chip">{{ active_preset_json.width|default:'6' }}x{{ active_preset_json.height|default:'1' }}</span>
-      </div>
-      <div class="shell-editor-actions">
-        <button type="submit" class="shell-add-button shell-save-button">Save shell</button>
-      </div>
-    </form>
-
-    <h4>Stats</h4>
-    <div class="shell-stats" id="stats-list"></div>
-    <button type="button" id="add-stat" class="shell-add-button" data-action="add-stat">Add stat</button>
-    <div class="shell-help">Each stat is a label/value pair.</div>
-
-    <h4>Links</h4>
-    <div class="shell-links" id="links-list"></div>
-    <button type="button" id="add-link" class="shell-add-button" data-action="add-link">Add link</button>
-    <div class="shell-help">Each link becomes a chip in the preview.</div>
-
-    <h4>Rows</h4>
-    <div class="shell-rows" id="rows-list"></div>
-    <button type="button" id="add-row" class="shell-add-button" data-action="add-row">Add row</button>
-    <div class="shell-help">Rows are shown as key/value lines below the stats.</div>
   </section>
 </div>
 
+{{ active_preset_json|default:None|json_script:"widget-shell-active-preset" }}
 <script>
+  const activePresetNode = document.getElementById('widget-shell-active-preset');
   window.widgetShellBuilderConfig = {
-    presetJsonUrlTemplate: "{% url 'settings-layout-shell-builder-json' 'PRESET_ID' %}"
+    presetJsonUrlTemplate: "{% url 'settings-layout-shell-builder-json' 'PRESET_ID' %}",
+    activePresetId: "{{ active_widget_id|default:''|escapejs }}",
+    builderUrl: "{% url 'settings-layout-shell-builder' %}",
+    activePreset: activePresetNode ? JSON.parse(activePresetNode.textContent) : null
   };
 </script>
 <script src="{% static 'django_site/js/widget-shell-builder.js' %}"></script>

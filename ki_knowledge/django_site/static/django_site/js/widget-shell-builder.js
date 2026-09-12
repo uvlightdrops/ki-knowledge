@@ -4,19 +4,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const form = root.querySelector('#shell-form');
   const widgetIdInput = root.querySelector('#shell-widget-id');
-  const previewLabel = root.querySelector('#preview-label');
-  const previewArea = root.querySelector('#preview-area');
-  const previewDescription = root.querySelector('#preview-description');
-  const previewStats = root.querySelector('#preview-stats');
-  const previewLinks = root.querySelector('#preview-links');
-  const previewRows = root.querySelector('#preview-rows');
   const statsList = root.querySelector('#stats-list');
   const linksList = root.querySelector('#links-list');
   const rowsList = root.querySelector('#rows-list');
   const payloadInput = root.querySelector('#shell-payload');
   const presetList = root.querySelector('#preset-list');
+  const shellSizeChip = root.querySelector('#shell-size-chip');
+  const widgetIdDisplay = root.querySelector('#shell-widget-id-display');
+  const livePreview = {
+    box: document.getElementById('shell-live-preview-box'),
+    label: document.getElementById('shell-live-preview-label'),
+    meta: document.getElementById('shell-live-preview-meta'),
+    description: document.getElementById('shell-live-preview-description'),
+  };
   let presetState = {};
   const config = window.widgetShellBuilderConfig || {};
+  let activeWidgetId = new URLSearchParams(window.location.search).get('widget_id') || config.activePresetId || '';
+  const savedFlag = new URLSearchParams(window.location.search).get('saved');
 
   function addEntry(container, left, right, placeholderLeft, placeholderRight) {
     const row = document.createElement('div');
@@ -46,15 +50,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function render() {
     const data = Object.fromEntries(new FormData(form).entries());
-    previewLabel.textContent = data.label || 'Widget';
-    previewArea.textContent = data.area || 'custom';
-    previewDescription.textContent = data.description || '';
-    const stats = readEntries(statsList);
-    const links = readEntries(linksList);
-    const rows = readEntries(rowsList);
-    previewStats.innerHTML = stats.map((item) => `<div class="shell-metric"><strong>${item.left || 'Stat'}:</strong> ${item.right || ''}</div>`).join('');
-    previewLinks.innerHTML = links.map((item) => `<a class="chip" href="${item.right || '#'}">${item.left || 'Link'}</a>`).join('');
-    previewRows.innerHTML = rows.length ? `<table class="widget-preview-table"><tbody>${rows.map((item) => `<tr><th>${item.left || 'Field'}</th><td>${item.right || ''}</td></tr>`).join('')}</tbody></table>` : '';
+    if (!form || !livePreview.box) return;
+    const width = Math.max(Number(data.width || 1), 1);
+    const height = Math.max(Number(data.height || 1), 1);
+    livePreview.box.style.gridColumn = `span ${width}`;
+    livePreview.box.style.gridRow = `span ${height}`;
+    if (livePreview.label) livePreview.label.textContent = data.label || 'Widget';
+    if (livePreview.meta) livePreview.meta.textContent = `${data.area || 'custom'} · ${data.category || 'overview'} · ${width}x${height}`;
+    if (livePreview.description) livePreview.description.textContent = data.description || 'Select a preset to preview it here.';
   }
 
   function clearEntries(container) {
@@ -64,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function setFormFromPreset(preset) {
     presetState = JSON.parse(JSON.stringify(preset));
     widgetIdInput.value = preset.widget_id || '';
+    if (widgetIdDisplay) widgetIdDisplay.textContent = preset.widget_id || '—';
     form.label.value = preset.label || '';
     form.description.value = preset.description || '';
     form.area.value = preset.area || 'custom';
@@ -85,9 +89,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!response.ok) throw new Error(`Failed to load preset ${widgetId}`);
     const preset = await response.json();
     setFormFromPreset(preset);
+    activeWidgetId = widgetId;
+    widgetIdInput.value = widgetId;
+    if (widgetIdDisplay) widgetIdDisplay.textContent = widgetId || '—';
     syncHiddenPayload();
     render();
     renderChooserSize();
+  }
+
+  async function loadCurrentWidget() {
+    if (!activeWidgetId) return;
+    await loadPreset(activeWidgetId);
+    widgetIdInput.value = activeWidgetId;
   }
 
   function syncHiddenPayload() {
@@ -109,11 +122,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderChooserSize() {
-    const chooser = root.querySelector('.shell-widget-chooser .chip');
-    if (!chooser) return;
+    if (!shellSizeChip) return;
     const width = form.width.value || '6';
     const height = form.height.value || '1';
-    chooser.textContent = `${width}x${height}`;
+    shellSizeChip.textContent = `${width}x${height}`;
   }
 
   function wireAdd(buttonId, container, placeholderLeft, placeholderRight) {
@@ -142,9 +154,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (activeWidgetId) {
+    loadCurrentWidget().catch(() => {});
+  } else if (config.activePreset) {
+    setFormFromPreset(config.activePreset);
+    syncHiddenPayload();
+    renderChooserSize();
+    render();
+  }
+
+  if (savedFlag) {
+    // noop: presence of the flag tells us the POST reached the server
+  }
+
+  form.addEventListener('submit', () => {
+    if (!widgetIdInput.value && activeWidgetId) {
+      widgetIdInput.value = activeWidgetId;
+    }
+    if (widgetIdInput.value && widgetIdDisplay) {
+      widgetIdDisplay.textContent = widgetIdInput.value;
+    }
+    syncHiddenPayload();
+  });
+
   form.addEventListener('input', render);
   form.addEventListener('input', syncHiddenPayload);
   form.addEventListener('input', renderChooserSize);
   syncHiddenPayload();
   renderChooserSize();
+  render();
 });
