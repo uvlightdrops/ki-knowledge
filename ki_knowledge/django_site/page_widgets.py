@@ -7,9 +7,11 @@ from django.middleware.csrf import get_token
 from .dashboard_registry import widget_adapter_key, widget_by_id
 from .infosite_models import GeneratedDocument
 from .services import domain_knowledge_summary, domain_registry_overview
-from ..widgetkit_core import empty_payload
+from ..widgetkit_core import DataSourceSpec, TableDataSourceAdapter, empty_payload
 from ..widgetkit_renderer import render_fragment, render_card
 from ..widgetkit_integration import register_integration_adapter, resolve_integration_adapter
+
+_TABLE_ADAPTER = TableDataSourceAdapter()
 
 
 def _preview_rows(*rows: tuple[str, str]) -> list[dict[str, str]]:
@@ -88,38 +90,42 @@ def _widget_fragment_handlers() -> dict[str, Any]:
 
 def _adapter_domain_overview(spec: Any) -> dict[str, Any]:
     domain_rows = domain_registry_overview("default")
-    return {
-        "widget_id": spec.widget_id,
-        "label": spec.label,
-        "description": spec.description,
-        "stats": _preview_stats(("Domains", str(len(domain_rows))), ("Active", "default")),
-        "rows": _preview_rows(
-            *[
-                (
-                    row["display_name"],
-                    f"{row['knowledge_sources']} sources / {row['knowledge_records']} records",
-                )
-                for row in domain_rows[:5]
-            ]
-        ),
-        "links": _preview_links(("Open data sources", "/data-sources/")),
-    }
+    rows = tuple(
+        {
+            "id": str(row.get("domain_key") or row.get("display_name") or index),
+            "label": str(row.get("display_name") or "Domain"),
+            "value": f"{row.get('knowledge_sources', 0)} sources / {row.get('knowledge_records', 0)} records",
+            "url": "/data-sources/",
+        }
+        for index, row in enumerate(domain_rows[:5])
+    )
+    return _TABLE_ADAPTER.adapt(
+        DataSourceSpec(
+            source_id=spec.widget_id,
+            source_type="table",
+            label=spec.label,
+            description=spec.description,
+            stats=(("Domains", str(len(domain_rows))), ("Active", "default")),
+            rows=rows,
+            links=(("Open data sources", "/data-sources/"),),
+            detail_url_template="/data-sources/",
+        )
+    )
 
 
 def _adapter_datasource_summary(spec: Any) -> dict[str, Any]:
     summary = domain_knowledge_summary("default")
-    return {
-        "widget_id": spec.widget_id,
-        "label": spec.label,
-        "description": spec.description,
-        "stats": _preview_stats(
-            ("Sources", str(int(summary["sources"]))),
-            ("Records", str(int(summary["records"]))),
-            ("Artifacts", str(int(summary["artifacts"]))),
-        ),
-        "rows": [],
-        "links": _preview_links(("Open data sources", "/data-sources/")),
-    }
+    return _TABLE_ADAPTER.adapt(
+        DataSourceSpec(
+            source_id=spec.widget_id,
+            source_type="table",
+            label=spec.label,
+            description=spec.description,
+            stats=(("Sources", str(int(summary["sources"]))), ("Records", str(int(summary["records"]))), ("Artifacts", str(int(summary["artifacts"])))),
+            rows=(),
+            links=(("Open data sources", "/data-sources/"),),
+        )
+    )
 
 
 def _adapter_import_quick(spec: Any) -> dict[str, Any]:

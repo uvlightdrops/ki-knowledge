@@ -136,6 +136,47 @@
 .shell-grid-box-live span {
   font-size: 0.82rem;
 }
+.shell-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.shell-preview-stats,
+.shell-preview-rows,
+.shell-preview-links {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.shell-preview-stat,
+.shell-preview-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+.shell-preview-stat-label,
+.shell-preview-row > span {
+  color: #cbd5e1;
+  font-size: 0.72rem;
+}
+.shell-preview-stat-value,
+.shell-preview-row > strong {
+  color: #f8fafc;
+  font-size: 0.74rem;
+}
+.shell-preview-links {
+  margin-top: 4px;
+}
+.shell-preview-links a {
+  color: #bfdbfe;
+  text-decoration: underline;
+  font-size: 0.72rem;
+  word-break: break-word;
+}
 .shell-grid-box-short {
   grid-row: span 2;
   align-self: start;
@@ -178,6 +219,9 @@
   margin: 0 0 6px;
   font-size: 0.78rem;
   color: #94a3b8;
+}
+.shell-form select {
+  min-width: 0;
 }
 .shell-editor-actions {
   display: flex;

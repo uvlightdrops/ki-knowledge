@@ -24,6 +24,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeWidgetId = new URLSearchParams(window.location.search).get('widget_id') || config.activePresetId || '';
   const savedFlag = new URLSearchParams(window.location.search).get('saved');
 
+  function firstPresetId() {
+    const firstButton = presetList ? presetList.querySelector('[data-widget-id]') : null;
+    return firstButton ? (firstButton.dataset.widgetId || '') : '';
+  }
+
+  function ensureActiveWidgetId() {
+    const candidate = widgetIdInput.value || activeWidgetId || firstPresetId();
+    if (!candidate) return '';
+    activeWidgetId = candidate;
+    widgetIdInput.value = candidate;
+    if (widgetIdDisplay) widgetIdDisplay.textContent = candidate;
+    return candidate;
+  }
+
   function addEntry(container, left, right, placeholderLeft, placeholderRight) {
     const row = document.createElement('div');
     row.className = 'shell-entry';
@@ -55,12 +69,73 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!form || !livePreview.box) return;
     const width = Math.max(Number(data.width || 1), 1);
     const height = Math.max(Number(data.height || 1), 1);
+    const allStats = readEntries(statsList);
+    const allRows = readEntries(rowsList);
+    const allLinks = readEntries(linksList);
+    const sourceLabel = data.source_table ? String(data.source_table) : 'manual';
+
     livePreview.box.style.setProperty('--shell-live-width', String(width));
     livePreview.box.style.setProperty('--shell-live-height', String(height));
     livePreview.box.style.minHeight = `calc(${height} * var(--shell-grid-row-height) + ${(height - 1) * 10}px)`;
     if (livePreview.label) livePreview.label.textContent = data.label || 'Widget';
-    if (livePreview.meta) livePreview.meta.textContent = `${data.area || 'custom'} · ${data.category || 'overview'} · ${width}x${height}`;
+    if (livePreview.meta) livePreview.meta.textContent = `${data.area || 'custom'} · ${data.category || 'overview'} · ${sourceLabel} · ${width}x${height}`;
     if (livePreview.description) livePreview.description.textContent = data.description || 'Select a preset to preview it here.';
+
+    const existingBody = livePreview.box.querySelector('.shell-preview-body');
+    if (existingBody) existingBody.remove();
+
+    const body = document.createElement('div');
+    body.className = 'shell-preview-body';
+
+    if (allStats.length) {
+      const statsWrap = document.createElement('div');
+      statsWrap.className = 'shell-preview-stats';
+      allStats.forEach((item) => {
+        const stat = document.createElement('div');
+        stat.className = 'shell-preview-stat';
+        const label = document.createElement('span');
+        label.className = 'shell-preview-stat-label';
+        label.textContent = item.left || 'Stat';
+        const value = document.createElement('strong');
+        value.className = 'shell-preview-stat-value';
+        value.textContent = item.right || '—';
+        stat.append(label, value);
+        statsWrap.appendChild(stat);
+      });
+      body.appendChild(statsWrap);
+    }
+
+    if (allRows.length) {
+      const rowsWrap = document.createElement('div');
+      rowsWrap.className = 'shell-preview-rows';
+      allRows.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'shell-preview-row';
+        const label = document.createElement('span');
+        label.textContent = item.left || 'Row';
+        const value = document.createElement('strong');
+        value.textContent = item.right || '—';
+        row.append(label, value);
+        rowsWrap.appendChild(row);
+      });
+      body.appendChild(rowsWrap);
+    }
+
+    if (allLinks.length) {
+      const linksWrap = document.createElement('div');
+      linksWrap.className = 'shell-preview-links';
+      allLinks.forEach((item) => {
+        const link = document.createElement('a');
+        link.href = item.right || '#';
+        link.target = '_blank';
+        link.rel = 'noreferrer';
+        link.textContent = item.left || 'Link';
+        linksWrap.appendChild(link);
+      });
+      body.appendChild(linksWrap);
+    }
+
+    if (body.childNodes.length) livePreview.box.appendChild(body);
   }
 
   function clearEntries(container) {
@@ -75,6 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
     form.description.value = preset.description || '';
     form.area.value = preset.area || 'custom';
     form.category.value = preset.category || 'overview';
+    form.source_type.value = preset.source_type || 'table';
+    form.source_table.value = preset.source_table || '';
     form.width.value = String(preset.width || form.width.value || '6');
     form.height.value = String(preset.height || form.height.value || '1');
     clearEntries(statsList);
@@ -113,6 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
       description: form.description.value || '',
       area: form.area.value || '',
       category: form.category.value || '',
+      source_type: form.source_type?.value || 'table',
+      source_table: form.source_table?.value || '',
       width: form.width.value || '',
       height: form.height.value || '',
       stats: readEntries(statsList).map((item) => ({ label: item.left, value: item.right })),
@@ -133,8 +212,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function saveShell(event) {
     event.preventDefault();
-    if (!widgetIdInput.value && activeWidgetId) {
-      widgetIdInput.value = activeWidgetId;
+    const resolvedWidgetId = ensureActiveWidgetId();
+    if (!resolvedWidgetId) {
+      if (window.alert) {
+        window.alert('Select a preset first so the widget has a stable widget_id before saving.');
+      }
+      return;
     }
     syncHiddenPayload();
     const serialized = payloadInput ? payloadInput.value : form.dataset.payload || '';
@@ -189,6 +272,8 @@ document.addEventListener('DOMContentLoaded', () => {
     syncHiddenPayload();
     renderChooserSize();
     render();
+  } else if (firstPresetId()) {
+    loadPreset(firstPresetId()).catch(() => {});
   }
 
   if (savedFlag) {

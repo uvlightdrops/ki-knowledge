@@ -93,6 +93,22 @@
         <div class="shell-editor-column shell-editor-column-2">
           <label class="shell-field"><span>Group / Area</span><input name="area" value="custom" placeholder="optional, z.B. datasources oder knowledge"></label>
           <label class="shell-field"><span>Category</span><input name="category" value="overview"></label>
+          <label class="shell-field"><span>Source type</span>
+            <select name="source_type">
+              <option value="table">table</option>
+              <option value="queryset">queryset</option>
+              <option value="api">api</option>
+              <option value="json">json</option>
+            </select>
+          </label>
+          <label class="shell-field"><span>Table / Source</span>
+            <select name="source_table">
+              <option value="">-- none --</option>
+              {% for table_name in source_tables %}
+                <option value="{{ table_name }}">{{ table_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
           <label class="shell-field"><span>Width</span><select name="width">{% for w in widths %}<option value="{{ w }}">{{ w }}</option>{% endfor %}</select></label>
           <label class="shell-field"><span>Height</span><select name="height"><option>1</option><option>2</option><option>3</option></select></label>
           <div class="shell-widget-chooser">
