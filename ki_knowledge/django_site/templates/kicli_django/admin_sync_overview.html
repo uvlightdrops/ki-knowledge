@@ -1,0 +1,7 @@
+<div class="stack">
+  <p><strong>Node:</strong> {{ local_node.node_id }}{% if local_node.display_name %} ({{ local_node.display_name }}){% endif %}</p>
+  <p><strong>Role:</strong> {{ local_node.role }} · <strong>Enabled:</strong> {% if local_node.is_enabled %}yes{% else %}no{% endif %} · <strong>Sync on connect:</strong> {% if local_node.sync_on_connect %}yes{% else %}no{% endif %}</p>
+  <p><strong>Base URL:</strong> <span class="mono">{{ local_node.base_url|default:"-" }}</span></p>
+  <p><strong>Recent runs:</strong> {{ sync_runs|length }} · <strong>Queued jobs:</strong> {{ sync_jobs|length }}</p>
+  <p><a href="{{ sync_admin_url }}">Distributed Sync öffnen</a> · <a href="{{ domain_management_url }}">Domain Management</a></p>
+</div>

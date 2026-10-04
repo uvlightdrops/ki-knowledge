@@ -6,6 +6,7 @@ from django.middleware.csrf import get_token
 
 from .dashboard_registry import widget_adapter_key, widget_by_id
 from .infosite_models import GeneratedDocument
+from .infosite_models import NodeConfig, SyncRun, current_node_id
 from .services import domain_knowledge_summary, domain_registry_overview
 from ..widgetkit_core import DataSourceSpec, TableDataSourceAdapter, empty_payload
 from ..widgetkit_renderer import render_fragment, render_card
@@ -159,6 +160,20 @@ def _render_infooutput_formats(ctx: dict[str, Any]) -> str:
     return render_fragment("output_formats", {"formats": ctx["formats"]})
 
 
+def _sync_widget_context(ctx: dict[str, Any]) -> dict[str, Any]:
+    local_node = ctx["local_node"]
+    return {
+        "local_node": local_node,
+        "sync_runs": ctx["sync_runs"],
+        "sync_jobs": ctx["sync_jobs"],
+        "master_domain_catalog": ctx["master_domain_catalog"],
+        "master_domain_catalog_error": ctx["master_domain_catalog_error"],
+        "sync_admin_url": ctx["sync_admin_url"],
+        "domain_management_url": ctx["domain_management_url"],
+        "worker_command_example": f"python manage.py process_distributed_sync_jobs --pending --domain {ctx['active_domain']}",
+    }
+
+
 def _widget_fragment_handlers() -> dict[str, Any]:
     return {
         "datasources.domain.overview.v1": lambda ctx: render_fragment("datasources_domain_overview", {"all_domains": ctx["all_domains"]}),
@@ -195,6 +210,9 @@ def _widget_fragment_handlers() -> dict[str, Any]:
             "layout": ctx["layout"],
             "status_url": ctx["status_url"],
         }),
+        "admin.sync.overview.v1": lambda ctx: render_fragment("admin_sync_overview", _sync_widget_context(ctx)),
+        "admin.sync.history.v1": lambda ctx: render_fragment("admin_sync_history", _sync_widget_context(ctx)),
+        "admin.sync.catalog.v1": lambda ctx: render_fragment("admin_sync_catalog", _sync_widget_context(ctx)),
         "infooutput.overview.summary.v1": _render_infooutput_overview,
         "infooutput.formats.summary.v1": _render_infooutput_formats,
         "infooutput.domain.overview.v1": _render_infooutput_domains,
@@ -306,6 +324,27 @@ def _adapter_admin_domain_db(spec: Any) -> dict[str, Any]:
     }
 
 
+def _adapter_admin_sync(spec: Any) -> dict[str, Any]:
+    local_node = NodeConfig.objects.filter(node_id=current_node_id()).first()
+    sync_run_count = SyncRun.objects.count()
+    labels = (
+        ("Role", local_node.role if local_node else "standalone"),
+        ("Enabled", "yes" if local_node and local_node.is_enabled else "no"),
+        ("Runs", str(sync_run_count)),
+    )
+    links = [("Open sync admin", "/admin-overview/sync/")]
+    if local_node and local_node.role == "host":
+        links.append(("Domain management", "/admin-overview/domains/"))
+    return {
+        "widget_id": spec.widget_id,
+        "label": spec.label,
+        "description": spec.description,
+        "stats": _preview_stats(*labels),
+        "rows": [],
+        "links": _preview_links(*links),
+    }
+
+
 @register_integration_adapter("datasources.domain_overview")
 def _registered_datasources_domain_overview(spec: Any) -> dict[str, Any]:
     return _adapter_domain_overview(spec)
@@ -339,6 +378,11 @@ def _registered_infooutput_overview(spec: Any) -> dict[str, Any]:
 @register_integration_adapter("admin.domain_db")
 def _registered_admin_domain_db(spec: Any) -> dict[str, Any]:
     return _adapter_admin_domain_db(spec)
+
+
+@register_integration_adapter("admin.sync")
+def _registered_admin_sync(spec: Any) -> dict[str, Any]:
+    return _adapter_admin_sync(spec)
 
 
 def render_widget_data(widget_id: str) -> dict[str, Any]:
@@ -493,11 +537,19 @@ def build_admin_widget_cards(
     csrf_token: str = "",
     domain_management_url: str = "/admin-overview/domains/",
     status_url: str = "/admin-overview/status/",
+    sync_runs: list[Any] | None = None,
+    sync_jobs: list[Any] | None = None,
+    local_node: Any | None = None,
+    master_domain_catalog: dict[str, Any] | None = None,
+    master_domain_catalog_error: str = "",
+    sync_admin_url: str = "/admin-overview/sync/",
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
     handlers = _widget_fragment_handlers()
     domain_states = domain_states if domain_states is not None else []
     layout = layout if layout is not None else {}
+    sync_runs = sync_runs if sync_runs is not None else []
+    sync_jobs = sync_jobs if sync_jobs is not None else []
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
@@ -521,6 +573,17 @@ def build_admin_widget_cards(
                 "registered_domain_count": len(domain_states),
                 "layout": layout,
                 "status_url": status_url,
+            })
+        elif widget_id in {"admin.sync.overview.v1", "admin.sync.history.v1", "admin.sync.catalog.v1"}:
+            body = handler({
+                "active_domain": active_domain,
+                "local_node": local_node,
+                "sync_runs": sync_runs,
+                "sync_jobs": sync_jobs,
+                "master_domain_catalog": master_domain_catalog,
+                "master_domain_catalog_error": master_domain_catalog_error,
+                "sync_admin_url": sync_admin_url,
+                "domain_management_url": domain_management_url,
             })
         elif widget_id == "admin.workspace.config.v1":
             body = f"<p><strong>Knowledge DB:</strong> /data/knowledge</p><p><strong>Active domain:</strong> {active_domain}</p><p><a href=\"/settings/config/\">Open config summary</a></p>"

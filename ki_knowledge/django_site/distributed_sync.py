@@ -24,6 +24,26 @@ class LocalNodeSnapshot:
     master_url: str
 
 
+def _local_node_settings() -> tuple[NodeConfig | None, LocalNodeSnapshot]:
+    snapshot = local_node_snapshot()
+    node = NodeConfig.objects.filter(node_id=snapshot.node_id).first()
+    return node, snapshot
+
+
+def resolved_master_url() -> str:
+    node, snapshot = _local_node_settings()
+    if node and node.base_url:
+        return str(node.base_url).strip()
+    return snapshot.master_url
+
+
+def resolved_sync_secret() -> str:
+    node, _snapshot = _local_node_settings()
+    if node and node.sync_shared_secret:
+        return str(node.sync_shared_secret).strip()
+    return (Config.from_env().distributed_sync_shared_secret or "").strip()
+
+
 def local_node_snapshot() -> LocalNodeSnapshot:
     config = Config.from_env()
     return LocalNodeSnapshot(
@@ -173,6 +193,63 @@ def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
         domain["knowledge_artifacts"] = knowledge_entry.get("knowledge_artifacts", [])
         domain["knowledge_relations"] = knowledge_entry.get("knowledge_relations", [])
     return payload
+
+
+def remote_domain_catalog(*, master_url: str | None = None) -> dict[str, Any]:
+    target_master_url = (master_url or resolved_master_url()).strip()
+    if not target_master_url:
+        raise ValueError("master_url not configured")
+
+    export_url = target_master_url.rstrip("/") + "/knowledge/sync/export/"
+    headers: dict[str, str] = {}
+    sync_secret = resolved_sync_secret()
+    if sync_secret:
+        headers["X-KI-Sync-Secret"] = sync_secret
+
+    response = requests.get(
+        export_url,
+        params={
+            "include_projects": "0",
+            "include_documents": "0",
+            "include_knowledge": "0",
+        },
+        headers=headers,
+        timeout=max(Config.from_env().request_timeout, 5),
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("master export payload must be an object")
+
+    domains_payload = payload.get("domains")
+    if not isinstance(domains_payload, list):
+        raise ValueError("master export payload missing domains list")
+
+    local_domains = {domain.slug for domain in Domain.objects.all().only("slug")}
+    catalog = []
+    for item in domains_payload:
+        if not isinstance(item, dict):
+            continue
+        slug = str(item.get("slug", "")).strip()
+        if not slug:
+            continue
+        catalog.append(
+            {
+                "slug": slug,
+                "display_name": str(item.get("display_name", "")).strip() or slug,
+                "description": str(item.get("description", "")).strip(),
+                "home_node": str(item.get("home_node", "")).strip(),
+                "sync_mode": str(item.get("sync_mode", "")).strip() or "push",
+                "visibility": str(item.get("visibility", "")).strip() or "private",
+                "project_count": int(item.get("project_count", 0) or 0),
+                "available_locally": slug in local_domains,
+            }
+        )
+    return {
+        "master_url": target_master_url,
+        "domain_count": len(catalog),
+        "domains": catalog,
+    }
 
 
 def knowledge_source_snapshot(source: KnowledgeSource) -> dict[str, Any]:
@@ -535,7 +612,7 @@ def apply_remote_domain_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def pull_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
     config = Config.from_env()
-    master_url = (config.distributed_master_url or "").strip()
+    master_url = resolved_master_url()
     if not master_url:
         raise ValueError("master_url not configured")
 
@@ -543,8 +620,9 @@ def pull_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
     primary_domain = domains[0] if domains else None
     run = record_sync_run_started(direction="pull", domain_slug=primary_domain, source_url=export_url)
     headers: dict[str, str] = {}
-    if config.distributed_sync_shared_secret.strip():
-        headers["X-KI-Sync-Secret"] = config.distributed_sync_shared_secret.strip()
+    sync_secret = resolved_sync_secret()
+    if sync_secret:
+        headers["X-KI-Sync-Secret"] = sync_secret
     params: list[tuple[str, str]] = [
         ("include_projects", "1"),
         ("include_documents", "1"),

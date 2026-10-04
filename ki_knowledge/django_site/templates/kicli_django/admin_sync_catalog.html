@@ -1,0 +1,11 @@
+{% if local_node.role != "host" %}
+  <p>Master-Domain-Katalog ist nur für Host-Nodes relevant.</p>
+{% elif master_domain_catalog_error %}
+  <p>Master-Katalog konnte nicht geladen werden: {{ master_domain_catalog_error }}</p>
+{% elif master_domain_catalog %}
+  <p><strong>Master:</strong> <code>{{ master_domain_catalog.master_url }}</code></p>
+  <p><strong>Domains:</strong> {{ master_domain_catalog.domain_count }}</p>
+  <p><a href="{{ sync_admin_url }}">Zum vollständigen Sync-Center</a></p>
+{% else %}
+  <p>Noch kein Master-Katalog verfügbar.</p>
+{% endif %}

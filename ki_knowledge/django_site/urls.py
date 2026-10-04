@@ -76,6 +76,7 @@ urlpatterns = [
     # --- 🛠️ Admin ------------------------------------------------------------
     path("admin-overview/", views.admin_overview_view, name="admin-overview"),
     path("admin-overview/domains/", views.admin_domain_management_view, name="admin-domains"),
+    path("admin-overview/sync/", views.admin_sync_view, name="admin-sync"),
     path("admin-overview/status/", views.admin_system_status_view, name="admin-status"),
 
     # --- ⚙️ Settings ----------------------------------------------------------

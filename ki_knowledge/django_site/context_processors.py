@@ -61,6 +61,7 @@ NAV_AREAS = [
         "submenu": [
             ("Übersicht", "/admin-overview/", "Zentrale Admin-Übersicht über Domains, Status und Systemwerte."),
             ("Domain Management", "/admin-overview/domains/", "Domains anlegen, Datenverzeichnisse scannen und verwalten."),
+            ("Distributed Sync", "/admin-overview/sync/", "Node-Konfiguration, Master-Katalog und Sync-Historie verwalten."),
             ("System Status", "/admin-overview/status/", "Anwendungsstatus und Laufzeitwerte prüfen."),
         ],
     },

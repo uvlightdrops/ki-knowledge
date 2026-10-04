@@ -4,6 +4,10 @@
 <h1>📊 System Status</h1>
 <p class="muted">Laufzeitwerte, aktive Pfade und Domain-Registrierung. Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
 
+<div class="card" style="margin-bottom:16px;">
+  <p><a href="/admin-overview/">Admin Overview</a> · <a href="/admin-overview/domains/">Domain Management</a> · <a href="/admin-overview/sync/">Distributed Sync</a></p>
+</div>
+
 <div class="grid section">
   <div class="card">
     {{ status_html|safe }}

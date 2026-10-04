@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Distributed Sync · KICLI{% endblock %}
+{% block content %}
+<h1>🔄 Distributed Sync</h1>
+<p class="muted">Zentrale Oberfläche für Node-Konfiguration, Master-Domain-Katalog, Sync-Historie und Worker-Jobs. Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+
+<div class="grid section">
+  <div class="card">
+    <h3>Node Overview</h3>
+    {% include "kicli_django/admin_sync_overview.html" %}
+  </div>
+  <div class="card">
+    <h3>Sync History</h3>
+    {% include "kicli_django/admin_sync_history.html" with worker_command_example="python manage.py process_distributed_sync_jobs --pending --domain "|add:active_domain %}
+  </div>
+</div>
+
+<div class="card">
+  <h3>Master Domain Catalog</h3>
+  {% include "kicli_django/admin_sync_catalog.html" %}
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h3>Letzte Sync-Läufe</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Richtung</th><th>Status</th><th>Domain</th><th>Node</th><th>Quelle</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
+      <tbody>
+        {% for run in sync_runs %}
+          <tr>
+            <td>{{ run.direction }}</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.domain.slug|default:"-" }}</td>
+            <td>{{ run.node.node_id|default:"-" }}</td>
+            <td class="mono">{{ run.source_url|default:"-" }}</td>
+            <td>{{ run.started_at }}</td>
+            <td>{{ run.completed_at|default:"-" }}</td>
+            <td>{{ run.error_message|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8">Noch keine Sync-Läufe vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h3>Distributed Sync Jobs</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Job</th><th>Typ</th><th>Status</th><th>Domain</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
+      <tbody>
+        {% for job in sync_jobs %}
+          <tr>
+            <td class="mono">{{ job.job_id }}</td>
+            <td>{{ job.job_type }}</td>
+            <td>{{ job.status }}</td>
+            <td>{{ job.domain }}</td>
+            <td>{{ job.started_at|default:job.created_at }}</td>
+            <td>{{ job.completed_at|default:"-" }}</td>
+            <td>{{ job.error_message|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">Noch keine Distributed-Sync-Jobs vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

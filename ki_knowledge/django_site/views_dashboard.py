@@ -64,6 +64,7 @@ from .views_common import (
     _selected_markdown,
     _sync_dashboard_selection,
 )
+from .distributed_sync import remote_domain_catalog
 
 _JIRA_CHAT_SESSION_KEY = "jira_support_chat_history"
 _OLLAMA_CHAT_SESSION_KEY = "ollama_chat_history"
@@ -360,6 +361,26 @@ def admin_overview_view(request: HttpRequest):
     domain_rows = domain_registry_overview(active_domain)
     domain_states = semantic_domain_states()
     layout_raw = data_layout_snapshot(active_domain)
+    sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
+    local_node, _ = NodeConfig.objects.get_or_create(
+        node_id=current_node_id(),
+        defaults={
+            "role": getattr(settings.KI_CONFIG, "distributed_node_role", "standalone") or "standalone",
+            "base_url": "",
+            "sync_on_connect": bool(getattr(settings.KI_CONFIG, "distributed_sync_on_connect", True)),
+            "is_enabled": bool(getattr(settings.KI_CONFIG, "distributed_enabled", False)),
+            "sync_shared_secret": (getattr(settings.KI_CONFIG, "distributed_sync_shared_secret", "") or "").strip(),
+        },
+    )
+    from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
+    sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
+    master_domain_catalog = None
+    master_domain_catalog_error = ""
+    if local_node.role == "host" and local_node.is_enabled:
+        try:
+            master_domain_catalog = remote_domain_catalog()
+        except Exception as exc:
+            master_domain_catalog_error = str(exc)
     layout = {
         "data_root": display_data_path(layout_raw.get("data_root", "")),
         "active_markdown_dir": display_data_path(layout_raw.get("active_markdown_dir", "")),
@@ -373,6 +394,11 @@ def admin_overview_view(request: HttpRequest):
         domain_states=domain_states,
         layout=layout,
         csrf_token=get_token(request),
+        sync_runs=sync_runs,
+        sync_jobs=sync_jobs,
+        local_node=local_node,
+        master_domain_catalog=master_domain_catalog,
+        master_domain_catalog_error=master_domain_catalog_error,
     )
     return render(
         request,
@@ -382,6 +408,7 @@ def admin_overview_view(request: HttpRequest):
             "widget_cards": widget_cards,
             "quick_links": [
                 ("Domain Management", "/admin-overview/domains/", "Domains anlegen, Datenverzeichnisse scannen und verwalten."),
+                ("Distributed Sync", "/admin-overview/sync/", "Node-Konfiguration, Master-Katalog und Sync-Historie verwalten."),
                 ("System Status", "/admin-overview/status/", "Laufzeitwerte, Pfade und Systemzustand prüfen."),
                 ("Settings", "/settings/", "Configuration and layout controls."),
                 ("Dashboard Builder", "/settings/layout/builder/?area=admin", "Arrange the admin area widgets."),
@@ -459,6 +486,30 @@ def admin_domain_management_view(request: HttpRequest):
                 local_node.sync_shared_secret = new_secret
             local_node.save()
             messages.success(request, "Lokale Node-Konfiguration gespeichert. Hinweis: AppConfig/YAML kann diese Werte beim Neustart wieder überschreiben.")
+        elif action == "adopt_master_domain":
+            target_domain = request.POST.get("domain", "").strip()
+            if not target_domain:
+                messages.error(request, "Keine Domain zum Übernehmen angegeben.")
+            else:
+                Domain.objects.get_or_create(
+                    slug=target_domain,
+                    defaults={
+                        "display_name": target_domain,
+                        "home_node": "",
+                        "sync_mode": "pull",
+                        "visibility": "private",
+                    },
+                )
+                try:
+                    result = run_dashboard_task("sync_pull_master", domain=target_domain)
+                    messages.success(
+                        request,
+                        f"Domain '{target_domain}' übernommen und Sync-Job eingereiht. Worker starten mit "
+                        f"'python manage.py process_distributed_sync_jobs --pending --domain {target_domain}'. "
+                        f"{_format_task_message(result)}",
+                    )
+                except ValueError as exc:
+                    messages.error(request, str(exc))
         else:
             return HttpResponseBadRequest("unknown action")
         return HttpResponseRedirect(reverse("admin-domains"))
@@ -478,6 +529,13 @@ def admin_domain_management_view(request: HttpRequest):
     )
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
+    master_domain_catalog = None
+    master_domain_catalog_error = ""
+    if local_node.role == "host" and local_node.is_enabled:
+        try:
+            master_domain_catalog = remote_domain_catalog()
+        except Exception as exc:
+            master_domain_catalog_error = str(exc)
     csrf_token = get_token(request)
     domain_management_url = reverse("admin-domains")
     create_html = render_fragment(
@@ -504,6 +562,8 @@ def admin_domain_management_view(request: HttpRequest):
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
             "local_node": local_node,
+            "master_domain_catalog": master_domain_catalog,
+            "master_domain_catalog_error": master_domain_catalog_error,
         },
     )
 
@@ -546,6 +606,43 @@ def admin_system_status_view(request: HttpRequest):
             "status_html": status_html,
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
+        },
+    )
+
+
+@require_GET
+def admin_sync_view(request: HttpRequest):
+    active_domain = _active_semantic_domain(request)
+    local_node, _ = NodeConfig.objects.get_or_create(
+        node_id=current_node_id(),
+        defaults={
+            "role": getattr(settings.KI_CONFIG, "distributed_node_role", "standalone") or "standalone",
+            "base_url": "",
+            "sync_on_connect": bool(getattr(settings.KI_CONFIG, "distributed_sync_on_connect", True)),
+            "is_enabled": bool(getattr(settings.KI_CONFIG, "distributed_enabled", False)),
+            "sync_shared_secret": (getattr(settings.KI_CONFIG, "distributed_sync_shared_secret", "") or "").strip(),
+        },
+    )
+    sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(Q(domain__slug=active_domain) | Q(domain__isnull=True)).order_by("-started_at")[:20])
+    from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
+    sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=20)
+    master_domain_catalog = None
+    master_domain_catalog_error = ""
+    if local_node.role == "host" and local_node.is_enabled:
+        try:
+            master_domain_catalog = remote_domain_catalog()
+        except Exception as exc:
+            master_domain_catalog_error = str(exc)
+    return render(
+        request,
+        "kicli_django/admin_sync.html",
+        {
+            "active_domain": active_domain,
+            "local_node": local_node,
+            "sync_runs": sync_runs,
+            "sync_jobs": sync_jobs,
+            "master_domain_catalog": master_domain_catalog,
+            "master_domain_catalog_error": master_domain_catalog_error,
         },
     )
 

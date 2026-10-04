@@ -1,0 +1,21 @@
+<div class="stack">
+  <p><strong>Worker:</strong> <code>{{ worker_command_example }}</code></p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Richtung</th><th>Status</th><th>Domain</th><th>Node</th><th>Start</th></tr></thead>
+      <tbody>
+        {% for run in sync_runs|slice:":6" %}
+          <tr>
+            <td>{{ run.direction }}</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.domain.slug|default:"-" }}</td>
+            <td>{{ run.node.node_id|default:"-" }}</td>
+            <td>{{ run.started_at }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">Noch keine Sync-Läufe vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

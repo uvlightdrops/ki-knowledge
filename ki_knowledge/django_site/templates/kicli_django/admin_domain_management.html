@@ -58,6 +58,46 @@
   </form>
 </div>
 
+{% if local_node.role == "host" %}
+<div class="card" style="margin-top:16px;">
+  <h3>Domains vom Master übernehmen</h3>
+  {% if master_domain_catalog_error %}
+    <p class="muted">Master-Katalog konnte nicht geladen werden: {{ master_domain_catalog_error }}</p>
+  {% elif master_domain_catalog %}
+    <p class="muted">Verfügbar von <code>{{ master_domain_catalog.master_url }}</code>. Übernommene Domains können lokal weiterbearbeitet und danach per Pull synchronisiert werden.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Domain</th><th>Home Node</th><th>Sync</th><th>Visibility</th><th>Projects</th><th>Status</th><th>Aktion</th></tr></thead>
+        <tbody>
+          {% for entry in master_domain_catalog.domains %}
+            <tr>
+              <td><strong>{{ entry.display_name }}</strong><br><span class="muted mono">{{ entry.slug }}</span></td>
+              <td>{{ entry.home_node|default:"-" }}</td>
+              <td>{{ entry.sync_mode }}</td>
+              <td>{{ entry.visibility }}</td>
+              <td>{{ entry.project_count }}</td>
+              <td>{% if entry.available_locally %}<span class="chip">lokal vorhanden</span>{% else %}<span class="chip">nur master</span>{% endif %}</td>
+              <td>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="adopt_master_domain">
+                  <input type="hidden" name="domain" value="{{ entry.slug }}">
+                  <button class="button" type="submit">{% if entry.available_locally %}Erneut syncen{% else %}Übernehmen{% endif %}</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">Der Master meldet derzeit keine Domains.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Noch kein Master-Katalog verfügbar.</p>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card" style="margin-top:16px;">
   {{ management_html|safe }}
 </div>
