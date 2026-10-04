@@ -4,6 +4,7 @@ import json
 from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
@@ -22,7 +23,7 @@ from .dashboard_registry import (
     widget_ids,
 )
 from .infosite_models import Domain, GeneratedDocument, InfoSiteProject
-from .infosite_models import SyncRun
+from .infosite_models import NodeConfig, SyncRun, current_node_id
 from .page_widgets import (
     build_admin_widget_cards,
     build_knowledge_widget_cards,
@@ -446,6 +447,18 @@ def admin_domain_management_view(request: HttpRequest):
                 )
             except ValueError as exc:
                 messages.error(request, str(exc))
+        elif action == "save_node_config":
+            local_node, _ = NodeConfig.objects.get_or_create(node_id=current_node_id())
+            local_node.display_name = request.POST.get("display_name", "").strip()
+            local_node.role = request.POST.get("role", "").strip() or local_node.role
+            local_node.base_url = request.POST.get("base_url", "").strip()
+            local_node.sync_on_connect = request.POST.get("sync_on_connect", "").strip().lower() in {"1", "true", "yes", "on"}
+            local_node.is_enabled = request.POST.get("is_enabled", "").strip().lower() in {"1", "true", "yes", "on"}
+            new_secret = request.POST.get("sync_shared_secret", "").strip()
+            if new_secret:
+                local_node.sync_shared_secret = new_secret
+            local_node.save()
+            messages.success(request, "Lokale Node-Konfiguration gespeichert. Hinweis: AppConfig/YAML kann diese Werte beim Neustart wieder überschreiben.")
         else:
             return HttpResponseBadRequest("unknown action")
         return HttpResponseRedirect(reverse("admin-domains"))
@@ -453,6 +466,16 @@ def admin_domain_management_view(request: HttpRequest):
     domain_states = semantic_domain_states()
     domain_rows = domain_registry_overview(active_domain)
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
+    local_node, _ = NodeConfig.objects.get_or_create(
+        node_id=current_node_id(),
+        defaults={
+            "role": getattr(settings.KI_CONFIG, "distributed_node_role", "standalone") or "standalone",
+            "base_url": "",
+            "sync_on_connect": bool(getattr(settings.KI_CONFIG, "distributed_sync_on_connect", True)),
+            "is_enabled": bool(getattr(settings.KI_CONFIG, "distributed_enabled", False)),
+            "sync_shared_secret": (getattr(settings.KI_CONFIG, "distributed_sync_shared_secret", "") or "").strip(),
+        },
+    )
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
     csrf_token = get_token(request)
@@ -480,6 +503,7 @@ def admin_domain_management_view(request: HttpRequest):
             "management_html": management_html,
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
+            "local_node": local_node,
         },
     )
 

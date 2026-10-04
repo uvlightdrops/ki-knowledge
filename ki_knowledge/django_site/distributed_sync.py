@@ -45,6 +45,7 @@ def ensure_local_node_config() -> NodeConfig:
             "base_url": snapshot.base_url,
             "sync_on_connect": snapshot.sync_on_connect,
             "is_enabled": snapshot.distributed_enabled or snapshot.role == "master",
+            "sync_shared_secret": (Config.from_env().distributed_sync_shared_secret or "").strip(),
             "last_seen_at": timezone.now(),
         },
     )

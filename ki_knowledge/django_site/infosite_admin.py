@@ -118,9 +118,10 @@ class DomainAdmin(admin.ModelAdmin):
 
 @admin.register(NodeConfig)
 class NodeConfigAdmin(admin.ModelAdmin):
-    list_display = ["node_id", "display_name", "role", "sync_on_connect", "is_enabled", "last_seen_at"]
+    list_display = ["node_id", "display_name", "role", "base_url", "sync_on_connect", "is_enabled", "last_seen_at"]
     list_filter = ["role", "sync_on_connect", "is_enabled", "created_at"]
     search_fields = ["node_id", "display_name", "base_url"]
+    readonly_fields = ["masked_sync_secret"]
 
 
 @admin.register(SyncRun)

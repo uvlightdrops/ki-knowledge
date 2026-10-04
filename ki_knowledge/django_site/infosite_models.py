@@ -83,6 +83,7 @@ class NodeConfig(models.Model):
     is_enabled = models.BooleanField(default=True)
     sync_on_connect = models.BooleanField(default=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
+    sync_shared_secret = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -91,6 +92,12 @@ class NodeConfig(models.Model):
 
     def __str__(self) -> str:
         return self.display_name or self.node_id
+
+    @property
+    def masked_sync_secret(self) -> str:
+        if not self.sync_shared_secret:
+            return ""
+        return "********"
 
 
 class SyncRun(models.Model):

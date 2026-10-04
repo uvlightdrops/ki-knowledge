@@ -10,6 +10,44 @@
 </div>
 
 <div class="card" style="margin-top:16px;">
+  <h3>Local Node Configuration</h3>
+  <p class="muted">Für Hosts ist die <strong>Master Base URL</strong> sinnvoller als eine nackte IP, weil der Sync über HTTP-Endpunkte mit Schema und Port läuft. Beispiel: <code>http://master-host:8000</code>.</p>
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save_node_config">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+      <label>
+        <div>Node ID</div>
+        <input type="text" value="{{ local_node.node_id }}" disabled>
+      </label>
+      <label>
+        <div>Display Name</div>
+        <input type="text" name="display_name" value="{{ local_node.display_name }}">
+      </label>
+      <label>
+        <div>Role</div>
+        <select name="role">
+          <option value="standalone"{% if local_node.role == "standalone" %} selected{% endif %}>standalone</option>
+          <option value="master"{% if local_node.role == "master" %} selected{% endif %}>master</option>
+          <option value="host"{% if local_node.role == "host" %} selected{% endif %}>host</option>
+        </select>
+      </label>
+      <label>
+        <div>Master / Local Base URL</div>
+        <input type="text" name="base_url" value="{{ local_node.base_url }}" placeholder="http://host:8000">
+      </label>
+      <label>
+        <div>Sync Shared Secret</div>
+        <input type="password" name="sync_shared_secret" value="" placeholder="{% if local_node.sync_shared_secret %}bereits gesetzt{% else %}optional{% endif %}">
+      </label>
+    </div>
+    <label><input type="checkbox" name="sync_on_connect" {% if local_node.sync_on_connect %}checked{% endif %}> Sync on connect</label>
+    <label><input type="checkbox" name="is_enabled" {% if local_node.is_enabled %}checked{% endif %}> Distributed sync enabled</label>
+    <button class="button" type="submit">Node-Konfiguration speichern</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top:16px;">
   <h3>Distributed Sync</h3>
   <p class="muted">Master/Host-Synchronisation für die aktive Domain direkt auslösen.</p>
   <form method="post" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
