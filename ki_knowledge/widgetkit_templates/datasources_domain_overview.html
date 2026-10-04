@@ -9,8 +9,3 @@
 </tr>
 {% endfor %}
 </tbody></table>
-<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-  {% for domain in all_domains %}
-    <a class="chip" href="?domain={{ domain.slug }}"{% if domain.is_active %} style="border-color:#60a5fa;color:#fff"{% endif %}>{{ domain.display_name }}</a>
-  {% endfor %}
-</div>

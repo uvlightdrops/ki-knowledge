@@ -2,22 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import knowledge_pdf_root
-
-
-def _pdf_type_root() -> Path:
-    override = os.getenv("KNOWLEDGE_PDF_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-    legacy = os.getenv("KICLI_PDF_ROOT", "").strip()
-    if legacy:
-        return Path(legacy).expanduser()
-    return knowledge_pdf_root(Config.from_env())
+from ki_knowledge.data_layout import MIX, PDF, DataLayout
 
 
 def _normalize_domain(value: str | None) -> str:
@@ -28,31 +17,36 @@ def _normalize_domain(value: str | None) -> str:
     return normalized or "default"
 
 
-def _pdf_domain_root(domain: str | None = None) -> Path:
+def _domain_dir(layout: DataLayout, source_type: str, resolved: str) -> Path:
+    for name in layout.source_domain_names(source_type):
+        if _normalize_domain(name) == resolved:
+            return layout.source_dir(source_type, name)
+    return layout.source_dir(source_type, resolved)
+
+
+def _pdf_domain_roots(domain: str | None = None) -> list[tuple[Path, str]]:
+    """PDF-capable source folders of a domain with the prefix used in source ids."""
     resolved = _normalize_domain(domain)
-    base = _pdf_type_root()
-    if base.exists() and base.is_dir():
-        for child in base.iterdir():
-            if child.is_dir() and _normalize_domain(child.name) == resolved:
-                return child
-    return base / resolved
+    layout = DataLayout.from_config(Config.from_env())
+    return [(_domain_dir(layout, PDF, resolved), ""), (_domain_dir(layout, MIX, resolved), "mix/")]
+
+
+def _pdf_domain_root(domain: str | None = None) -> Path:
+    return _pdf_domain_roots(domain)[0][0]
 
 
 def pdf_relative_source_path(pdf_path: str | Path, domain: str | None = None) -> str:
+    """Path relative to the domain's ``pdf`` folder; PDFs from ``mix`` get a ``mix/`` prefix."""
     path = Path(pdf_path).expanduser()
-    root = _pdf_domain_root(domain)
-
-    for candidate in (path, path.resolve(strict=False)):
-        try:
-            relative = candidate.relative_to(root)
-        except ValueError:
-            try:
-                relative = candidate.relative_to(root.resolve(strict=False))
-            except ValueError:
-                continue
-        if relative.parts and str(relative) != ".":
-            return relative.as_posix()
-
+    for root, prefix in _pdf_domain_roots(domain):
+        for candidate in (path, path.resolve(strict=False)):
+            for base in (root, root.resolve(strict=False)):
+                try:
+                    relative = candidate.relative_to(base)
+                except ValueError:
+                    continue
+                if relative.parts and str(relative) != ".":
+                    return prefix + relative.as_posix()
     return path.name
 
 

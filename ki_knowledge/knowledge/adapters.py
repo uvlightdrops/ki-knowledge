@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from hashlib import sha256
 from pathlib import Path
 
+from ki_knowledge.data_layout import MARKDOWN, DataLayout
 from ki_knowledge.integrations.jira_client import JiraIssue
 from ki_knowledge.integrations.markdown_blocks import KnowledgeBlock
 from ki_knowledge.knowledge.models import DataSourceDescriptor, KnowledgeBlockRecord, KnowledgeSource, SourceDocumentRecord
 from ki_knowledge.knowledge.quiz_schema import QuizModuleSpec, QuizOptionSpec, QuizQuestionSpec
+
+
+def _django_data_layout() -> DataLayout:
+    """Layout for the data root configured in Django settings (``KI_CONFIG``)."""
+    from django.conf import settings as django_settings
+
+    return DataLayout(Path(django_settings.KI_CONFIG.knowledge_data_root))
 
 
 class InfoSiteSourceAdapter:
@@ -24,23 +33,17 @@ class InfoSiteSourceAdapter:
         views (django.conf.settings.KI_CONFIG.knowledge_data_root), so any fallback
         path logic stays in one place instead of being duplicated per caller.
         """
-        from django.conf import settings as django_settings
-
-        data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
-        return data_root / "md" / domain / working_title
+        return _django_data_layout().source_dir(MARKDOWN, domain, working_title)
 
     @staticmethod
     def resolve_output_root(domain: str, working_title: str) -> Path:
         """Resolve the canonical generated-output directory for a domain/working_title pair.
 
-        Mirrors InfoSiteGeneratorService.output_base (`<data_root>/data_out/<domain>/<working_title>`),
+        Mirrors DataLayout.output_dir (`data_out/<domain>/<wt>` in v1, `domains/<domain>/output/<wt>` in v2),
         used by GeneratedDocument.display_path so output tables can show the
         part of the path specific to the file instead of the shared prefix.
         """
-        from django.conf import settings as django_settings
-
-        data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
-        return data_root / "data_out" / domain / working_title
+        return _django_data_layout().output_dir(domain, working_title)
 
     @staticmethod
     def relative_output_path(project: object, file_path: str) -> str:
@@ -57,11 +60,9 @@ class InfoSiteSourceAdapter:
         path = Path(file_path)
 
         try:
-            from django.conf import settings as django_settings
-
-            data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
-            if path.is_relative_to(data_root / "data_out"):
-                return str(path.relative_to(data_root / "data_out"))
+            relative = _django_data_layout().output_relative(path)
+            if relative is not None:
+                return str(relative)
         except Exception:
             pass
 
@@ -83,12 +84,9 @@ class InfoSiteSourceAdapter:
         path = Path(file_path)
 
         try:
-            from django.conf import settings as django_settings
-
-            data_root = Path(django_settings.KI_CONFIG.knowledge_data_root)
-            md_root = data_root / "md"
-            if path.is_relative_to(md_root):
-                return str(path.relative_to(md_root))
+            location = _django_data_layout().locate_source(path)
+            if location is not None and location.source_type == MARKDOWN:
+                return str(Path(location.domain_dir_name, location.relative_path))
         except Exception:
             pass
 
@@ -171,20 +169,37 @@ class MarkdownKnowledgeAdapter:
 
     @staticmethod
     def to_records(blocks: list[KnowledgeBlock], source: KnowledgeSource) -> list[KnowledgeBlockRecord]:
-        return [
-            KnowledgeBlockRecord(
+        """Map content blocks to records; headings are retained as context only."""
+        records = []
+        for block in blocks:
+            if block.block_type == "heading":
+                continue
+            metadata = {
+                **dict(block.metadata),
+                "record_schema_version": 1,
+                "content_kind": block.block_type,
+                "provenance": {
+                    "extractor": "tesseract_ocr" if source.source_type == "image" else "markdown_parser",
+                    "source_format": source.source_type,
+                    "content_representation": "markdown",
+                },
+            }
+            page_match = re.search(r"\bPage\s+(\d+)\b", block.heading_path, re.IGNORECASE)
+            if page_match:
+                metadata["page"] = int(page_match.group(1))
+            records.append(KnowledgeBlockRecord(
                 block_id=block.id,
                 source_id=source.source_id,
                 block_type=block.block_type,
                 title=block.heading_path or block.block_type,
                 content=block.content,
-                parent_block_id=block.parent_id,
+                parent_block_id=None,
                 path=block.heading_path,
                 order_index=block.order_index,
-                metadata=dict(block.metadata),
-            )
-            for block in blocks
-        ]
+                metadata=metadata,
+                object_type="text",
+            ))
+        return records
 
 
 class JiraKnowledgeAdapter:

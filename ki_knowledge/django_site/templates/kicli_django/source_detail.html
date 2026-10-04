@@ -6,7 +6,7 @@
 <p class="muted mono" title="{{ display_source_id }}">{{ display_source_id|short_id }}</p>
 
 <div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
-  <div class="muted">Ansicht</div>
+  <div class="muted">Artefaktansicht</div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
     <a class="chip" href="{{ records_toggle_cards_url }}" {% if display_mode == 'cards' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Karten</a>
     <a class="chip" href="{{ records_toggle_table_url }}" {% if display_mode == 'table' %}style="border-color:#60a5fa;color:#fff"{% endif %}>Tabelle</a>
@@ -26,6 +26,16 @@
   </div>
   <div class="card">
     <h3>Actions</h3>
+    {% if infosite_project %}
+      <p><a class="chip" href="{% url 'infosite:project_detail' project_id=infosite_project.id %}">InfoSite-Projekt öffnen →</a></p>
+    {% elif record_count %}
+      <p class="muted">Lege aus den importierten Records ein InfoSite-Projekt mit einer daraus aufgebauten Markdown-Quelle an.</p>
+      <form method="post" action="{% url 'source-infosite-create' %}">
+        {% csrf_token %}
+        <input type="hidden" name="source_id" value="{{ source.source_id }}">
+        <button type="submit">InfoSite-Projekt aus dieser Quelle anlegen</button>
+      </form>
+    {% endif %}
     <form method="post" action="{% url 'generate-action' %}">
       {% csrf_token %}
       <input type="hidden" name="source_id" value="{{ source.source_id }}">
@@ -38,40 +48,55 @@
 </div>
 
 <div class="section card">
-  <h3>Records</h3>
-  {% if display_records %}
-    {% if display_mode == "cards" %}
-      <div class="grid">
-        {% for record in display_records %}
-          <div class="card">
-            <h3>{{ record.title }}</h3>
-            <p><span class="chip">{{ record.block_type }}</span></p>
-            <p class="mono">{{ record.block_id|short_id }}</p>
-            <p class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</p>
+  <h3>Dokumentinhalt</h3>
+  <p class="muted">Records sind die aus der Quelle übernommenen Text- und Medienbausteine in Lesereihenfolge. Artefakte darunter sind daraus abgeleitete Zusammenfassungen, Lernkarten oder andere generierte Ergebnisse.</p>
+  <form method="get" action="" style="display:flex; gap:8px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+    <label>Inhalt durchsuchen
+      <input type="search" name="q" value="{{ record_query }}" placeholder="Text oder Abschnitt">
+    </label>
+    <button type="submit">Suchen</button>
+    {% if record_query %}<a class="chip" href="{% url 'source-detail' source.source_id %}">Suche zurücksetzen</a>{% endif %}
+  </form>
+  <p class="muted">{{ record_count }} Records · angezeigt {{ record_first_index }}–{{ record_last_index }} · Seite {{ record_page }} / {{ record_page_count }}</p>
+  {% if record_groups %}
+    <div class="record-browser">
+      {% for group in record_groups %}
+        <details class="card record-browser__section"{% if forloop.first %} open{% endif %}>
+          <summary><strong>{{ group.title }}</strong><span class="muted"> · {{ group.records|length }} Eintrag/Einträge</span></summary>
+          <div class="record-browser__items">
+            {% for item in group.records %}
+              <article class="record-browser__item">
+                <header>
+                  <span class="chip">{{ item.type }}</span>
+                  {% if item.page %}<span class="muted">Seite {{ item.page }}</span>{% endif %}
+                  {% if item.record.title and item.record.title != group.title %}<strong>{{ item.record.title }}</strong>{% endif %}
+                </header>
+                {% if item.content %}
+                  <div class="record-browser__content">{{ item.content }}</div>
+                {% elif item.type == "image" %}
+                  <p class="muted">Bildobjekt · {{ item.metadata.media_type|default:"Medientyp unbekannt" }} · {{ item.metadata.relative_path }}</p>
+                {% else %}
+                  <p class="muted">Kein Textinhalt in diesem Record.</p>
+                {% endif %}
+                <small class="muted mono">{{ item.record.block_id|short_id }}{% if item.source_format %} · {{ item.source_format }}{% endif %}</small>
+              </article>
+            {% endfor %}
           </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="table-wrap">
-      <table>
-        <tr><th>Type</th><th>Title</th><th>Path</th></tr>
-        {% for record in display_records %}
-          <tr>
-            <td><span class="chip">{{ record.block_type }}</span></td>
-            <td>{{ record.title }}</td>
-            <td class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</td>
-          </tr>
-        {% endfor %}
-      </table>
-      </div>
-    {% endif %}
+        </details>
+      {% endfor %}
+    </div>
+    <nav class="record-browser__pager">
+      {% if record_prev_url %}<a class="chip" href="{{ record_prev_url }}">← Zurück</a>{% endif %}
+      {% if record_next_url %}<a class="chip" href="{{ record_next_url }}">Weitere Records →</a>{% endif %}
+    </nav>
   {% else %}
-    <p>No records.</p>
+    <p class="muted">{% if record_query %}Keine Records passen zur Suche.{% else %}Keine Records vorhanden.{% endif %}</p>
   {% endif %}
 </div>
 
 <div class="section card">
-  <h3>Artifacts</h3>
+  <h3>Abgeleitete Artefakte</h3>
+  <p class="muted">Artefakte werden aus einem oder mehreren Records erzeugt und sind nicht der Originaltext des Dokuments.</p>
   {% if display_artifacts %}
     {% if display_mode == "cards" %}
       <div class="grid">
@@ -85,7 +110,7 @@
             {% endif %}
             <details>
               <summary>Content</summary>
-              <pre style="white-space:pre-wrap">{{ artifact.content }}</pre>
+              <pre style="white-space:pre-wrap">{{ artifact.display_content }}</pre>
             </details>
           </div>
         {% endfor %}
@@ -98,7 +123,13 @@
           <tr>
             <td>{{ artifact.artifact_type }}</td>
             <td class="mono">{{ artifact.artifact_id|short_id }}</td>
-            <td>{{ artifact.display_preview|default:"-" }}</td>
+            <td>
+              {{ artifact.display_preview|default:"-" }}
+              <details>
+                <summary>Artefakttext anzeigen</summary>
+                <pre style="white-space:pre-wrap">{{ artifact.display_content }}</pre>
+              </details>
+            </td>
           </tr>
         {% endfor %}
       </table>

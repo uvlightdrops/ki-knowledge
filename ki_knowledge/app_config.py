@@ -8,7 +8,10 @@ as plain attributes, while keeping the full resolved config available via
 
 from __future__ import annotations
 
+import copy
+import os
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Union
@@ -25,6 +28,89 @@ except ImportError:  # pragma: no cover - compatibility with stale editable inst
     sys.modules.pop("ki_core", None)
     sys.modules.pop("ki_core.config", None)
     from ki_core import ConfigDict, load_config
+
+
+# ---------------------------------------------------------------------------
+# Config cache
+#
+# load_config() merges schemas and YAML layers on every call (~90 ms). Django
+# views resolve paths many times per request, so the resolved payload is
+# cached per process. The cache key is a cheap fingerprint of everything the
+# resolution depends on (cwd, explicit path, KI_CFG_* env vars and the
+# mtime/size of all candidate config, creds, layered and schema files), so
+# edits to ki.yaml or env changes are picked up without a restart.
+# ---------------------------------------------------------------------------
+
+_CONFIG_CACHE: dict[tuple, ConfigDict] = {}
+_CONFIG_CACHE_LOCK = threading.Lock()
+_CONFIG_CACHE_MAX = 8
+
+
+def _stat_token(path: Path) -> tuple:
+    try:
+        st = path.stat()
+    except OSError:
+        return (str(path), None)
+    return (str(path), st.st_mtime_ns, st.st_size)
+
+
+def _layered_files(config_dir: Path) -> list[Path]:
+    root = config_dir / "config"
+    if not root.is_dir():
+        return [root]
+    files: list[Path] = [root]
+    for sub in ("defaults", "profiles", "stages", "runtime"):
+        folder = root / sub
+        files.append(folder)
+        if folder.is_dir():
+            files.extend(sorted(folder.iterdir()))
+    return files
+
+
+def _config_fingerprint(path: Optional[Union[str, Path]]) -> tuple:
+    cwd = Path.cwd()
+    home_cfg = Path.home() / ".config" / "ki"
+    candidates: list[Path] = [
+        cwd / "ki.yaml",
+        home_cfg / "ki.yaml",
+        cwd / "creds.yaml",
+        home_cfg / "creds.yaml",
+    ]
+    config_dirs = {cwd, home_cfg}
+    if path is not None:
+        explicit = Path(path).resolve()
+        candidates += [explicit, explicit.parent / "creds.yaml", explicit.parent / "config" / "creds.yaml"]
+        config_dirs.add(explicit.parent)
+    for config_dir in sorted(config_dirs):
+        candidates.extend(_layered_files(config_dir))
+    try:
+        from ki_core.config import get_merged_schemas
+
+        candidates.extend(get_merged_schemas())
+    except Exception:  # pragma: no cover - schema discovery is best effort
+        pass
+    env = tuple(sorted((k, v) for k, v in os.environ.items() if k.startswith("KI_CFG_")))
+    return (str(cwd), str(path) if path is not None else None, env, tuple(_stat_token(p) for p in candidates))
+
+
+def load_config_cached(path: Optional[Union[str, Path]] = None) -> ConfigDict:
+    """Return a private copy of the resolved config, cached by fingerprint."""
+    key = _config_fingerprint(path)
+    with _CONFIG_CACHE_LOCK:
+        payload = _CONFIG_CACHE.get(key)
+    if payload is None:
+        payload = load_config(path)
+        with _CONFIG_CACHE_LOCK:
+            if len(_CONFIG_CACHE) >= _CONFIG_CACHE_MAX:
+                _CONFIG_CACHE.clear()
+            _CONFIG_CACHE[key] = payload
+    return copy.deepcopy(payload)
+
+
+def clear_config_cache() -> None:
+    """Drop all cached config payloads (e.g. in tests or after bulk edits)."""
+    with _CONFIG_CACHE_LOCK:
+        _CONFIG_CACHE.clear()
 
 
 @dataclass
@@ -86,7 +172,7 @@ class AppConfig:
     @classmethod
     def from_yaml(cls, path: Optional[Union[str, Path]] = None) -> "AppConfig":
         """Load and resolve config from YAML + environment variables."""
-        payload = load_config(path)
+        payload = load_config_cached(path)
 
         providers = payload.get_path("llm.providers", {}) or {}
         ki_cfg = providers.get("ki", {}) or {}

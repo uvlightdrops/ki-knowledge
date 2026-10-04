@@ -11,19 +11,11 @@ from django.conf import settings
 from ki_knowledge.django_site.domain_paths import (
     _cached_get,
     _cached_set,
-    _resolve_domain_file,
-    _resolve_existing_domain_dir,
     default_semantic_domain,
-    domain_jira_dir,
-    domain_markdown_dir,
-    domain_ontology_dir,
-    domain_pdf_dir,
+    domain_source_roots,
+    domain_state_paths,
     invalidate_domain_summary_cache,
-    jira_type_root,
-    markdown_type_root,
     normalize_semantic_domain,
-    ontology_type_root,
-    pdf_type_root,
 )
 from ki_knowledge.integrations.semantic_terms import SemanticTermStore
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
@@ -39,22 +31,8 @@ def _domain_source_ids_cache_key(domain: str | None = None) -> str:
     return f"ki-knowledge:domain-source-ids:{resolved}"
 
 
-def domain_storage_root() -> Path:
-    raw = os.getenv("KNOWLEDGE_JIRA_ROOT", "").strip()
-    if raw:
-        return Path(raw).expanduser()
-    return jira_type_root()
-
-
 def domain_db_paths(domain: str | None = None) -> dict[str, Path]:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    domain_dir = _resolve_existing_domain_dir(domain_storage_root(), resolved)
-    return {
-        "domain": domain_dir,
-        "cache_db": _resolve_domain_file(domain_dir, "cache.sqlite", "jira_cache.sqlite"),
-        "graph_db": _resolve_domain_file(domain_dir, "graph.sqlite", "jira_graph.sqlite"),
-        "cypher_path": _resolve_domain_file(domain_dir, "graph.cypher", "jira_graph.cypher"),
-    }
+    return domain_state_paths(normalize_semantic_domain(domain or default_semantic_domain()))
 
 
 def _is_under_dir(path: Path, root: Path) -> bool:
@@ -81,12 +59,7 @@ def _domain_scoped_sources(domain: str | None = None, *, limit: int | None = Non
         rows = store().list_sources()[:limit] if limit is not None else store().list_sources()
         return rows
 
-    roots = [
-        domain_markdown_dir(resolved),
-        domain_jira_dir(resolved),
-        domain_ontology_dir(resolved),
-        domain_pdf_dir(resolved),
-    ]
+    roots = domain_source_roots(resolved)
     clauses: list[str] = []
     params: list[str] = []
     for root in roots:
@@ -394,7 +367,6 @@ def semantic_job_detail(job_id: str, domain: str | None = None) -> dict[str, Any
 
 
 __all__ = [
-    "domain_storage_root",
     "domain_db_paths",
     "store",
     "_domain_scoped_sources",

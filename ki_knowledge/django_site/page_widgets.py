@@ -65,12 +65,108 @@ def _build_widget_card(body: str, spec: Any, *, widget_widths: dict[str, int] | 
     return _card(spec.widget_id, label=spec.label, description=spec.description, body=body, width=_widget_width(spec, widget_widths=widget_widths))
 
 
+def _render_quick_import(ctx: dict[str, Any]) -> str:
+    from ki_knowledge.django_site.quick_import import UPLOAD_ACCEPT, quick_import_rows
+
+    domain = ctx.get("active_domain") or ""
+    rows = quick_import_rows(domain, ctx.get("active_domain_state") or {}, ctx.get("sources") or ())
+    return render_fragment("datasources_import_quick", {
+        "rows": rows,
+        "any_files": any(row["can_import"] for row in rows),
+        "active_domain": domain,
+        "upload_accept": UPLOAD_ACCEPT,
+        "csrf_token": ctx["csrf_token"],
+    })
+
+
+def _render_mix_overview(ctx: dict[str, Any]) -> str:
+    from ki_knowledge.django_site.services import display_data_path
+    from ki_knowledge.django_site.source_workflow import mixed_files_summary
+
+    summary = mixed_files_summary(ctx.get("active_domain"))
+    return render_fragment("datasources_mix_overview", {
+        "mix": summary,
+        "mix_dir": str(summary["dir"]),
+        "mix_dir_display": display_data_path(summary["dir"]),
+        "counts": [(kind, count) for kind, count in summary["counts"].items() if kind != "unsupported"],
+        "unsupported": summary["counts"].get("unsupported", 0),
+        "active_domain": ctx.get("active_domain"),
+        "csrf_token": ctx["csrf_token"],
+    })
+
+
+def _render_infooutput_overview(ctx: dict[str, Any]) -> str:
+    domain = ctx["active_domain"]
+    documents = ctx["domain_documents"]
+    projects = ctx["recent_projects"]
+    domain_row = next((row for row in ctx["domain_stats"] if row["slug"] == domain), {})
+    return render_fragment("output_overview", {
+        "domain": domain,
+        "project_count": len(projects),
+        "document_count": int(domain_row.get("total", len(documents)) or 0),
+        "approved_count": int(domain_row.get("approved", 0) or 0),
+        "recent_count": len(documents),
+        "infosite_url": "/output/infosite/dashboard/",
+    })
+
+
+def _render_infooutput_projects(ctx: dict[str, Any]) -> str:
+    projects = ctx["recent_projects"]
+    return render_fragment("output_recent_projects", {
+        "projects": [
+            {
+                "title": project.title,
+                "domain": project.domain,
+                "working_title": project.working_title,
+                "status": project.generation_status,
+                "url": f"/output/infosite/project/{project.id}/",
+            }
+            for project in projects
+        ],
+        "project_url": "/output/infosite/dashboard/",
+    })
+
+
+def _render_infooutput_documents(ctx: dict[str, Any], *, generated_only: bool = False) -> str:
+    documents = ctx["domain_documents"]
+    if generated_only:
+        documents = [document for document in documents if document.review_status in {"approved", "in_review"}]
+    return render_fragment("output_recent_documents", {
+        "documents": [
+            {
+                "path": document.display_path,
+                "title": document.project.title,
+                "review_status": document.get_review_status_display(),
+                "url": f"/output/infosite/project/{document.project_id}/preview/",
+            }
+            for document in documents[:10]
+        ],
+        "empty_message": (
+            "Noch keine freigegebenen oder in Prüfung befindlichen Ausgabedokumente."
+            if generated_only else "Für diese Domain gibt es noch keine Ausgabedokumente."
+        ),
+    })
+
+
+def _render_infooutput_domains(ctx: dict[str, Any]) -> str:
+    return render_fragment("output_domain_overview", {
+        "domains": ctx["domain_stats"],
+        "active_domain": ctx["active_domain"],
+    })
+
+
+def _render_infooutput_formats(ctx: dict[str, Any]) -> str:
+    return render_fragment("output_formats", {"formats": ctx["formats"]})
+
+
 def _widget_fragment_handlers() -> dict[str, Any]:
     return {
         "datasources.domain.overview.v1": lambda ctx: render_fragment("datasources_domain_overview", {"all_domains": ctx["all_domains"]}),
+        "datasources.domain.switcher.v1": lambda ctx: render_fragment("domain_switcher", {"all_domains": ctx["all_domains"]}),
         "datasources.overview.summary.v1": lambda ctx: render_fragment("datasources_overview_summary", {"sources": ctx["sources"], "markdown_count": ctx["markdown_count"], "owl_sources": ctx["owl_sources"]}),
-        "datasources.import.quick.v1": lambda ctx: render_fragment("datasources_import_quick", {"csrf_token": ctx["csrf_token"]}),
+        "datasources.import.quick.v1": _render_quick_import,
         "datasources.sources.discovery.v1": lambda ctx: render_fragment("datasources_sources_discovery", {"markdown_count": ctx["markdown_count"], "sources": ctx["sources"]}),
+        "datasources.mix.overview.v1": _render_mix_overview,
         "datasources.jobs.recent.v1": lambda ctx: render_fragment("datasources_jobs_recent", {"pdf_jobs": ctx["pdf_jobs"], "jira_issues": ctx["jira_issues"]}),
         "knowledge.overview.summary.v1": lambda ctx: render_fragment("knowledge_overview_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
         "knowledge.semantic.monitor.v1": lambda ctx: render_fragment("knowledge_semantic_monitor", {"active_domain": ctx["active_domain"]}),
@@ -82,6 +178,29 @@ def _widget_fragment_handlers() -> dict[str, Any]:
         "knowledge.graph.overview.v1": lambda ctx: render_fragment("knowledge_graph_overview", {"active_domain": ctx["active_domain"], "scoped_knowledge": ctx["scoped_knowledge"]}),
         "knowledge.tools.summary.v1": lambda ctx: render_fragment("knowledge_tools_summary", {"quick_links": ctx["quick_links"]}),
         "admin.domain.db.overview.v1": lambda ctx: render_fragment("admin_domain_db_overview", {"domain_rows": ctx["domain_rows"]}),
+        "admin.domain.switcher.v1": lambda ctx: render_fragment("domain_switcher", {"all_domains": ctx["domain_rows"]}),
+        "admin.domain.management.v1": lambda ctx: render_fragment("admin_domain_management", {
+            "domain_states": ctx["domain_states"],
+            "active_domain": ctx["active_domain"],
+            "csrf_token": ctx["csrf_token"],
+            "domain_management_url": ctx["domain_management_url"],
+        }),
+        "admin.domain.create.v1": lambda ctx: render_fragment("admin_domain_create", {
+            "csrf_token": ctx["csrf_token"],
+            "domain_management_url": ctx["domain_management_url"],
+        }),
+        "admin.system.status.v1": lambda ctx: render_fragment("admin_system_status", {
+            "active_domain": ctx["active_domain"],
+            "registered_domain_count": ctx["registered_domain_count"],
+            "layout": ctx["layout"],
+            "status_url": ctx["status_url"],
+        }),
+        "infooutput.overview.summary.v1": _render_infooutput_overview,
+        "infooutput.formats.summary.v1": _render_infooutput_formats,
+        "infooutput.domain.overview.v1": _render_infooutput_domains,
+        "infooutput.infosite.recent.v1": _render_infooutput_projects,
+        "infooutput.documents.recent.v1": _render_infooutput_documents,
+        "infooutput.generated.documents.v1": lambda ctx: _render_infooutput_documents(ctx, generated_only=True),
         "settings.layout.registry.v1": lambda ctx: f"<p><strong>Active area:</strong> {ctx['config_summary'].get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>",
         "settings.config.summary.v1": lambda ctx: render_fragment("settings_config_summary", {"config_summary": ctx["config_summary"]}),
         "settings.layout.preview.v1": lambda ctx: render_fragment("settings_layout_preview", {"active_domain": ctx["active_domain"]}),
@@ -135,7 +254,7 @@ def _adapter_import_quick(spec: Any) -> dict[str, Any]:
         "description": spec.description,
         "stats": [],
         "rows": [],
-        "links": _preview_links(("Import", "/data-sources/import/"), ("Workspace", "/data-sources/workspace/"), ("PDF jobs", "/data-sources/pdf/")),
+        "links": _preview_links(("Workspace", "/data-sources/workspace/"), ("PDF jobs", "/data-sources/pdf/"), ("Sources", "/data-sources/sources/")),
     }
 
 
@@ -277,7 +396,40 @@ def build_data_sources_widget_cards(
         if spec is None:
             continue
         handler = handlers.get(widget_id)
-        body = handler({"all_domains": all_domains, "sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources, "csrf_token": csrf_token, "pdf_jobs": pdf_jobs, "jira_issues": jira_issues}) if handler else f"<p>{spec.description}</p>"
+        body = handler({"active_domain": active_domain, "active_domain_state": active_domain_state, "all_domains": all_domains, "sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources, "csrf_token": csrf_token, "pdf_jobs": pdf_jobs, "jira_issues": jira_issues}) if handler else f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
+    return cards
+
+
+def build_sources_widget_cards(
+    *,
+    request: Any,
+    ctx: dict[str, Any],
+    widget_ids: list[str],
+    widget_widths: dict[str, int] | None = None,
+) -> list[dict[str, str]]:
+    """Cards for the sources browser; ``ctx`` comes from ``views_data_sources.sources``."""
+    from markupsafe import Markup, escape
+
+    csrf_token = get_token(request) if request is not None else ""
+    hidden = Markup(f'<input type="hidden" name="csrfmiddlewaretoken" value="{escape(csrf_token)}">') + Markup("").join(
+        Markup(f'<input type="hidden" name="{escape(key)}" value="{escape(value)}">')
+        for key, value in ctx["filter_params"].items()
+        if value
+    )
+    shared = {**ctx, "csrf_token": csrf_token, "hidden": hidden}
+    templates = {
+        "sources.filter.v1": "sources_filter",
+        "sources.list.v1": "sources_list",
+        "sources.unimported.v1": "sources_unimported",
+    }
+    cards: list[dict[str, str]] = []
+    for widget_id in widget_ids:
+        spec = widget_by_id(widget_id)
+        if spec is None:
+            continue
+        template = templates.get(widget_id)
+        body = render_fragment(template, shared) if template else f"<p>{spec.description}</p>"
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
@@ -306,7 +458,8 @@ def build_output_widget_cards(
     *,
     active_domain: str,
     domain_stats: list[dict[str, Any]],
-    recent_documents: list[Any],
+    domain_documents: list[Any],
+    recent_projects: list[Any],
     formats: list[dict[str, Any]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
@@ -318,7 +471,13 @@ def build_output_widget_cards(
         if spec is None:
             continue
         handler = handlers.get(widget_id)
-        body = handler({"domain_stats": domain_stats, "recent_documents": recent_documents, "formats": formats}) if handler else f"<p>{spec.description}</p>"
+        body = handler({
+            "active_domain": active_domain,
+            "domain_stats": domain_stats,
+            "domain_documents": domain_documents,
+            "recent_projects": recent_projects,
+            "formats": formats,
+        }) if handler else f"<p>{spec.description}</p>"
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
@@ -329,18 +488,40 @@ def build_admin_widget_cards(
     domain_rows: list[dict[str, Any]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
+    domain_states: list[dict[str, Any]] | None = None,
+    layout: dict[str, Any] | None = None,
+    csrf_token: str = "",
+    domain_management_url: str = "/admin-overview/domains/",
+    status_url: str = "/admin-overview/status/",
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
     handlers = _widget_fragment_handlers()
+    domain_states = domain_states if domain_states is not None else []
+    layout = layout if layout is not None else {}
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
         handler = handlers.get(widget_id)
         if widget_id == "admin.domain.management.v1":
-            body = f"<p><strong>Active domain:</strong> {active_domain}</p><p><strong>Registered domains:</strong> {len(domain_rows)}</p>"
+            body = handler({
+                "domain_states": domain_states,
+                "active_domain": active_domain,
+                "csrf_token": csrf_token,
+                "domain_management_url": domain_management_url,
+            })
+        elif widget_id == "admin.domain.create.v1":
+            body = handler({
+                "csrf_token": csrf_token,
+                "domain_management_url": domain_management_url,
+            })
         elif widget_id == "admin.system.status.v1":
-            body = f"<p><strong>Builder:</strong> active</p><p><strong>Admin area:</strong> enabled</p><p><strong>Active domain:</strong> {active_domain}</p><p><a href=\"/settings/\">Open settings</a></p>"
+            body = handler({
+                "active_domain": active_domain,
+                "registered_domain_count": len(domain_states),
+                "layout": layout,
+                "status_url": status_url,
+            })
         elif widget_id == "admin.workspace.config.v1":
             body = f"<p><strong>Knowledge DB:</strong> /data/knowledge</p><p><strong>Active domain:</strong> {active_domain}</p><p><a href=\"/settings/config/\">Open config summary</a></p>"
         elif handler:

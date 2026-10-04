@@ -6,7 +6,7 @@ import json
 import re
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from ki_knowledge.integrations.markdown_blocks import KnowledgeBlock, MarkdownBlockParser
 from ki_knowledge.knowledge.adapters import MarkdownKnowledgeAdapter
@@ -125,6 +125,40 @@ class KnowledgeStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_artifacts_type ON knowledge_artifacts(artifact_type)"
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS knowledge_store_migrations (
+                    name TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )
+                """
+            )
+            migration = "v1_remove_markdown_heading_records"
+            applied = conn.execute(
+                "SELECT 1 FROM knowledge_store_migrations WHERE name = ?",
+                (migration,),
+            ).fetchone()
+            if applied is None:
+                heading_ids = "SELECT id FROM knowledge_blocks WHERE block_type = 'heading'"
+                conn.execute(f"DELETE FROM knowledge_embeddings WHERE block_id IN ({heading_ids})")
+                conn.execute(
+                    f"DELETE FROM knowledge_relations WHERE source_block_id IN ({heading_ids}) "
+                    f"OR target_block_id IN ({heading_ids})"
+                )
+                conn.execute(
+                    f"""
+                    DELETE FROM knowledge_artifacts
+                    WHERE EXISTS (
+                        SELECT 1 FROM json_each(knowledge_artifacts.source_block_ids_json)
+                        WHERE value IN ({heading_ids})
+                    )
+                    """
+                )
+                conn.execute(f"DELETE FROM knowledge_blocks WHERE id IN ({heading_ids})")
+                conn.execute(
+                    "INSERT INTO knowledge_store_migrations (name, applied_at) VALUES (?, ?)",
+                    (migration, self._now()),
+                )
 
     def import_markdown_file(
         self,
@@ -179,6 +213,7 @@ class KnowledgeStore:
 
         for record in MarkdownKnowledgeAdapter.to_records(blocks, source):
             self.upsert_record(record)
+        self.delete_records_by_type(source.source_id, {"heading"})
 
         return blocks
 
@@ -240,8 +275,11 @@ class KnowledgeStore:
                 "source_id": record.source_id,
                 "title": record.title,
                 "tags": record.tags,
+                "object_type": record.object_type or record.block_type,
             }
         )
+        metadata.setdefault("record_schema_version", 1)
+        metadata.setdefault("provenance", {"source_format": source.source_type})
         now = self._now()
         with self._connect() as conn:
             conn.execute(
@@ -286,6 +324,48 @@ class KnowledgeStore:
             return None
         return self._row_to_record(row)
 
+    def delete_records_by_type(self, source_id: str, block_types: set[str]) -> int:
+        """Remove obsolete parser-only records when a source is re-imported."""
+        if not block_types:
+            return 0
+        placeholders = ",".join("?" for _ in block_types)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT id FROM knowledge_blocks
+                WHERE json_extract(metadata_json, '$.source_id') = ?
+                  AND block_type IN ({placeholders})
+                """,
+                [source_id, *sorted(block_types)],
+            ).fetchall()
+            ids = [row["id"] for row in rows]
+            if not ids:
+                return 0
+            conn.execute(
+                f"""
+                DELETE FROM knowledge_artifacts
+                WHERE EXISTS (
+                    SELECT 1 FROM json_each(knowledge_artifacts.source_block_ids_json)
+                    WHERE value IN (
+                        SELECT id FROM knowledge_blocks
+                        WHERE json_extract(metadata_json, '$.source_id') = ?
+                          AND block_type IN ({placeholders})
+                    )
+                )
+                """,
+                [source_id, *sorted(block_types)],
+            )
+            for batch in _chunked(ids, _SQLITE_MAX_VARIABLES // 2):
+                placeholders = ",".join("?" for _ in batch)
+                conn.execute(f"DELETE FROM knowledge_embeddings WHERE block_id IN ({placeholders})", batch)
+                conn.execute(
+                    f"DELETE FROM knowledge_relations WHERE source_block_id IN ({placeholders}) "
+                    f"OR target_block_id IN ({placeholders})",
+                    [*batch, *batch],
+                )
+                conn.execute(f"DELETE FROM knowledge_blocks WHERE id IN ({placeholders})", batch)
+        return len(ids)
+
     def list_records(
         self,
         source_id: Optional[str] = None,
@@ -310,6 +390,35 @@ class KnowledgeStore:
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_record(row) for row in rows]
+
+    def browse_records(
+        self,
+        source_id: str,
+        *,
+        query_text: str = "",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[KnowledgeBlockRecord], int]:
+        """Return one source's records and total count for a paged content browser."""
+        clauses = ["json_extract(metadata_json, '$.source_id') = ?"]
+        params: list[Any] = [source_id]
+        needle = query_text.strip()
+        if needle:
+            pattern = f"%{needle}%"
+            clauses.append(
+                "(content LIKE ? OR heading_path LIKE ? OR json_extract(metadata_json, '$.title') LIKE ?)"
+            )
+            params.extend((pattern, pattern, pattern))
+        where = " AND ".join(clauses)
+        with self._connect() as conn:
+            total = int(
+                conn.execute(f"SELECT COUNT(*) FROM knowledge_blocks WHERE {where}", params).fetchone()[0]
+            )
+            rows = conn.execute(
+                f"SELECT * FROM knowledge_blocks WHERE {where} ORDER BY order_index, created_at, id LIMIT ? OFFSET ?",
+                [*params, limit, offset],
+            ).fetchall()
+        return [self._row_to_record(row) for row in rows], total
 
     def upsert_artifact(self, artifact: KnowledgeArtifact) -> None:
         now = self._now()
@@ -602,6 +711,44 @@ class KnowledgeStore:
             return None
         return json.loads(row["vector_json"])
 
+    def source_stats(self) -> dict[str, dict[str, Any]]:
+        """Per source id: record and artifact counts plus timestamps (one query per table)."""
+        stats: dict[str, dict[str, Any]] = {}
+
+        def entry(source_id: str) -> dict[str, Any]:
+            return stats.setdefault(source_id, {"records": 0, "artifacts": 0, "created_at": "", "updated_at": ""})
+
+        with self._connect() as conn:
+            for row in conn.execute("SELECT source_id, created_at, updated_at FROM knowledge_sources"):
+                item = entry(row["source_id"])
+                item["created_at"] = row["created_at"]
+                item["updated_at"] = row["updated_at"]
+            for row in conn.execute(
+                "SELECT json_extract(metadata_json, '$.source_id') AS source_id, COUNT(*) AS n "
+                "FROM knowledge_blocks GROUP BY json_extract(metadata_json, '$.source_id')"
+            ):
+                if row["source_id"]:
+                    entry(row["source_id"])["records"] = int(row["n"])
+            for row in conn.execute("SELECT source_id, COUNT(*) AS n FROM knowledge_artifacts GROUP BY source_id"):
+                entry(row["source_id"])["artifacts"] = int(row["n"])
+        return stats
+
+    def delete_source(self, source_id: str) -> dict[str, int]:
+        """Remove a source with its records (incl. embeddings/relations) and artifacts."""
+        with self._connect() as conn:
+            block_ids = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT id FROM knowledge_blocks WHERE json_extract(metadata_json, '$.source_id') = ?",
+                    (source_id,),
+                )
+            ]
+        records = self.delete_records(block_ids)
+        with self._connect() as conn:
+            artifacts = conn.execute("DELETE FROM knowledge_artifacts WHERE source_id = ?", (source_id,)).rowcount
+            sources = conn.execute("DELETE FROM knowledge_sources WHERE source_id = ?", (source_id,)).rowcount
+        return {"sources": sources, "records": records, "artifacts": artifacts}
+
     def _row_to_source(self, row: sqlite3.Row) -> KnowledgeSource:
         return KnowledgeSource(
             source_id=row["source_id"],
@@ -613,6 +760,7 @@ class KnowledgeStore:
 
     def _row_to_record(self, row: sqlite3.Row) -> KnowledgeBlockRecord:
         metadata = json.loads(row["metadata_json"])
+        object_type = metadata.pop("object_type", "")
         return KnowledgeBlockRecord(
             block_id=row["id"],
             source_id=metadata.get("source_id", ""),
@@ -623,6 +771,7 @@ class KnowledgeStore:
             path=row["heading_path"],
             order_index=int(row["order_index"]),
             tags=list(metadata.get("tags", [])),
+            object_type=object_type,
             metadata={
                 key: value
                 for key, value in metadata.items()

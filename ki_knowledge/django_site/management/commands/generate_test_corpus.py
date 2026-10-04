@@ -29,6 +29,8 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from ki_knowledge.data_layout import MARKDOWN, DataLayout
+
 WORDS = (
     "system prozess struktur konzept modul workflow domäne wissen block "
     "quelle dokument pipeline modell schema knoten kontext ebene faktor "
@@ -100,8 +102,8 @@ class Command(BaseCommand):
         if n_files < 1:
             raise CommandError("--files must be >= 1")
 
-        data_root = Path(settings.KI_CONFIG.knowledge_data_root)
-        target_dir = data_root / "md" / domain / working_title
+        layout = DataLayout(Path(settings.KI_CONFIG.knowledge_data_root))
+        target_dir = layout.source_dir(MARKDOWN, domain, working_title)
 
         if target_dir.exists() and any(target_dir.rglob("*.md")) and not options["force"]:
             raise CommandError(

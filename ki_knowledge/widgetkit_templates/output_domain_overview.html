@@ -1,0 +1,20 @@
+<div class="output-domain-overview">
+  {% if domains %}
+  <table>
+    <thead><tr><th>Domain</th><th>Gesamt</th><th>Freigegeben</th><th>In Prüfung</th><th>Abgelehnt</th></tr></thead>
+    <tbody>
+      {% for domain in domains %}
+      <tr{% if domain.slug == active_domain %} class="is-active"{% endif %}>
+        <td>{{ domain.display_name }}</td>
+        <td>{{ domain.total }}</td>
+        <td>{{ domain.approved }}</td>
+        <td>{{ domain.in_review }}</td>
+        <td>{{ domain.rejected }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Noch keine Domains mit Ausgabestatistik vorhanden.</p>
+  {% endif %}
+</div>

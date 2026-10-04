@@ -10,7 +10,6 @@ from django.urls import reverse
 from .dashboard_registry import (
     default_widget_ids_for_area,
     frontpage_aggregate_widgets,
-    layout_positions_for_widgets,
     widget_by_id,
 )
 from .infosite_models import (
@@ -125,21 +124,7 @@ def _load_dashboard_widget_ids(request: HttpRequest, *, area_key: str = "dashboa
         .values_list("widget_id", flat=True)
     )
     if not selected:
-        DashboardWidgetPlacement.objects.filter(dashboard=dashboard).delete()
-        for index, widget_id in enumerate(fallback):
-            if widget_by_id(widget_id) is None:
-                continue
-            position = layout_positions_for_widgets(fallback)[widget_id]
-            DashboardWidgetPlacement.objects.create(
-                dashboard=dashboard,
-                widget_id=widget_id,
-                sort_index=index,
-                x=position["x"],
-                y=position["y"],
-                w=position["w"],
-                h=position["h"],
-            )
-        return list(fallback)
+        return []
     return selected
 
 

@@ -1,0 +1,7 @@
+<form method="post" action="{{ domain_management_url }}">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <input type="hidden" name="action" value="create">
+  <label>Neue Domain</label>
+  <input type="text" name="domain" placeholder="z.B. anthro, politik" required>
+  <button type="submit">Domain anlegen</button>
+</form>

@@ -166,7 +166,7 @@ class MarkdownBlockParser:
         
         return KnowledgeBlockData(
             title=self._extract_title_from_content(content),
-            content=content[:500],  # Limit to first 500 chars for preview
+            content=content,
             level=4,  # Content is deeper than headings
             block_type="paragraph",
             parent_index=parent_index,

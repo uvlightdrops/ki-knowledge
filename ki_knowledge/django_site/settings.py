@@ -4,15 +4,18 @@ import os
 from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import config as runtime_config, knowledge_data_root
+from ki_knowledge.config_runtime import config as runtime_config, knowledge_data_root, knowledge_db_path
+from ki_knowledge.data_layout import DataLayout
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 _CONFIG = runtime_config()
 DATA_DIR = knowledge_data_root(_CONFIG)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-KNOWLEDGE_DB_PATH = os.getenv("KNOWLEDGE_DB_PATH", str(DATA_DIR / "knowledge.db"))
-DJANGO_DB_PATH = os.getenv("DJANGO_DB_PATH", str(DATA_DIR / "django.sqlite3"))
+KNOWLEDGE_DB_PATH = str(knowledge_db_path(_CONFIG))
+DJANGO_DB_PATH = os.getenv("DJANGO_DB_PATH", str(DataLayout(DATA_DIR).django_db_path()))
+for _db_path in (KNOWLEDGE_DB_PATH, DJANGO_DB_PATH):
+    Path(_db_path).parent.mkdir(parents=True, exist_ok=True)
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-ki-knowledge-site")
 DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes"}

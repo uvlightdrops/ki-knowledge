@@ -208,7 +208,11 @@ def resolve_ui_action(
     the dashboard background pipeline. They map the interactive UI actions of the
     builder/editor (add/remove/reset/reorder) to the persisted layout state.
     """
-    from ki_knowledge.django_site.dashboard_registry import layout_positions_for_widgets, widget_by_id
+    from ki_knowledge.django_site.dashboard_registry import (
+        default_widget_ids_for_area,
+        layout_positions_for_widgets,
+        widget_by_id,
+    )
     from ki_knowledge.django_site.infosite_models import DashboardDefinition, DashboardWidgetPlacement, ensure_domain_registered
 
     if request is None:
@@ -227,13 +231,68 @@ def resolve_ui_action(
         return []
 
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
-    dashboard, _ = DashboardDefinition.objects.get_or_create(
+    dashboard, created = DashboardDefinition.objects.get_or_create(
         owner=owner,
         domain=domain_obj,
         area_key=area_key,
         slug=f"{area_key}-{domain}",
         defaults={"title": f"{area_key.title()} dashboard for {domain}"},
     )
+
+    if created:
+        # The builder may be displaying the shared layout as a fallback. Seed
+        # the editable dashboard with that same layout before applying changes.
+        source_dashboard = None
+        if owner is not None:
+            source_dashboard = (
+                DashboardDefinition.objects.filter(
+                    owner__isnull=True,
+                    domain=domain_obj,
+                    area_key=area_key,
+                )
+                .order_by("-updated_at", "-created_at")
+                .first()
+            )
+        source_placements = (
+            list(
+                DashboardWidgetPlacement.objects.filter(dashboard=source_dashboard)
+                .order_by("sort_index", "widget_id")
+            )
+            if source_dashboard is not None
+            else []
+        )
+        if source_placements:
+            for placement in source_placements:
+                if widget_by_id(placement.widget_id) is None:
+                    continue
+                DashboardWidgetPlacement.objects.create(
+                    dashboard=dashboard,
+                    widget_id=placement.widget_id,
+                    sort_index=placement.sort_index,
+                    x=placement.x,
+                    y=placement.y,
+                    w=placement.w,
+                    h=placement.h,
+                    config_json=placement.config_json,
+                )
+        elif source_dashboard is None:
+            default_ids = [
+                candidate
+                for candidate in default_widget_ids_for_area(area_key)
+                if widget_by_id(candidate) is not None
+            ]
+            positions = layout_positions_for_widgets(default_ids)
+            for index, candidate in enumerate(default_ids):
+                position = positions[candidate]
+                DashboardWidgetPlacement.objects.create(
+                    dashboard=dashboard,
+                    widget_id=candidate,
+                    sort_index=index,
+                    x=position["x"],
+                    y=position["y"],
+                    w=position["w"],
+                    h=position["h"],
+                )
 
     selections = list(
         DashboardWidgetPlacement.objects.filter(dashboard=dashboard)

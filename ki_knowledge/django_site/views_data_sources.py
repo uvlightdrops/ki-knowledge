@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from .dashboard_registry import default_widget_ids_for_area
 from .page_widgets import build_data_sources_widget_cards
@@ -28,6 +30,8 @@ from .services import (
     graph_3d_context,
     graph_context,
     import_markdown_directory,
+    import_mixed_directory,
+    import_mixed_file,
     import_markdown_file,
     import_ontology_directory,
     import_ontology_file,
@@ -63,6 +67,7 @@ from .services import (
     save_ollama_chat_markdown,
     save_prompt_library_documents,
     semantic_domain_states,
+    start_pdf_worker,
     semantic_job_detail,
     semantic_jobs,
     semantic_store,
@@ -74,6 +79,8 @@ from .services import (
     workspace_markdown_files,
     workspace_ontology_files,
 )
+from ki_knowledge.integrations.mixed_ingest import IMAGE_KIND, TABLE_KIND, classify_file, discover_mixed_files
+
 from .views_common import (
     _active_semantic_domain,
     _choice_param,
@@ -214,55 +221,152 @@ def workspace(request: HttpRequest):
     )
 
 
+_SOURCES_SORT_OPTIONS = (("updated", "Zuletzt aktualisiert"), ("title", "Titel"), ("records", "Meiste Einträge"), ("kind", "Typ"))
+
+
+def _sources_filters(params: Any) -> dict[str, str]:
+    from .sources_browser import KIND_KEYS, SORT_KEYS
+
+    kind = str(params.get("kind", "") or params.get("type", "") or "").strip()
+    sort = str(params.get("sort", "") or "").strip()
+    display = str(params.get("display", "") or "").strip()
+    page = str(params.get("page", "") or "").strip()
+    return {
+        "kind": kind if kind in KIND_KEYS else "",
+        "q": str(params.get("q", "") or "").strip()[:200],
+        "sort": sort if sort in SORT_KEYS else "updated",
+        "display": display if display in {"table", "cards"} else "table",
+        "page": page if page.isdigit() and int(page) > 1 else "",
+    }
+
+
+def _sources_url(filters: dict[str, str], **overrides: str) -> str:
+    params = {**filters, **overrides}
+    query = urlencode({key: value for key, value in params.items() if value and not (key == "sort" and value == "updated") and not (key == "display" and value == "table")})
+    return f"{reverse('sources')}?{query}" if query else reverse("sources")
+
+
 @require_GET
 
 def sources(request: HttpRequest):
+    from .knowledge_summary import _domain_scoped_sources
+    from .page_widgets import build_sources_widget_cards
+    from .sources_browser import PAGE_SIZE, domain_folders, filter_rows, kind_counts, source_rows, unimported_files
+    from ki_knowledge.integrations.mixed_ingest import tesseract_binary
+
     active_domain = _active_semantic_domain(request)
-    display_mode = _display_mode(request, default="cards")
+    filters = _sources_filters(request.GET)
     store_obj = store()
-    source_type = request.GET.get("type") or None
-    sources_list = [
-        source
-        for source in store_obj.list_sources(source_type=source_type)
-        if source_in_domain(source, domain=active_domain)
+    domain_sources = _domain_scoped_sources(active_domain)
+    folders = domain_folders(active_domain)
+    all_rows = source_rows(active_domain, domain_sources, store_obj.source_stats(), folders)
+    selected = filter_rows(all_rows, kind=filters["kind"], query=filters["q"], sort=filters["sort"])
+    page = int(filters["page"] or 1)
+    page_rows, total, has_more = _paginate_items(selected, page=page, page_size=PAGE_SIZE)
+    for row in page_rows:
+        row["detail_url"] = reverse("source-detail", args=[row["source_id"]])
+    chips = [
+        {**chip, "active": chip["key"] == filters["kind"], "href": _sources_url(filters, kind=chip["key"], page="")}
+        for chip in kind_counts(all_rows)
     ]
-    scoped_knowledge = domain_knowledge_summary(active_domain)
-    markdown_files = workspace_markdown_files(domain=active_domain)
-    ontology_files = workspace_ontology_files(domain=active_domain)
-    domain_states = semantic_domain_states()
-    active_state = next((item for item in domain_states if item.get("domain") == active_domain), {"domain": active_domain})
-    owl_sources = [
-        source
-        for source in store_obj.list_sources(source_type="owl")
-        if source_in_domain(source, domain=active_domain)
-    ]
+    pending = unimported_files(active_domain, domain_sources, folders)
+    first_index = (page - 1) * PAGE_SIZE + 1
+    ctx = {
+        "active_domain": active_domain,
+        "chips": chips,
+        "kind": filters["kind"],
+        "query": filters["q"],
+        "sort": filters["sort"],
+        "display": filters["display"],
+        "sort_options": _SOURCES_SORT_OPTIONS,
+        "base_url": reverse("sources"),
+        "display_table_href": _sources_url(filters, display="table"),
+        "display_cards_href": _sources_url(filters, display="cards"),
+        "rows": page_rows,
+        "total": total,
+        "total_all": len(all_rows),
+        "first_index": first_index,
+        "last_index": first_index + len(page_rows) - 1,
+        "prev_href": _sources_url(filters, page=str(page - 1) if page > 2 else "") if page > 1 else "",
+        "next_href": _sources_url(filters, page=str(page + 1)) if has_more else "",
+        "pending": pending,
+        "unimported_new": pending["new"],
+        "max_files": 200,
+        "ocr_missing": tesseract_binary() is None and any(
+            item["kind"] == "image" for group in pending["folders"] for item in group["files"]
+        ),
+        "action_url": reverse("sources-action"),
+        "generate_url": reverse("generate-action"),
+        "filter_params": filters,
+    }
+    widget_ids = _load_dashboard_widget_ids(request, area_key="sources", fallback=default_widget_ids_for_area("sources"))
+    widget_cards = build_sources_widget_cards(
+        request=request,
+        ctx=ctx,
+        widget_ids=widget_ids,
+        widget_widths=_load_dashboard_widget_widths(request, area_key="sources"),
+    )
     return render(
         request,
         "kicli_django/sources.html",
-        {
-            "sources": sources_list,
-            "source_type": source_type or "(all)",
-            "source_count": len(sources_list),
-            "artifact_count": int(scoped_knowledge["artifacts"]),
-            "markdown_count": len(markdown_files),
-            "ontology_count": len(ontology_files),
-            "ontology_examples": [
-                {**item, "display_path": display_data_path(item["path"])}
-                for item in ontology_files[:8]
-            ],
-            "jira_issues": jira_issue_count(active_domain),
-            "data_dir": display_data_path(data_dir(active_domain)),
-            "jira_csv_path": display_data_path(jira_csv_path(active_domain)),
-            "jira_cache_db": display_data_path(jira_cache_db_path(active_domain)),
-            "active_domain": active_domain,
-            "active_domain_state": active_state,
-            "display_mode": display_mode,
-            "sources_toggle_cards_url": f"{reverse('sources')}?{urlencode({'type': source_type or '', 'display': 'cards'})}",
-            "sources_toggle_table_url": f"{reverse('sources')}?{urlencode({'type': source_type or '', 'display': 'table'})}",
-            "owl_sources": len(owl_sources),
-            "markdown_examples": markdown_files[:6],
-        },
+        {"widget_cards": widget_cards, "active_domain": active_domain, "source_count": len(all_rows)},
     )
+
+
+@require_http_methods(["POST"])
+
+def sources_action(request: HttpRequest):
+    """Per-source (reimport/delete) and per-file (import) actions of the sources browser."""
+    from .knowledge_summary import _domain_scoped_sources
+    from .sources_browser import FOLDER_KEYS, delete_source, import_all_unimported, import_folder_file, reimport_source
+
+    active_domain = _active_semantic_domain(request)
+    filters = _sources_filters(request.POST)
+    action = request.POST.get("action", "").strip()
+    image_processing = "asset" if request.POST.get("image_processing") == "asset" else "ocr"
+    redirect = HttpResponseRedirect(_sources_url(filters))
+    store_obj = store()
+
+    if action in {"reimport", "delete"}:
+        source_id = request.POST.get("source_id", "").strip()
+        source = next((item for item in _domain_scoped_sources(active_domain) if item.source_id == source_id), None)
+        if source is None:
+            return HttpResponseBadRequest("source not in active domain")
+        result = (
+            reimport_source(active_domain, source, image_processing=image_processing)
+            if action == "reimport"
+            else delete_source(active_domain, store_obj, source)
+        )
+        (messages.success if result["ok"] else messages.error)(request, result["message"])
+        return redirect
+    if action == "import_file":
+        result = import_folder_file(
+            active_domain,
+            request.POST.get("folder", "").strip(),
+            request.POST.get("file", "").strip(),
+            image_processing=image_processing,
+        )
+        (messages.success if result["ok"] else messages.error)(request, result["message"])
+        return redirect
+    if action == "import_all":
+        folder = request.POST.get("folder", "").strip()
+        if folder and folder not in FOLDER_KEYS:
+            return HttpResponseBadRequest("unknown folder")
+        results = import_all_unimported(
+            active_domain,
+            _domain_scoped_sources(active_domain),
+            folder=folder,
+            image_processing=image_processing,
+        )
+        ok = sum(1 for item in results if item["ok"])
+        if results:
+            messages.success(request, f"{ok} von {len(results)} Datei(en) importiert bzw. eingereiht.")
+        else:
+            messages.info(request, "Nichts zu importieren.")
+        for item in [item for item in results if not item["ok"]][:10]:
+            messages.warning(request, item["message"])
+        return redirect
+    return HttpResponseBadRequest("unknown action")
 
 
 @require_GET
@@ -275,18 +379,79 @@ def source_detail(request: HttpRequest, source_id: str):
         return HttpResponseBadRequest("source not found")
     if source_id not in domain_source_ids(active_domain):
         return HttpResponseBadRequest("source not in active domain")
+    from .record_browser import group_records
+    from .infosite_records import find_source_infosite_project
+
+    infosite_project = find_source_infosite_project(
+        domain=active_domain,
+        source_id=source_id,
+        source_title=source.title,
+    )
+
     display_mode = _display_mode(request, default="table")
-    records = store_obj.list_records(source_id=source_id, limit=1000)
+    record_query = request.GET.get("q", "").strip()[:200]
+    page_size = 50
+    page = _int_param(request, "page", 1, 1, 100000)
+    records, record_count = store_obj.browse_records(
+        source_id,
+        query_text=record_query,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
+    page_count = max(1, (record_count + page_size - 1) // page_size)
+    requested_page = page
+    page = min(requested_page, page_count)
+    if page != requested_page:
+        records, record_count = store_obj.browse_records(
+            source_id,
+            query_text=record_query,
+            limit=page_size,
+            offset=(page - 1) * page_size,
+        )
     artifacts = store_obj.list_artifacts(source_id=source_id)
-    record_toggle_base = f"{reverse('source-detail', args=[source_id])}?display={{mode}}"
+    record_page_base = reverse("source-detail", args=[source_id])
+
+    def artifact_display_url(mode: str) -> str:
+        return f"{record_page_base}?{urlencode({'q': record_query, 'page': page, 'display': mode})}"
+
+    display_artifacts = []
+    for artifact in artifacts:
+        try:
+            structured_content = json.dumps(json.loads(artifact.content), ensure_ascii=False, indent=2)
+        except (TypeError, ValueError):
+            structured_content = artifact.content
+        display_artifacts.append(
+            {
+                **artifact.__dict__,
+                "display_source_id": display_source_ref(artifact.source_id),
+                "display_preview": artifact_content_preview(artifact.artifact_type, artifact.content),
+                "display_content": structured_content,
+            }
+        )
     return render(
         request,
         "kicli_django/source_detail.html",
         {
             "source": source,
+            "infosite_project": infosite_project,
             "display_source_id": display_source_ref(source.source_id),
             "display_location": display_data_path(source.location),
             "records": records,
+            "record_groups": group_records(records),
+            "record_query": record_query,
+            "record_count": record_count,
+            "record_page": page,
+            "record_page_count": page_count,
+            "record_first_index": (page - 1) * page_size + 1 if record_count else 0,
+            "record_last_index": min(page * page_size, record_count),
+            "record_prev_url": (
+                f"{record_page_base}?{urlencode({'q': record_query, 'page': page - 1})}"
+                if page > 1 else ""
+            ),
+            "record_next_url": (
+                f"{record_page_base}?{urlencode({'q': record_query, 'page': page + 1})}"
+                if page < page_count else ""
+            ),
             "display_records": [
                 {
                     **record.__dict__,
@@ -296,23 +461,53 @@ def source_detail(request: HttpRequest, source_id: str):
                 for record in records
             ],
             "artifacts": artifacts,
-            "display_artifacts": [
-                {
-                    **artifact.__dict__,
-                    "display_source_id": display_source_ref(artifact.source_id),
-                    "display_preview": artifact_content_preview(artifact.artifact_type, artifact.content),
-                }
-                for artifact in artifacts
-            ],
+            "display_artifacts": display_artifacts,
             "display_mode": display_mode,
-            "records_toggle_cards_url": record_toggle_base.format(mode="cards"),
-            "records_toggle_table_url": record_toggle_base.format(mode="table"),
-            "artifacts_toggle_cards_url": record_toggle_base.format(mode="cards"),
-            "artifacts_toggle_table_url": record_toggle_base.format(mode="table"),
+            "records_toggle_cards_url": artifact_display_url("cards"),
+            "records_toggle_table_url": artifact_display_url("table"),
+            "artifacts_toggle_cards_url": artifact_display_url("cards"),
+            "artifacts_toggle_table_url": artifact_display_url("table"),
             "graph_url": reverse("source-graph", args=[source_id]),
             "graph_3d_url": reverse("source-graph-3d", args=[source_id]),
         },
     )
+
+
+@require_POST
+def create_source_infosite_project(request: HttpRequest):
+    """Create an InfoSite project whose first source is this source's records."""
+    from django.conf import settings
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from .infosite_records import create_infosite_project_from_records
+
+    source_id = request.POST.get("source_id", "").strip()
+    active_domain = _active_semantic_domain(request)
+    if not source_id or source_id not in domain_source_ids(active_domain):
+        return HttpResponseBadRequest("source not found in active domain")
+
+    store_obj = store()
+    source = store_obj.get_source(source_id)
+    if source is None:
+        return HttpResponseBadRequest("source not found")
+
+    try:
+        project, created = create_infosite_project_from_records(
+            source=source,
+            records=store_obj.list_records(source_id=source_id),
+            domain=active_domain,
+            data_root=settings.KI_CONFIG.knowledge_data_root,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("source-detail", source_id=source_id)
+
+    if created:
+        messages.success(request, "InfoSite-Projekt mit den Records dieser Quelle wurde angelegt.")
+    else:
+        messages.info(request, "Für diese Quelle existiert bereits ein InfoSite-Projekt.")
+    return redirect("infosite:project_detail", project_id=project.id)
 
 
 @require_GET
@@ -1230,6 +1425,20 @@ def import_action(request: HttpRequest):
                 return HttpResponseBadRequest("PDF file not found")
             messages.success(request, f"PDF import queued: {job_id}")
             return HttpResponseRedirect(f"{reverse('pdf-import-jobs')}?domain={domain}")
+        if classify_file(path) in {TABLE_KIND, IMAGE_KIND}:
+            image_processing = "asset" if request.POST.get("image_processing") == "asset" else "ocr"
+            result = import_mixed_file(
+                path,
+                domain=_active_semantic_domain(request),
+                image_processing=image_processing,
+            )
+            if result.get("error"):
+                messages.error(request, f"{path.name}: {result['error']}")
+            else:
+                messages.success(request, f"{path.name}: {result['imported']} Wissensobjekte übernommen.")
+                for warning in result.get("warnings", []):
+                    messages.warning(request, warning)
+            return HttpResponseRedirect(reverse(next_page))
         # Detect OWL/RDF files by extension
         if path.suffix.lower() in {".owl", ".rdf", ".ttl", ".n3", ".jsonld"}:
             import_ontology_file(path)
@@ -1237,6 +1446,26 @@ def import_action(request: HttpRequest):
             import_markdown_file(path, source_name=request.POST.get("source_name") or path.name)
     elif should_treat_as_directory:
         path.mkdir(parents=True, exist_ok=True)
+        grouped = discover_mixed_files(path)
+        if grouped[TABLE_KIND] or grouped[IMAGE_KIND]:
+            domain = _active_semantic_domain(request)
+            summary = import_mixed_directory(
+                path,
+                domain=domain,
+                queue_pdf=lambda pdf_path: create_pdf_import_job(str(pdf_path), domain=domain),
+                image_processing="asset" if request.POST.get("image_processing") == "asset" else "ocr",
+            )
+            counts = ", ".join(f"{kind}: {count}" for kind, count in summary["files"].items() if count)
+            messages.success(
+                request,
+                f"Mix-Import: {summary['imported']} Wissensobjekte ({counts or 'keine Dateien'}), "
+                f"{summary['queued_pdfs']} PDF-Jobs eingereiht.",
+            )
+            for error in summary["errors"][:10]:
+                messages.warning(request, f"{Path(error['file']).name}: {error['error']}")
+            if summary["unsupported"]:
+                messages.info(request, f"{len(summary['unsupported'])} Datei(en) mit unbekanntem Format übersprungen.")
+            return HttpResponseRedirect(reverse(next_page))
         # Auto-detect which importer to use based on file types in directory
         md_files = list(path.glob("**/*.md"))
         pdf_files = discover_pdf_files(path)
@@ -1269,6 +1498,43 @@ def import_action(request: HttpRequest):
     else:
         return HttpResponseBadRequest("path not importable")
     return HttpResponseRedirect(reverse(next_page))
+
+
+@require_http_methods(["POST"])
+
+def quick_import_action(request: HttpRequest):
+    """Path-free import: a source folder of the active domain, all folders, or uploaded files."""
+    from .quick_import import QUICK_SOURCE_KEYS, quick_import_rows, run_all_imports, run_source_import, save_and_import_uploads
+
+    domain = _active_semantic_domain(request)
+    target = reverse("data-sources")
+    uploads = request.FILES.getlist("files")
+    image_processing = "asset" if request.POST.get("image_processing") == "asset" else "ocr"
+    if uploads:
+        result = save_and_import_uploads(uploads, domain, image_processing=image_processing)
+        if result["imported"]:
+            messages.success(request, "Hochgeladen & importiert: " + ", ".join(result["imported"]))
+        for warning in result["warnings"][:10]:
+            messages.warning(request, warning)
+        if not result["imported"] and not result["warnings"]:
+            messages.info(request, "Keine Dateien empfangen.")
+        return HttpResponseRedirect(target)
+
+    source = request.POST.get("source", "").strip()
+    if source == "all":
+        state = next((item for item in semantic_domain_states() if item.get("domain") == domain), {"domain": domain})
+        results = run_all_imports(domain, quick_import_rows(domain, state, ()), image_processing=image_processing)
+        if not results:
+            messages.info(request, "Keine Dateien zum Importieren gefunden.")
+    elif source in QUICK_SOURCE_KEYS:
+        results = [run_source_import(source, domain, image_processing=image_processing)]
+    else:
+        return HttpResponseBadRequest("unknown source")
+    for result in results:
+        (messages.success if result["ok"] else messages.error)(request, result["message"])
+        for warning in result["warnings"][:10]:
+            messages.warning(request, warning)
+    return HttpResponseRedirect(target)
 
 
 @require_http_methods(["POST"])
@@ -1321,34 +1587,34 @@ def pdf_import_jobs_view(request: HttpRequest):
             messages.success(request, f"Deleted {result['deleted']} old job(s) for {domain}.")
             return HttpResponseRedirect(reverse("pdf-import-jobs") + f"?domain={domain}")
         if action == "reset-stale":
-            timeout_seconds = _int_post_param(request, "timeout_seconds", 30, minimum=5, maximum=3600)
+            timeout_seconds = _int_post_param(request, "timeout_seconds", 3600, minimum=30, maximum=86400)
             processor = get_pdf_batch_processor()
             cleanup = processor.cleanup_stale_jobs(domain=domain, timeout_seconds=timeout_seconds)
-            retry = processor.process_pending_jobs(domain=domain, timeout_seconds=timeout_seconds)
             messages.success(
                 request,
-                (
-                    f"Reset stale PDF jobs for {domain}: "
-                    f"timed out {cleanup.get('timed_out', 0)}, "
-                    f"recovered {retry.get('claimed', 0)} pending jobs "
-                    f"({retry.get('done', 0)} done, {retry.get('failed', 0)} failed)."
-                ),
+                f"Expired {cleanup.get('timed_out', 0)} stale worker lease(s) for {domain}. "
+                "No PDFs were processed; expired jobs are marked failed and can be retried explicitly.",
             )
             return HttpResponseRedirect(reverse("pdf-import-jobs") + f"?domain={domain}")
-        if action == "process-pending":
-            timeout_seconds = _int_post_param(request, "timeout_seconds", 600, minimum=5, maximum=3600)
+        if action == "retry-failed":
             processor = get_pdf_batch_processor()
-            result = processor.process_pending_jobs(domain=domain, timeout_seconds=timeout_seconds)
-            messages.success(
-                request,
-                (
-                    f"Processed PDF jobs for {domain}: "
-                    f"claimed {result.get('claimed', 0)}, "
-                    f"done {result.get('done', 0)}, "
-                    f"failed {result.get('failed', 0)}, "
-                    f"recovered stale {result.get('timed_out', 0)}."
-                ),
-            )
+            result = processor.retry_failed_jobs(domain=domain)
+            messages.success(request, f"Requeued {result['retried']} failed PDF job(s) for {domain}.")
+            return HttpResponseRedirect(reverse("pdf-import-jobs") + f"?domain={domain}")
+        if action == "process-pending":
+            result = start_pdf_worker(domain)
+            if result["started"]:
+                messages.success(request, f"PDF-Worker gestartet: {result['pending_at_start']} wartende Jobs für {domain}.")
+            elif result["reason"] == "empty":
+                messages.info(request, f"Keine wartenden PDF-Jobs für {domain}.")
+            elif result["reason"] == "active":
+                active_worker = result.get("worker") or {}
+                messages.info(
+                    request,
+                    f"Ein PDF-Worker läuft bereits ({active_worker.get('domain', 'unbekannte Domain')}).",
+                )
+            else:
+                messages.error(request, f"PDF-Worker konnte nicht gestartet werden: {result.get('error', 'unbekannter Fehler')}")
             return HttpResponseRedirect(reverse("pdf-import-jobs") + f"?domain={domain}")
 
         pdf_path = request.POST.get("pdf_path", "").strip()
@@ -1370,6 +1636,7 @@ def pdf_import_jobs_view(request: HttpRequest):
     status = request.GET.get("status", "").strip() or None
     jobs = pdf_import_jobs(domain=domain, status=status, limit=200)
     report = pdf_import_report(domain=domain, limit=8)
+    worker_run = get_pdf_batch_processor().get_worker_run()
     
     summary = {
         "total": len(jobs),
@@ -1386,8 +1653,11 @@ def pdf_import_jobs_view(request: HttpRequest):
             "jobs": jobs,
             "summary": summary,
             "status": status or "(all)",
+            "status_filter": status or "",
             "active_domain": domain,
             "report": report,
+            "worker_run": worker_run,
+            "worker_active": bool(worker_run and worker_run["status"] in {"starting", "running"}),
         },
     )
 
@@ -1452,7 +1722,8 @@ def pdf_import_jobs_json(request: HttpRequest):
         "failed": sum(1 for j in jobs if j["status"] == "failed"),
     }
     
-    return JsonResponse({"jobs": jobs, "summary": summary})
+    worker = get_pdf_batch_processor().get_worker_run()
+    return JsonResponse({"jobs": jobs, "summary": summary, "worker": worker})
 
 
 @require_GET

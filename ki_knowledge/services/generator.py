@@ -8,6 +8,7 @@ Creates versioning baseline and metadata for tracking.
 import os
 import re
 import shutil
+from html import escape
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,8 @@ from typing import Optional
 
 import markdown
 import yaml
+
+from ki_knowledge.data_layout import MARKDOWN, DataLayout
 
 from .discovery import DocumentDiscoveryService, FileInfo
 
@@ -71,7 +74,7 @@ class InfoSiteGeneratorService:
             self.data_root = Path(self.config.knowledge_data_root)
         
         self.discovery = DocumentDiscoveryService(self.config)
-        self.output_base = self.data_root / "data_out"
+        self.layout = DataLayout(self.data_root)
 
     def generate_infosite(
         self,
@@ -209,7 +212,7 @@ class InfoSiteGeneratorService:
             )
 
             links: list[tuple[str, str]] = []
-            html_pages: list[tuple[Path, str, str]] = []
+            html_pages: list[tuple[Path, str, str, list[tuple[str, str]]]] = []
 
             for md_file in md_files:
                 rel_path = md_file.relative_to(output_dir)
@@ -218,25 +221,26 @@ class InfoSiteGeneratorService:
 
                 source = md_file.read_text(encoding="utf-8")
                 title = self._extract_title(source, rel_path.stem)
-                body_html = markdown.markdown(
-                    source,
+                markdown_page = markdown.Markdown(
                     extensions=["extra", "toc", "sane_lists", "tables", "fenced_code", "attr_list"],
                 )
+                body_html = markdown_page.convert(source)
+                page_sections = self._page_section_links(markdown_page.toc_tokens)
 
                 href = rel_path.with_suffix(".html").as_posix()
                 links.append((title, href))
-                html_pages.append((html_path, title, body_html))
+                html_pages.append((html_path, title, body_html, page_sections))
 
             sorted_links = sorted(links, key=lambda item: item[0].casefold())
 
-            for html_path, title, body_html in html_pages:
+            for html_path, title, body_html, page_sections in html_pages:
                 rel_html_path = html_path.relative_to(site_dir)
                 nav_links = []
                 for page_label, page_href in sorted_links:
                     page_target = Path(page_href)
                     rel_href = os.path.relpath(page_target, start=rel_html_path.parent)
                     nav_links.append((page_label, rel_href.replace('\\', '/')))
-                html = self._render_html_page(title, body_html, nav_links)
+                html = self._render_html_page(title, body_html, nav_links, page_sections)
                 html_path.write_text(html, encoding="utf-8")
 
             index_html = self._render_html_index(
@@ -265,15 +269,44 @@ class InfoSiteGeneratorService:
         return fallback.replace("-", " ").title()
 
     @staticmethod
-    def _render_html_page(title: str, body_html: str, nav_links: list[tuple[str, str]]) -> str:
-        nav_html = "\n".join(f'<li><a href="{href}">{label}</a></li>' for label, href in nav_links)
-        option_html = "\n".join(f'<option value="{href}">{label}</option>' for label, href in nav_links)
+    def _page_section_links(toc_tokens: list[dict]) -> list[tuple[str, str]]:
+        """Return links for PDF-style Page N headings in the current document."""
+        sections: list[tuple[str, str]] = []
+
+        def visit(items: list[dict]) -> None:
+            for item in items:
+                title = str(item.get("name", "")).strip()
+                page_match = re.search(r"((?:page|seite)\s+\d+)$", title, re.IGNORECASE)
+                if page_match:
+                    sections.append((page_match.group(1), str(item.get("id", ""))))
+                visit(item.get("children", []))
+
+        visit(toc_tokens)
+        return sections
+
+    @staticmethod
+    def _render_html_page(
+        title: str,
+        body_html: str,
+        nav_links: list[tuple[str, str]],
+        page_sections: list[tuple[str, str]] | None = None,
+    ) -> str:
+        page_sections = page_sections or []
+        nav_html = "\n".join(
+            f'<li><a href="{escape(href, quote=True)}">{escape(label)}</a></li>'
+            for label, href in nav_links
+        )
+        section_nav_html = "\n".join(
+            f'<li><a class="page-section-link" href="#{escape(anchor, quote=True)}">{escape(label)}</a></li>'
+            for label, anchor in page_sections
+            if anchor
+        )
         return f"""<!doctype html>
 <html lang=\"en\">
 <head>
   <meta charset=\"utf-8\">
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-  <title>{title}</title>
+  <title>{escape(title)}</title>
   <style>
     :root {{
       color-scheme: dark;
@@ -301,7 +334,7 @@ class InfoSiteGeneratorService:
     a {{ color: var(--accent); text-decoration: none; }}
     a:hover {{ text-decoration: underline; }}
     .shell {{
-      max-width: 1240px;
+      max-width: 1440px;
       margin: 0 auto;
       padding: 28px 20px 48px;
     }}
@@ -328,66 +361,46 @@ class InfoSiteGeneratorService:
       box-shadow: var(--shadow);
       overflow: hidden;
     }}
-    .surface + .surface {{ margin-top: 18px; }}
-    .surface-header {{
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.82);
+    .content {{ padding: 20px 24px 26px; }}
+    .content h1:first-child {{ margin-top: 0; }}
+    .page-layout {{
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      align-items: start;
+      gap: 18px;
     }}
-    .surface-title {{
-      font-size: 0.68rem;
+    .sidebar {{
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 16px;
+    }}
+    .sidebar h2 {{
+      margin: 0 0 8px;
+      font-size: 0.75rem;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--muted);
-      font-weight: 700;
     }}
-    .content {{ padding: 20px 24px 26px; }}
-    .content h1:first-child {{ margin-top: 0; }}
-    .nav-summary {{ color: var(--muted); font-size: 0.78rem; }}
-    .nav-tools {{
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }}
-    .nav-select {{
-      min-width: min(100%, 320px);
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--panel-soft);
-      color: var(--text);
-    }}
-    nav {{
-      padding: 14px 18px 16px;
-      background: rgba(2, 6, 23, 0.3);
-      border-top: 1px solid rgba(148, 163, 184, 0.08);
-    }}
-    nav ul {{
+    .sidebar ul {{
       list-style: none;
       padding: 0;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 4px 18px;
-      margin: 0;
+      margin: 0 0 20px;
     }}
-    nav li a {{
-      display: inline;
-      padding: 0;
-      border: 0;
-      background: transparent;
+    .sidebar li a {{
+      display: block;
+      padding: 5px 8px;
+      border-radius: 7px;
       color: var(--muted);
-      font-size: 0.8rem;
+      font-size: 0.88rem;
       transition: color 0.2s ease;
     }}
-    nav li a:hover {{
-      text-decoration: underline;
+    .sidebar li a:hover {{
+      background: var(--panel-soft);
       color: var(--accent);
     }}
+    .sidebar li a.page-section-link {{ padding-left: 18px; font-size: 0.82rem; }}
     pre {{ background: #020617; padding: 1rem; overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }}
     code {{ background: rgba(30, 41, 59, 0.82); padding: 0.12rem 0.35rem; border-radius: 6px; }}
     table {{ border-collapse: collapse; width: 100%; }}
@@ -401,13 +414,10 @@ class InfoSiteGeneratorService:
     }}
     @media (max-width: 820px) {{
       .shell {{ padding: 18px 14px 32px; }}
-      .hero, .surface-header {{ flex-direction: column; align-items: stretch; }}
+      .hero {{ flex-direction: column; align-items: stretch; }}
       .content {{ padding: 18px; }}
-      .nav-select {{ min-width: 100%; width: 100%; }}
-      nav ul {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-    }}
-    @media (max-width: 560px) {{
-      nav ul {{ grid-template-columns: 1fr; }}
+      .page-layout {{ grid-template-columns: 1fr; }}
+      .sidebar {{ position: static; max-height: 40vh; }}
     }}
   </style>
 </head>
@@ -415,44 +425,21 @@ class InfoSiteGeneratorService:
   <div class="shell">
     <header class="hero">
       <div>
-        <h1>{title}</h1>
-        <p>Generated infosite page</p>
+        <h1>{escape(title)}</h1>
+        <p>Generated InfoSite</p>
       </div>
     </header>
-    <main class="surface content">
-      {body_html}
-    </main>
-    <section class="surface">
-      <div class="surface-header">
-        <div>
-          <div class="surface-title">File Index</div>
-          <div class="nav-summary">{len(nav_links)} page(s) available</div>
-        </div>
-        <div class="nav-tools">
-          <label class="surface-title" for="page-jump">Jump to page</label>
-          <select id="page-jump" class="nav-select">
-            <option value="">Choose a page…</option>
-            {option_html}
-          </select>
-        </div>
-      </div>
-      <nav>
-        <ul>
-          {nav_html}
-        </ul>
-      </nav>
-    </section>
+    <div class="page-layout">
+      <aside class="surface sidebar" aria-label="InfoSite navigation">
+        <h2>Alle Inhalte</h2>
+        <ul>{nav_html}</ul>
+        {"<h2>Seiten in diesem Dokument</h2><ul>" + section_nav_html + "</ul>" if section_nav_html else ""}
+      </aside>
+      <main class="surface content">
+        {body_html}
+      </main>
+    </div>
   </div>
-  <script>
-    const pageJump = document.getElementById('page-jump');
-    if (pageJump) {{
-      pageJump.addEventListener('change', function () {{
-        if (this.value) {{
-          window.location.href = this.value;
-        }}
-      }});
-    }}
-  </script>
 </body>
 </html>
 """
@@ -477,14 +464,16 @@ class InfoSiteGeneratorService:
 
     @staticmethod
     def _render_html_index(links: list[tuple[str, str]], title: str) -> str:
-        list_html = "\n".join(f'<li><a href="{href}">{label}</a></li>' for label, href in links)
-        option_html = "\n".join(f'<option value="{href}">{label}</option>' for label, href in links)
+        list_html = "\n".join(
+            f'<li><a href="{escape(href, quote=True)}">{escape(label)}</a></li>'
+            for label, href in links
+        )
         return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{title}</title>
+  <title>{escape(title)}</title>
   <style>
     :root {{
       color-scheme: dark;
@@ -533,103 +522,72 @@ class InfoSiteGeneratorService:
       box-shadow: var(--shadow);
       overflow: hidden;
     }}
-    .surface-header {{
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.82);
+    .page-layout {{
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      align-items: start;
+      gap: 18px;
     }}
-    .surface-title {{
-      font-size: 0.68rem;
+    .sidebar {{
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 16px;
+    }}
+    .sidebar h2 {{
+      margin: 0 0 8px;
+      font-size: 0.75rem;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--muted);
-      font-weight: 700;
     }}
-    .surface-body {{ padding: 18px; }}
-    .nav-select {{
-      min-width: min(100%, 320px);
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--panel-soft);
-      color: var(--text);
-    }}
-    ul {{
+    .sidebar ul {{
       list-style: none;
       padding: 0;
       margin: 0;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 4px 18px;
     }}
-    li a {{
-      display: inline;
-      padding: 0;
-      border: 0;
-      background: transparent;
+    .sidebar li a {{
+      display: block;
+      padding: 5px 8px;
+      border-radius: 7px;
       color: var(--muted);
-      font-size: 0.8rem;
+      font-size: 0.88rem;
     }}
-    li a:hover {{ text-decoration: underline; color: var(--accent); }}
+    .sidebar li a:hover {{ background: var(--panel-soft); color: var(--accent); }}
+    .content {{ padding: 20px 24px 26px; }}
     @media (max-width: 820px) {{
       .shell {{ padding: 18px 14px 32px; }}
-      .nav-select {{ min-width: 100%; width: 100%; }}
-      ul {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-    }}
-    @media (max-width: 560px) {{
-      ul {{ grid-template-columns: 1fr; }}
+      .page-layout {{ grid-template-columns: 1fr; }}
+      .sidebar {{ position: static; max-height: 40vh; }}
+      .content {{ padding: 18px; }}
     }}
   </style>
 </head>
 <body>
   <div class="shell">
     <header class="hero">
-      <h1>{title}</h1>
-      <p>Generated HTML infosite index</p>
+      <h1>{escape(title)}</h1>
+      <p>Generated InfoSite</p>
     </header>
-    <main class="surface">
-      <div class="surface-header">
-        <div>
-          <div class="surface-title">Page Index</div>
-          <div style="color: var(--muted);">{len(links)} page(s) available</div>
-        </div>
-        <div>
-          <label class="surface-title" for="index-jump">Quick jump</label>
-          <select id="index-jump" class="nav-select">
-            <option value="">Choose a page…</option>
-            {option_html}
-          </select>
-        </div>
-      </div>
-      <div class="surface-body">
-        <ul>
-          {list_html}
-        </ul>
-      </div>
-    </main>
+    <div class="page-layout">
+      <aside class="surface sidebar" aria-label="InfoSite navigation">
+        <h2>Alle Inhalte</h2>
+        <ul>{list_html}</ul>
+      </aside>
+      <main class="surface content">
+        <h2>InfoSite</h2>
+        <p>{len(links)} Inhalte sind verfügbar. Wähle einen Eintrag in der Navigation.</p>
+      </main>
+    </div>
   </div>
-  <script>
-    const indexJump = document.getElementById('index-jump');
-    if (indexJump) {{
-      indexJump.addEventListener('change', function () {{
-        if (this.value) {{
-          window.location.href = this.value;
-        }}
-      }});
-    }}
-  </script>
 </body>
 </html>
 """
 
     def _create_output_structure(self, domain: str, working_title: str) -> Path:
         """Create output directory structure with required subdirectories."""
-        output_dir = self.output_base / domain / working_title
+        output_dir = self.layout.output_dir(domain, working_title)
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Create subdirectories
@@ -654,7 +612,7 @@ class InfoSiteGeneratorService:
         for doc in source_docs:
             # Reconstruct relative path structure
             rel_path = doc.path.relative_to(
-                self.data_root / "md" / domain / working_title
+                self.layout.source_dir(MARKDOWN, domain, working_title)
             )
             dest_path = originals_dir / rel_path
             
@@ -742,7 +700,7 @@ class InfoSiteGeneratorService:
         if not source_docs:
             return
 
-        source_root = self.data_root / "md" / domain / working_title
+        source_root = self.layout.source_dir(MARKDOWN, domain, working_title)
         for doc in source_docs:
             try:
                 rel_path = doc.path.relative_to(source_root)
@@ -821,7 +779,7 @@ class InfoSiteGeneratorService:
     ) -> str:
         """Resolve the logical section name for a document after applying mapping rules."""
         try:
-            source_root = self.data_root / "md" / domain / working_title
+            source_root = self.layout.source_dir(MARKDOWN, domain, working_title)
             relative = doc.path.relative_to(source_root)
             relative_key = relative.as_posix()
         except ValueError:
@@ -937,7 +895,7 @@ class InfoSiteGeneratorService:
             
             for doc in sorted(topics[topic], key=lambda d: d.path.name):
                 rel_path = doc.path.relative_to(
-                    self.data_root / "md" / domain / working_title
+                    self.layout.source_dir(MARKDOWN, domain, working_title)
                 )
                 lines.append(f"- {doc.path.stem}")
             
@@ -1054,11 +1012,11 @@ class InfoSiteGeneratorService:
 
     def get_output_directory(self, domain: str, working_title: str) -> Path:
         """Get output directory path for a project."""
-        return self.output_base / domain / working_title
+        return self.layout.output_dir(domain, working_title)
 
     def list_versions(self, domain: str, working_title: str) -> list[str]:
         """List all available versions in _originals directory."""
-        originals_dir = self.output_base / domain / working_title / "_originals"
+        originals_dir = self.layout.output_dir(domain, working_title, "_originals")
         
         if not originals_dir.exists():
             return []
@@ -1067,7 +1025,7 @@ class InfoSiteGeneratorService:
 
     def get_version_metadata(self, domain: str, working_title: str, version: str) -> Optional[dict]:
         """Get metadata for a specific version."""
-        metadata_path = self.output_base / domain / working_title / "metadata.yml"
+        metadata_path = self.layout.output_dir(domain, working_title, "metadata.yml")
         
         if not metadata_path.exists():
             return None

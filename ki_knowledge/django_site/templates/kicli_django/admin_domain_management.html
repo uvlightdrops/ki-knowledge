@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Domain Management · KICLI{% endblock %}
+{% block content %}
+<h1>🗂️ Domain Management</h1>
+<p class="muted">Domains anlegen, bestehende Datenverzeichnisse (md · jira · owl · pdf) scannen und Domains ohne verbleibende Dateien entfernen. Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
+
+<div class="card">
+  <h3>Domain anlegen</h3>
+  {{ create_html|safe }}
+</div>
+
+<div class="card" style="margin-top:16px;">
+  {{ management_html|safe }}
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h3>Domain-Übersicht (Registry)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Domain</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead>
+      <tbody>
+        {% for entry in domain_rows %}
+          <tr>
+            <td><strong>{{ entry.display_name }}</strong>{% if entry.is_active %} <span class="chip">active</span>{% endif %}</td>
+            <td>{{ entry.knowledge_sources }}</td>
+            <td>{{ entry.knowledge_records }}</td>
+            <td>{{ entry.infosite_project_count }}</td>
+            <td>{{ entry.infosite_source_count }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

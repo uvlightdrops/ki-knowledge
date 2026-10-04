@@ -8,17 +8,16 @@ command or a real async worker without changing the job-record contract.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from django.utils import timezone
 
+from ki_knowledge.data_layout import DataLayout
 from ki_knowledge.integrations.document_import_jobs import DocumentImportJobStore
 
 
 def get_job_store() -> DocumentImportJobStore:
-    db_path = Path.home() / ".ki-knowledge" / "pipeline_jobs.db"
-    return DocumentImportJobStore(db_path)
+    return DocumentImportJobStore(DataLayout.from_config().pipeline_jobs_db_path())
 
 
 def enqueue_import(project_id: int, document_ids: list[int]) -> str:

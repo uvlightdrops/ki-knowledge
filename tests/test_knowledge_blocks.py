@@ -8,7 +8,7 @@ from ki_knowledge.integrations.block_embeddings import BlockEmbeddingService, Si
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.integrations.markdown_blocks import MarkdownBlockParser
-from ki_knowledge.knowledge.models import KnowledgeArtifact
+from ki_knowledge.knowledge.models import KnowledgeArtifact, KnowledgeBlockRecord, KnowledgeSource
 
 
 def test_parser_extracts_headings_and_paragraphs(tmp_path: Path):
@@ -27,15 +27,17 @@ def test_store_imports_blocks_and_relations(tmp_path: Path):
     db_path = tmp_path / "knowledge.sqlite"
     store = KnowledgeStore(db_path)
     blocks = store.import_markdown_text(
-        "# Topic\n\nAlpha text\n",
+        "# Topic\n\nAlpha text\n\nSecond text\n",
         source_path="/tmp/topic.md",
         source_name="topic.md",
     )
 
     assert len(blocks) >= 2
-    relation_id = store.add_relation(blocks[0].id, blocks[1].id, relation="related_to")
+    records = store.list_records(source_id="markdown:/tmp/topic.md")
+    assert len(records) == 2
+    relation_id = store.add_relation(records[0].block_id, records[1].block_id, relation="related_to")
     assert relation_id
-    relations = store.list_relations(blocks[0].id)
+    relations = store.list_relations(records[0].block_id)
     assert len(relations) >= 1
 
 
@@ -47,11 +49,12 @@ def test_graph_rebuilds_neighbors(tmp_path: Path):
         source_path="/tmp/graph.md",
         source_name="graph.md",
     )
-    store.add_relation(blocks[0].id, blocks[1].id, relation="related_to")
+    records = store.list_records(source_id="markdown:/tmp/graph.md")
+    store.add_relation(records[0].block_id, records[1].block_id, relation="related_to")
 
     graph = KnowledgeGraph(str(db_path))
     stats = graph.rebuild_from_store(store)
-    neighbors = graph.neighbors(blocks[0].id)
+    neighbors = graph.neighbors(records[0].block_id)
 
     assert stats["nodes"] > 0
     assert stats["edges"] > 0
@@ -71,21 +74,64 @@ def test_embeddings_are_built(tmp_path: Path):
 def test_store_deletes_records_and_artifacts(tmp_path: Path):
     db_path = tmp_path / "delete.sqlite"
     store = KnowledgeStore(db_path)
-    blocks = store.import_markdown_text("# Topic\n\nAlpha text\n", source_path="/tmp/topic.md", source_name="topic.md")
+    store.import_markdown_text("# Topic\n\nAlpha text\n", source_path="/tmp/topic.md", source_name="topic.md")
+    blocks = store.list_records(source_id="markdown:/tmp/topic.md")
 
     artifact = KnowledgeArtifact(
         artifact_id="artifact:demo",
         artifact_type="summary_note",
         source_id="markdown:/tmp/topic.md",
-        source_block_ids=[blocks[0].id],
+        source_block_ids=[blocks[0].block_id],
         content="Example summary",
     )
     store.upsert_artifact(artifact)
 
-    assert store.delete_record(blocks[0].id) is True
-    assert store.get_record(blocks[0].id) is None
+    assert store.delete_record(blocks[0].block_id) is True
+    assert store.get_record(blocks[0].block_id) is None
     assert store.delete_artifact("artifact:demo") is True
     assert store.get_artifact("artifact:demo") is None
+
+
+def test_store_migrates_parser_headings_out_of_knowledge_records(tmp_path: Path):
+    db_path = tmp_path / "legacy-headings.sqlite"
+    store = KnowledgeStore(db_path)
+    source = KnowledgeSource("markdown:legacy", "markdown", "legacy", "/tmp/legacy.md")
+    store.upsert_source(source)
+    store.upsert_record(
+        KnowledgeBlockRecord(
+            block_id="legacy-heading",
+            source_id=source.source_id,
+            block_type="heading",
+            title="Intro",
+            content="Intro",
+        )
+    )
+    with store._connect() as conn:
+        conn.execute("DELETE FROM knowledge_store_migrations WHERE name = 'v1_remove_markdown_heading_records'")
+
+    KnowledgeStore(db_path)
+
+    assert store.get_record("legacy-heading") is None
+
+
+def test_browse_records_searches_and_pages_in_source_order(tmp_path: Path):
+    store = KnowledgeStore(tmp_path / "browse.sqlite")
+    records = store.import_markdown_text(
+        "# Intro\n\nFirst passage.\n\n## Details\n\nSecond searchable passage.\n\nThird passage.\n",
+        source_path="/tmp/browse.md",
+        source_id="markdown:browse",
+    )
+
+    first_page, total = store.browse_records("markdown:browse", limit=2)
+    searched_page, search_total = store.browse_records(
+        "markdown:browse", query_text="searchable", limit=2
+    )
+
+    assert len(records) == 5
+    assert total == 3
+    assert [record.content for record in first_page] == ["First passage.", "Second searchable passage."]
+    assert search_total == 1
+    assert searched_page[0].path == "Intro / Details"
 
 
 def test_source_in_domain_includes_pdf_sources(tmp_path: Path, monkeypatch):

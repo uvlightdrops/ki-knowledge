@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+import hashlib
+import mimetypes
+from typing import Any, Callable
 from pathlib import Path
 
 import markdown
@@ -10,16 +12,35 @@ from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.django_site.domain_paths import (
     default_semantic_domain,
     domain_markdown_dir,
+    domain_mix_dir,
     domain_ontology_dir,
-    domain_pdf_dir,
+    infer_domain_from_path,
     invalidate_domain_summary_cache,
-    normalize_semantic_domain,
 )
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf as pdf_extract_text
+from ki_knowledge.integrations.mixed_ingest import (
+    IMAGE_KIND,
+    MARKDOWN_KIND,
+    MIX_KINDS,
+    ONTOLOGY_KIND,
+    PDF_KIND,
+    TABLE_KIND,
+    MixedIngestError,
+    classify_file,
+    discover_mixed_files,
+    image_to_markdown,
+    table_to_markdown,
+    tesseract_binary,
+)
 from ki_knowledge.integrations.pdf_paths import pdf_relative_source_path, pdf_source_id
 from ki_knowledge.knowledge.ontology_ingest import fetch_ontology_url, import_ontology_to_store
 from ki_knowledge.ui.knowledge_api_client import discover_markdown_files
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
+from ki_knowledge.knowledge.models import KnowledgeBlockRecord, KnowledgeSource
+
+IMAGE_PROCESSING_OCR = "ocr"
+IMAGE_PROCESSING_ASSET = "asset"
+IMAGE_PROCESSING_OPTIONS = (IMAGE_PROCESSING_OCR, IMAGE_PROCESSING_ASSET)
 
 
 def store() -> KnowledgeStore:
@@ -31,23 +52,7 @@ def data_dir(domain: str | None = None) -> Path:
 
 
 def _infer_domain_from_path(path: Path | str | None) -> str | None:
-    raw = str(path or "").strip()
-    if not raw:
-        return None
-    candidate = Path(raw).expanduser()
-    root_candidates = [
-        domain_markdown_dir(),
-        domain_ontology_dir(),
-        domain_pdf_dir(),
-    ]
-    for root in root_candidates:
-        try:
-            relative = candidate.resolve().relative_to(root.resolve())
-        except (OSError, RuntimeError, ValueError):
-            continue
-        if relative.parts:
-            return normalize_semantic_domain(relative.parts[0])
-    return None
+    return infer_domain_from_path(path)
 
 
 def discover_pdf_files(root: Path) -> list[Path]:
@@ -147,9 +152,15 @@ def import_markdown_file(path: Path, *, source_name: str | None = None, block_ty
         return {"imported": 0, "source_id": "owl:deprecated-markdown", "note": "Ontology markdown import is deprecated; use OWL format directly"}
     if block_types is None and "/ontology/" in str(path):
         block_types = ["heading", "paragraph"]
-    blocks = store_obj.import_markdown_file(path, source_name=source_name, allowed_block_types=block_types)
+    source_id = f"markdown:{path.resolve()}"
+    store_obj.import_markdown_file(
+        path,
+        source_name=source_name,
+        allowed_block_types=block_types,
+        source_id=source_id,
+    )
     invalidate_domain_summary_cache(_infer_domain_from_path(path))
-    return {"imported": len(blocks), "source_id": f"markdown:{path.resolve()}"}
+    return {"imported": len(store_obj.list_records(source_id=source_id)), "source_id": source_id}
 
 
 def import_ontology_file(path: Path) -> dict[str, Any]:
@@ -234,7 +245,7 @@ def import_pdf_file(path: Path, *, source_name: str | None = None, domain: str |
         invalidate_domain_summary_cache(domain or _infer_domain_from_path(path))
         return {"imported": 0, "error": "PDF contains no extractable text", "file": str(path)}
 
-    blocks = store_obj.import_markdown_text(
+    store_obj.import_markdown_text(
         markdown_text,
         source_path=str(path.resolve()),
         source_name=source_name or pdf_relative_source_path(path, domain=domain),
@@ -242,7 +253,8 @@ def import_pdf_file(path: Path, *, source_name: str | None = None, domain: str |
         source_type="pdf",
     )
     invalidate_domain_summary_cache(domain or _infer_domain_from_path(path))
-    return {"imported": len(blocks), "source_id": pdf_source_id(path, domain=domain), "file": str(path)}
+    source_id = pdf_source_id(path, domain=domain)
+    return {"imported": len(store_obj.list_records(source_id=source_id)), "source_id": source_id, "file": str(path)}
 
 
 def import_pdf_directory(directory: Path, *, domain: str | None = None) -> dict[str, Any]:
@@ -268,6 +280,211 @@ def import_pdf_directory(directory: Path, *, domain: str | None = None) -> dict[
     return {"imported": imported, "source_ids": source_ids, "files": len(pdf_files)}
 
 
+def _mixed_relative_name(path: Path, domain: str | None) -> str:
+    root = domain_mix_dir(domain)
+    for candidate in (path, path.resolve(strict=False)):
+        for base in (root, root.resolve(strict=False)):
+            try:
+                return candidate.relative_to(base).as_posix()
+            except ValueError:
+                continue
+    return path.name
+
+
+def mixed_source_id(path: Path, domain: str | None = None) -> str:
+    return f"mix:{_mixed_relative_name(path, domain)}"
+
+
+def _mixed_source_location(path: Path) -> str:
+    """Keep the path below the domain folder (not the symlink target) so domain scoping matches."""
+    return str(path.expanduser().absolute())
+
+
+def _import_converted_file(path: Path, kind: str, markdown_text: str, *, domain: str | None, source_name: str | None) -> dict[str, Any]:
+    source_id = mixed_source_id(path, domain)
+    store_obj = store()
+    store_obj.import_markdown_text(
+        markdown_text,
+        source_path=_mixed_source_location(path),
+        source_name=source_name or _mixed_relative_name(path, domain),
+        source_id=source_id,
+        source_type=kind,
+    )
+    return {
+        "imported": len(store_obj.list_records(source_id=source_id)),
+        "source_id": source_id,
+        "file": str(path),
+        "kind": kind,
+    }
+
+
+def import_table_file(path: Path, *, domain: str | None = None, source_name: str | None = None) -> dict[str, Any]:
+    """Import a CSV/TSV/ODS/XLSX table; each row becomes one knowledge block."""
+    resolved_domain = domain or _infer_domain_from_path(path)
+    try:
+        result = _import_converted_file(path, TABLE_KIND, table_to_markdown(path), domain=resolved_domain, source_name=source_name)
+    except (MixedIngestError, OSError, UnicodeError) as exc:
+        result = {"imported": 0, "error": str(exc), "file": str(path), "kind": TABLE_KIND}
+    invalidate_domain_summary_cache(resolved_domain)
+    return result
+
+
+def import_image_file(
+    path: Path,
+    *,
+    domain: str | None = None,
+    source_name: str | None = None,
+    image_processing: str = IMAGE_PROCESSING_OCR,
+) -> dict[str, Any]:
+    """Always store the image as an object; optionally add OCR-derived text."""
+    resolved_domain = domain or _infer_domain_from_path(path)
+    if image_processing not in IMAGE_PROCESSING_OPTIONS:
+        return {"imported": 0, "error": f"unknown image processing mode: {image_processing}", "file": str(path)}
+
+    source_id = mixed_source_id(path, resolved_domain)
+    relative_path = _mixed_relative_name(path, resolved_domain)
+    store_obj = store()
+    source = KnowledgeSource(
+        source_id=source_id,
+        source_type=IMAGE_KIND,
+        title=source_name or relative_path,
+        location=_mixed_source_location(path),
+        metadata={
+            "domain": resolved_domain,
+            "relative_path": relative_path,
+            "folder": str(Path(relative_path).parent) if Path(relative_path).parent != Path(".") else "",
+            "image_processing": image_processing,
+        },
+    )
+    store_obj.upsert_source(source)
+    store_obj.delete_records_by_type(source_id, {"heading", "paragraph", "list_item", "code_block"})
+    image_record = KnowledgeBlockRecord(
+        block_id=hashlib.sha256(f"{source_id}:image".encode("utf-8")).hexdigest()[:24],
+        source_id=source_id,
+        block_type=IMAGE_KIND,
+        object_type="image",
+        title=Path(source_name or relative_path).name,
+        content="",
+        path=str(Path(relative_path).parent) if Path(relative_path).parent != Path(".") else "",
+        order_index=0,
+        metadata={
+            "record_schema_version": 1,
+            "source_format": path.suffix.lower().lstrip("."),
+            "relative_path": relative_path,
+            "media_type": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            "provenance": {"extractor": "native_asset", "source_format": path.suffix.lower().lstrip(".")},
+        },
+    )
+    store_obj.upsert_record(image_record)
+    imported = 1
+    warnings = []
+    try:
+        if image_processing == IMAGE_PROCESSING_OCR:
+            blocks = store_obj.import_markdown_text(
+                image_to_markdown(path),
+                source_path=_mixed_source_location(path),
+                source_name=source_name or relative_path,
+                source_id=source_id,
+                source_type=IMAGE_KIND,
+            )
+            imported += len([block for block in blocks if block.block_type != "heading"])
+            store_obj.upsert_source(source)
+    except (MixedIngestError, OSError) as exc:
+        warnings.append(str(exc))
+    invalidate_domain_summary_cache(resolved_domain)
+    return {
+        "imported": imported,
+        "source_id": source_id,
+        "file": str(path),
+        "kind": IMAGE_KIND,
+        "warnings": warnings,
+        "image_processing": image_processing,
+    }
+
+
+def import_mixed_file(
+    path: Path,
+    *,
+    domain: str | None = None,
+    image_processing: str = IMAGE_PROCESSING_OCR,
+) -> dict[str, Any]:
+    """Import one file of any supported kind (PDFs synchronously)."""
+    kind = classify_file(path)
+    if kind == TABLE_KIND:
+        return import_table_file(path, domain=domain)
+    if kind == IMAGE_KIND:
+        return import_image_file(path, domain=domain, image_processing=image_processing)
+    if kind == PDF_KIND:
+        return {**import_pdf_file(path, domain=domain), "kind": kind}
+    if kind == MARKDOWN_KIND:
+        return {**import_markdown_file(path, source_name=_mixed_relative_name(path, domain)), "kind": kind}
+    if kind == ONTOLOGY_KIND:
+        return {**import_ontology_file(path), "kind": kind}
+    return {"imported": 0, "error": f"unsupported file type: {path.suffix or path.name}", "file": str(path), "kind": kind}
+
+
+def mixed_files_summary(domain: str | None = None) -> dict[str, Any]:
+    """Counts per kind in the domain's ``mix`` folder plus OCR availability."""
+    root = domain_mix_dir(domain)
+    grouped = discover_mixed_files(root)
+    return {
+        "dir": root,
+        "exists": root.exists(),
+        "counts": {kind: len(grouped[kind]) for kind in MIX_KINDS},
+        "total": sum(len(files) for files in grouped.values()),
+        "unsupported_examples": [path.name for path in grouped["unsupported"][:5]],
+        "ocr_available": tesseract_binary() is not None,
+    }
+
+
+def import_mixed_directory(
+    directory: Path,
+    *,
+    domain: str | None = None,
+    queue_pdf: Callable[[Path], Any] | None = None,
+    kinds: tuple[str, ...] = MIX_KINDS,
+    image_processing: str = IMAGE_PROCESSING_OCR,
+) -> dict[str, Any]:
+    """Import every supported file below ``directory``.
+
+    PDFs go to ``queue_pdf`` (e.g. the PDF job queue) when given, otherwise
+    they are imported synchronously.     Images are still stored as image objects when OCR is unavailable; the
+    optional text extraction warning is returned in ``errors``.
+    """
+    resolved_domain = domain or _infer_domain_from_path(directory)
+    grouped = discover_mixed_files(directory)
+    summary: dict[str, Any] = {
+        "imported": 0,
+        "files": {kind: 0 for kind in MIX_KINDS},
+        "queued_pdfs": 0,
+        "source_ids": [],
+        "errors": [],
+        "unsupported": [str(path) for path in grouped["unsupported"]],
+    }
+    for kind in kinds:
+        if kind == "unsupported":
+            continue
+        for path in grouped[kind]:
+            if kind == PDF_KIND and queue_pdf is not None:
+                try:
+                    queue_pdf(path)
+                    summary["queued_pdfs"] += 1
+                except (FileNotFoundError, OSError, ValueError) as exc:
+                    summary["errors"].append({"file": str(path), "kind": kind, "error": str(exc)})
+                continue
+            result = import_mixed_file(path, domain=resolved_domain, image_processing=image_processing)
+            summary["files"][kind] += 1
+            summary["imported"] += int(result.get("imported", 0) or 0)
+            if result.get("error"):
+                summary["errors"].append({"file": str(path), "kind": kind, "error": result["error"]})
+            for warning in result.get("warnings", []):
+                summary["errors"].append({"file": str(path), "kind": kind, "error": warning})
+            if not result.get("error") and result.get("source_id"):
+                summary["source_ids"].append(result["source_id"])
+    invalidate_domain_summary_cache(resolved_domain)
+    return summary
+
+
 __all__ = [
     "data_dir",
     "discover_pdf_files",
@@ -283,4 +500,10 @@ __all__ = [
     "import_markdown_directory",
     "import_pdf_file",
     "import_pdf_directory",
+    "import_table_file",
+    "import_image_file",
+    "import_mixed_file",
+    "import_mixed_directory",
+    "mixed_files_summary",
+    "mixed_source_id",
 ]

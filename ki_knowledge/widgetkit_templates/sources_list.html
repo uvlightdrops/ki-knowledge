@@ -1,0 +1,66 @@
+{% macro actions(row) %}
+  <span class="sb-actions">
+    <form method="post" action="{{ action_url }}">
+      {{ hidden|safe }}
+      <input type="hidden" name="source_id" value="{{ row.source_id }}">
+      {% if row.kind == 'image' %}
+      <select name="image_processing" aria-label="Bildverarbeitung bei erneutem Import">
+        <option value="ocr"{% if row.image_processing == 'ocr' %} selected{% endif %}>Bild + OCR</option>
+        <option value="asset"{% if row.image_processing == 'asset' %} selected{% endif %}>Nur Bild</option>
+      </select>
+      {% else %}<input type="hidden" name="image_processing" value="ocr">{% endif %}
+      <button type="submit" name="action" value="reimport" title="Datei erneut einlesen"{% if not row.can_reimport %} disabled{% endif %}>↻</button>
+    </form>
+    <form method="post" action="{{ generate_url }}">
+      <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+      <input type="hidden" name="source_id" value="{{ row.source_id }}">
+      <button type="submit" title="Artefakte erzeugen"{% if not row.records %} disabled{% endif %}>✨</button>
+    </form>
+    <form method="post" action="{{ action_url }}" onsubmit="return confirm('Quelle mit allen Einträgen und Artefakten aus dem Store entfernen? Die Datei bleibt erhalten.')">
+      {{ hidden|safe }}
+      <input type="hidden" name="source_id" value="{{ row.source_id }}">
+      <button type="submit" name="action" value="delete" class="sb-danger" title="Aus dem Store entfernen">🗑</button>
+    </form>
+  </span>
+{% endmacro %}
+
+{% if not rows %}
+  <p class="muted">{% if total_all %}Keine Quelle passt zum Filter.{% else %}Noch keine Quellen importiert.{% endif %}</p>
+{% elif display == 'cards' %}
+  <div class="sb-cards">
+    {% for row in rows %}
+      <div class="sb-card">
+        <div class="sb-card__head"><span title="{{ row.kind_label }}">{{ row.icon }}</span> <a href="{{ row.detail_url }}">{{ row.title }} · Records ansehen</a></div>
+        <div class="mono sb-origin" title="{{ row.relative }}">{% if row.folder %}{% if row.linked %}🔗 {% endif %}{{ row.folder }}/{% endif %}{{ row.relative }}{% if row.missing %} <span class="badge badge-danger">Datei fehlt</span>{% endif %}</div>
+        <div class="muted">{{ row.records }} Einträge · {{ row.artifacts }} Artefakte · {{ row.updated_at }}</div>
+        {{ actions(row) }}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="table-wrap">
+    <table class="sb-table">
+      <thead><tr><th></th><th>Titel</th><th>Herkunft</th><th class="num">Einträge</th><th class="num">Artefakte</th><th>Stand</th><th></th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td title="{{ row.kind_label }}">{{ row.icon }}</td>
+            <td><a href="{{ row.detail_url }}">{{ row.title }} · Records ansehen</a></td>
+            <td class="mono sb-origin" title="{{ row.relative }}">{% if row.folder %}{% if row.linked %}🔗 {% endif %}{{ row.folder }}/{% endif %}{{ row.relative }}{% if row.missing %} <span class="badge badge-danger">Datei fehlt</span>{% endif %}</td>
+            <td class="num">{{ row.records }}</td>
+            <td class="num">{{ row.artifacts }}</td>
+            <td class="nowrap">{{ row.updated_at }}</td>
+            <td>{{ actions(row) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% if rows %}
+  <p class="muted sb-pager">
+    {{ first_index }}–{{ last_index }} von {{ total }}
+    {% if prev_href %} · <a href="{{ prev_href }}">← zurück</a>{% endif %}
+    {% if next_href %} · <a href="{{ next_href }}">weiter →</a>{% endif %}
+  </p>
+{% endif %}

@@ -8,13 +8,7 @@ from typing import Any
 from django.core.cache import cache as django_cache
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import (
-    knowledge_data_root,
-    knowledge_jira_root,
-    knowledge_markdown_root,
-    knowledge_ontology_root,
-    knowledge_pdf_root,
-)
+from ki_knowledge.data_layout import DOMAIN_STATE_FILES, JIRA, MARKDOWN, MIX, ONTOLOGY, PDF, DataLayout
 
 _DOMAIN_SUMMARY_CACHE_TTL = 60
 _FALLBACK_CACHE: dict[str, Any] = {}
@@ -67,40 +61,28 @@ def normalize_semantic_domain(value: str | None) -> str:
     return normalized or "default"
 
 
+def data_layout() -> DataLayout:
+    """The configured on-disk layout. All data paths must be derived from it."""
+    return DataLayout.from_config(Config.from_env())
+
+
 def data_root() -> Path:
-    return knowledge_data_root(Config.from_env())
+    return data_layout().root
 
 
-def markdown_type_root() -> Path:
-    return knowledge_markdown_root(Config.from_env())
-
-
-def jira_type_root() -> Path:
-    return knowledge_jira_root(Config.from_env())
-
-
-def ontology_type_root() -> Path:
-    return knowledge_ontology_root(Config.from_env())
-
-
-def pdf_type_root() -> Path:
-    return knowledge_pdf_root(Config.from_env())
-
-
-def _resolve_existing_domain_dir(base: Path, normalized_domain: str) -> Path:
-    if base.exists() and base.is_dir():
-        for child in base.iterdir():
-            if child.is_dir() and normalize_semantic_domain(child.name) == normalized_domain:
-                return child
-    return base / normalized_domain
-
-
-def _detect_domain_label(base: Path, normalized_domain: str) -> str:
-    if base.exists() and base.is_dir():
-        for child in base.iterdir():
-            if child.is_dir() and normalize_semantic_domain(child.name) == normalized_domain:
-                return child.name
+def _match_domain_name(names: list[str], normalized_domain: str) -> str:
+    """Existing directory name for a normalized domain (e.g. ``Anthro`` for ``anthro``)."""
+    for name in names:
+        if normalize_semantic_domain(name) == normalized_domain:
+            return name
     return normalized_domain
+
+
+def domain_dir_name(normalized_domain: str, source_type: str | None = None) -> str:
+    """On-disk directory name of a domain, preferring an existing folder."""
+    layout = data_layout()
+    names = layout.source_domain_names(source_type) if source_type else layout.domain_names()
+    return _match_domain_name(names, normalized_domain)
 
 
 def _resolve_domain_file(domain_dir: Path, preferred: str, legacy: str) -> Path:
@@ -112,27 +94,74 @@ def _resolve_domain_file(domain_dir: Path, preferred: str, legacy: str) -> Path:
     return preferred_path
 
 
-def domain_markdown_dir(domain: str | None = None) -> Path:
+def domain_state_paths(resolved_domain: str) -> dict[str, Path]:
+    """Paths of a domain's derived DBs; ``resolved_domain`` must already be normalized."""
+    layout = data_layout()
+    domain_dir = layout.domain_state_dir(_match_domain_name(layout.state_domain_names(), resolved_domain))
+    paths = {"domain": domain_dir}
+    for key, (preferred, legacy) in DOMAIN_STATE_FILES.items():
+        paths[key] = _resolve_domain_file(domain_dir, preferred, legacy)
+    return paths
+
+
+def infer_domain_from_path(path: Path | str | None) -> str | None:
+    """Normalized domain of a source file or directory, or ``None`` if outside the source tree."""
+    raw = str(path or "").strip()
+    if not raw:
+        return None
+    location = data_layout().locate_source(raw)
+    return normalize_semantic_domain(location.domain_dir_name) if location else None
+
+
+def domain_source_dir(source_type: str, domain: str | None = None) -> Path:
+    """Source directory of a type for a domain (existing folder name preferred)."""
     resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    return _resolve_existing_domain_dir(markdown_type_root(), resolved)
+    return data_layout().source_dir(source_type, domain_dir_name(resolved, source_type))
+
+
+def domain_markdown_dir(domain: str | None = None) -> Path:
+    return domain_source_dir(MARKDOWN, domain)
 
 
 def domain_jira_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    return _resolve_existing_domain_dir(jira_type_root(), resolved)
+    return domain_source_dir(JIRA, domain)
 
 
 def domain_ontology_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    return _resolve_existing_domain_dir(ontology_type_root(), resolved)
+    return domain_source_dir(ONTOLOGY, domain)
 
 
 def domain_pdf_dir(domain: str | None = None) -> Path:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    pdf_dir = _resolve_existing_domain_dir(pdf_type_root(), resolved)
+    pdf_dir = domain_source_dir(PDF, domain)
     if not pdf_dir.exists():
         pdf_dir.mkdir(parents=True, exist_ok=True)
     return pdf_dir
+
+
+def domain_mix_dir(domain: str | None = None) -> Path:
+    """Folder for mixed formats (PDF, tables, images, ...); usually a symlink."""
+    return domain_source_dir(MIX, domain)
+
+
+def domain_source_roots(domain: str | None = None) -> list[Path]:
+    """All source folders of a domain (as configured and symlink-resolved) for scoping queries."""
+    roots: list[Path] = []
+    for directory in (
+        domain_markdown_dir(domain),
+        domain_jira_dir(domain),
+        domain_ontology_dir(domain),
+        domain_source_dir(PDF, domain),
+        domain_mix_dir(domain),
+    ):
+        for candidate in (directory.expanduser(), directory.expanduser().resolve()):
+            if candidate not in roots:
+                roots.append(candidate)
+    return roots
+
+
+def domain_label(normalized_domain: str) -> str:
+    """Display label of a domain: its existing directory name, if any."""
+    return domain_dir_name(normalized_domain)
 
 
 def invalidate_domain_summary_cache(domain: str | None = None) -> None:
@@ -162,17 +191,20 @@ __all__ = [
     "_cached_delete",
     "default_semantic_domain",
     "normalize_semantic_domain",
+    "data_layout",
     "data_root",
-    "markdown_type_root",
-    "jira_type_root",
-    "ontology_type_root",
-    "pdf_type_root",
-    "_resolve_existing_domain_dir",
-    "_detect_domain_label",
+    "_match_domain_name",
+    "domain_dir_name",
+    "domain_label",
+    "domain_source_dir",
     "_resolve_domain_file",
+    "domain_state_paths",
+    "infer_domain_from_path",
     "domain_markdown_dir",
     "domain_jira_dir",
     "domain_ontology_dir",
     "domain_pdf_dir",
+    "domain_mix_dir",
+    "domain_source_roots",
     "invalidate_domain_summary_cache",
 ]

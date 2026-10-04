@@ -1,11 +1,12 @@
 """Phase B: Store InfoSite Knowledge Blocks in knowledge_store.py"""
 
 from datetime import datetime
-from pathlib import Path
+import hashlib
 from typing import Optional
 
 from django.utils import timezone
 
+from ki_knowledge.data_layout import DataLayout
 from ki_knowledge.django_site.infosite_models import InfoSiteProject, SourceDocument
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.knowledge.models import KnowledgeBlockRecord, KnowledgeSource
@@ -22,7 +23,7 @@ class InfoSiteBlockStorage:
         
         # Initialize knowledge store (default to ki-knowledge database)
         if knowledge_store is None:
-            db_path = Path.home() / ".ki-knowledge" / "knowledge.db"
+            db_path = DataLayout.from_config().block_store_db_path()
             db_path.parent.mkdir(parents=True, exist_ok=True)
             self.store = KnowledgeStore(str(db_path))
         else:
@@ -53,30 +54,40 @@ class InfoSiteBlockStorage:
     def block_data_to_record(
         self, block: KnowledgeBlockData, file_path: str, source_id: str, blocks: list[KnowledgeBlockData]
     ) -> KnowledgeBlockRecord:
-        """Convert InfoSiteBlockData to KnowledgeBlockRecord for storage."""
-        parent_block_id = (
-            blocks[block.parent_index].block_id
-            if block.parent_index is not None and 0 <= block.parent_index < len(blocks)
-            else None
-        )
+        """Map content to a text record; headings contribute context, not records."""
+        heading_titles = []
+        parent_index = block.parent_index
+        while parent_index is not None and 0 <= parent_index < len(blocks):
+            parent = blocks[parent_index]
+            if not parent.content.strip():
+                heading_titles.append(parent.title)
+            parent_index = parent.parent_index
+        heading_path = " / ".join(reversed(heading_titles))
+        context_path = " / ".join(part for part in (file_path, heading_path) if part)
+        record_id = hashlib.sha256(
+            f"{source_id}:{file_path}:{block.order_index}:{block.block_id}".encode("utf-8")
+        ).hexdigest()[:24]
         return KnowledgeBlockRecord(
-            block_id=block.block_id,
+            block_id=record_id,
             source_id=source_id,
-            block_type=block.block_type,
+            block_type="paragraph",
+            object_type="text",
             title=block.title,
             content=block.content,
-            parent_block_id=parent_block_id,
-            path=file_path,
+            parent_block_id=None,
+            path=context_path,
             order_index=block.order_index,
             tags=[
                 self.project.domain or "general",
-                f"level-{block.level}",
-                block.block_type,
+                "text",
             ],
             metadata={
-                "file_path": file_path,
-                "level": block.level,
-                "parent_index": block.parent_index,
+                "record_schema_version": 1,
+                "source_format": "markdown",
+                "source_document": file_path,
+                "heading_path": heading_path,
+                "content_kind": "paragraph",
+                "provenance": {"extractor": "infosite_markdown", "source_format": "markdown"},
                 "extracted_at": datetime.now().isoformat(),
             },
         )
@@ -94,6 +105,10 @@ class InfoSiteBlockStorage:
         # Create knowledge source
         source = self.create_knowledge_source()
         self.store.upsert_source(source)
+        self.store.delete_records_by_type(
+            source.source_id,
+            {"section", "subsection", "subsubsection", "paragraph"},
+        )
 
         # Extract blocks by file
         blocks_by_file = self.extractor.extract_from_directory()
@@ -102,6 +117,8 @@ class InfoSiteBlockStorage:
         for file_path, blocks in blocks_by_file.items():
             results["files_processed"] += 1
             for block in blocks:
+                if not block.content.strip():
+                    continue
                 try:
                     record = self.block_data_to_record(block, file_path, source.source_id, blocks)
                     self.store.upsert_record(record)

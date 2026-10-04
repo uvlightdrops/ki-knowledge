@@ -156,3 +156,18 @@ Erfolg ist erreicht, wenn:
 - Builder und Navigation dieselbe Terminologie nutzen
 - der Admin-Area im Mainmenu vorhanden ist
 - die Requirements-Datei den realen Status widerspiegelt
+
+## Abgeschlossene UI-Entscheidungen
+
+Diese Regeln ergänzen den Migrationsplan um die bereits abgenommenen Anforderungen:
+
+- Angezeigte Dateipfade beginnen relativ zum Datenverzeichnis (`datadir`), nicht beim absoluten Dateisystempfad.
+- Die aktive Domain steht rechts im globalen Header statt als zusätzliche Zeile im Seiteninhalt.
+- Die Karte „Sources“ gehört nicht zu „Tasks and tools“ im Knowledge-Bereich; Quellnavigation und Knowledge-Aufgaben bleiben getrennt.
+- Der Dashboard-Builder hat eine eigene Seite und ist der einzige aktive Builder-Einstieg. Der alte Builder wird nicht parallel angezeigt, und Builder-Links werden in Bereich und Settings nicht doppelt angeboten. Das noch offene Entfernen des Dashboard-Builder-Links aus Settings ist separat in `requirements-clients.md` vermerkt.
+- Builder und Seitenübersicht verwenden dieselben Bereichsnamen: Dashboard, Data Sources, Knowledge, Info Output und Settings (sowie Admin, sofern als eigener Bereich registriert). Veraltete oder doppelte Layout-Seiten werden nicht als Auswahl angeboten. Der Widget-Vorrat enthält nur tatsächlich gerenderte Bereichsmodule, keine Platzhalter.
+- Layouts werden getrennt nach aktiver Domain und Area gespeichert und geladen. Ein Bereich übernimmt keine Änderungen eines anderen Bereichs.
+- In Data Sources wird die künstliche Domain `default` nicht in der Domain-Tabelle angezeigt. Die redundante Box „Dateien der aktiven Domain“ entfällt zugunsten der quelltypspezifischen Karten.
+- Die Markdown-Karte verlinkt nicht auf die allgemeinen Knowledge-Ansichten „Records“ oder „Artifacts“. Auch die anderen Quellkarten führen zu passenden Zielen ihres Workflows; Job-Querverweise zeigen in den Knowledge-Bereich, wenn dort die jeweiligen Jobs verwaltet werden.
+
+Die historische Jira-Datenbankaufteilung wurde durch diese UI-/Area-Migration **nicht entfernt**. Die Jira-spezifischen Datenflüsse bleiben kompatibel, während die Oberfläche die gemeinsame Domain-/Area-Navigation verwendet. Der interne Name `jira-workflow` bleibt für die weiterhin vorhandene Integration erhalten; sichtbare UI-Texte folgen der allgemeinen Bereichsterminologie.

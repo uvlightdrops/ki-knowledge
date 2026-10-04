@@ -1,0 +1,21 @@
+<div class="sb-filter">
+  <div class="sb-chips">
+    {% for chip in chips %}
+      <a class="chip{% if chip.active %} chip--active{% endif %}{% if not chip.count and chip.key %} sb-chip--empty{% endif %}" href="{{ chip.href }}">{% if chip.icon %}{{ chip.icon }} {% endif %}{{ chip.label }} <strong>{{ chip.count }}</strong></a>
+    {% endfor %}
+  </div>
+  <form method="get" action="{{ base_url }}" class="sb-search">
+    {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+    <input type="hidden" name="display" value="{{ display }}">
+    <input type="search" name="q" value="{{ query }}" placeholder="Titel oder Pfad suchen …">
+    <select name="sort" onchange="this.form.submit()">
+      {% for key, label in sort_options %}<option value="{{ key }}"{% if key == sort %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button type="submit">Suchen</button>
+    <span class="sb-toggle">
+      <a class="chip{% if display == 'table' %} chip--active{% endif %}" href="{{ display_table_href }}">Tabelle</a>
+      <a class="chip{% if display == 'cards' %} chip--active{% endif %}" href="{{ display_cards_href }}">Karten</a>
+    </span>
+  </form>
+  <p class="muted sb-hint">Neue Dateien hinzufügen: <a href="/data-sources/">Data Sources → Quick import</a>{% if unimported_new %} · <a href="#sources-unimported">{{ unimported_new }} Datei(en) noch nicht importiert</a>{% endif %}</p>
+</div>

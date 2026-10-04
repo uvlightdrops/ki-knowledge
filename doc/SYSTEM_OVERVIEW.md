@@ -121,6 +121,44 @@
 **Status:** ✅ Implemented  
 **Integration with Infosite:** Phase 4 (future)
 
+#### Format-neutraler Record-Vertrag
+
+Jeder gespeicherte `KnowledgeBlockRecord` hat einen gemeinsamen Kern: stabile Record-ID,
+Source-ID, `object_type`, formatbezogenen `block_type`, Titel/Inhalt, Kontextpfad,
+Reihenfolge und Metadaten. `object_type` beschreibt die übergreifende Klasse (`text`,
+`image`, später etwa `table`); `block_type` bleibt für vorhandene Adapter als spezifischer
+Untertyp erhalten. Formatabhängige Informationen und `provenance` liegen in `metadata`.
+
+Markdown-Überschriften werden nicht als Wissensobjekte gespeichert, sondern als
+`heading_path`-Kontext an Textrecords geführt; beim ersten Öffnen eines älteren Stores werden
+die bisherigen Parser-Heading-Records mitsamt abhängigen Relationen und Artefakten entfernt.
+Bildimporte speichern immer das Original als
+atomaren `image`-Record mit Domain, relativem Quellpfad und Medientyp. Die GUI-Importaktionen
+lassen wählen, ob zusätzlich OCR-Textrecords angelegt werden. Diese verweisen über dieselbe
+Source-ID auf das Bild und kennzeichnen `tesseract_ocr` als Extraktionsweg. Ein erneuter
+Import als „nur Bildobjekt“ entfernt zuvor erzeugte OCR-Records, ohne das Bildobjekt oder
+die Quelldatei zu entfernen.
+
+#### Records und Artefakte durchstöbern
+
+`knowledge_blocks.content` hält den erfassten Record-Text; Kontext wie Quellabschnitt oder
+PDF-Seite steht in `heading_path`/`path` und Metadaten. `knowledge_artifacts.content` hält
+separat daraus erzeugte Ergebnisse (z. B. Lernkarten oder Zusammenfassungen), häufig als
+JSON-Payload mit Referenzen auf die verwendeten Records. Die Quell-Detailseite gruppiert
+Records nach ihrem Kontext, zeigt Text in Importreihenfolge, erlaubt Volltextsuche und
+blättert seitenweise. Artefaktinhalte können unabhängig davon aufgeklappt werden.
+
+`knowledge.record_export.records_to_markdown()` setzt Records mit Abschnitts- und
+Seitenkontext wieder zu einem Markdown-Dokument zusammen. Dieses Format wird vom vorhandenen
+InfoSite-Generator verarbeitet. Die separate InfoSite-Block-Extraktion speichert ebenfalls
+nur Textrecords; Überschriften sind deren Kontext, und die vollständigen Absatzinhalte werden
+nicht mehr auf 500 Zeichen gekürzt.
+
+Auf der Quell-Detailseite kann aus allen importierten Records direkt ein InfoSite-Projekt
+angelegt werden. Dabei werden die Records kontexttreu als Markdown unter dem Domain-Quellordner
+gespeichert und als erstes `SourceDocument` registriert; das Projekt ist danach im Status
+„synchronisiert“ und kann über seine Projektseite generiert und angesehen werden.
+
 ---
 
 ### 3. **Knowledge Retrieval** (Search & Analysis)
@@ -315,6 +353,20 @@ separate application flows that happen to share storage plumbing.
 └── ...
 ```
 
+PDF import jobs live in `system/pdf_import_jobs.sqlite`. SQLite `BEGIN
+IMMEDIATE` transactions serialize enqueue/claim/retry transitions. Workers claim
+only `pending` rows and receive a per-attempt lease token; progress, completion,
+and failure updates require that token. A heartbeat renews long-running jobs.
+Expired leases become `failed` (scoped to the selected domain) and are retried
+explicitly. The web UI never runs PDF extraction inside a request; use
+`python manage.py process_pdf_jobs --domain <domain>` (or explicitly
+`--all-domains`) to run a worker. `--retry-failed` requeues failures first.
+Completed job IDs remain stable and idempotent; explicit re-imports can enqueue
+the same completed job as a new attempt. The PDF jobs page can also start a
+tracked background worker from the GUI; it records the worker PID and heartbeat
+in `pdf_worker_runs`, prevents duplicate GUI starts, and refreshes the queue
+status while the worker is active. Worker output is kept in `system/` logs.
+
 ### Models (infosite_models.py)
 
 ```python
@@ -397,6 +449,85 @@ commands:
 - **AI Client:** `ki_core.ai.AIClient` for LLM-based refinement
 - **Data Root:** `config.knowledge_data_root` for base data directory
 
+### Data Layout Resolver
+
+All on-disk paths are resolved by `ki_knowledge/data_layout.py` (`DataLayout`).
+No other module may hard-code `md/`, `domains/`, `data_out/` or database file
+names; use `DataLayout.from_config(cfg)` (honours `KNOWLEDGE_*_ROOT` /
+`KICLI_*_ROOT` env overrides) or, inside Django,
+`ki_knowledge.django_site.domain_paths.data_layout()`.
+
+The layout version is read from `<data_root>/.layout-version` (missing = v1).
+
+**v2 – domain first (current target):**
+
+| Path | Content |
+|------|---------|
+| `domains/<domain>/sources/md/<working_title>/` | Markdown sources (may be a symlink, e.g. into a cloud folder) |
+| `domains/<domain>/sources/{pdf,jira,owl}/` | PDF, Jira CSV and ontology sources |
+| `domains/<domain>/sources/mix/` | Mixed formats (PDF, tables, images/OCR, md, owl), see below |
+| `domains/<domain>/derived/` | Per-domain DBs (`cache.sqlite`, `graph.sqlite`, `graph.cypher`) |
+| `domains/<domain>/output/<working_title>/` | Generated InfoSite output |
+| `system/` | `knowledge.db`, `django.sqlite3`, `pdf_import_jobs.sqlite`, `pipeline_jobs.db`, `block_store.db`, global Jira DBs, migration journal |
+| `archive/` | Unexpected files found during migration |
+
+**v1 – source type first (legacy):** `md/<domain>/`, `pdf/<domain>/`,
+`jira/<domain>/` (CSV + derived DBs), `owl/<domain>/`, `data_out/<domain>/`,
+global DBs in the root, pipeline jobs and block store in `~/.ki-knowledge/`.
+
+**Migration v1 → v2:** `python manage.py migrate_data_layout` prints the plan
+(dry run); `--apply` executes it. Stop the dev server and job workers first.
+The whole plan is checked for conflicts before anything moves; symlinked
+domain folders are moved as links (targets untouched); stored absolute paths
+in the PDF job queue and the InfoSite tables are rewritten; every step is
+logged to `system/layout-migration.jsonl`.
+
+`DataLayout.locate_source()` / `domain_paths.infer_domain_from_path()` map a
+file back to its domain, including files reached through symlinked folders.
+
+**Mixed sources (`sources/mix/`):** a folder (typically a symlink into a cloud
+folder) with arbitrary formats. `integrations/mixed_ingest.py` classifies files
+by extension and converts them to markdown:
+
+| Kind | Formats | Handling |
+|---|---|---|
+| pdf | `.pdf` | queued as PDF jobs; source id `pdf:mix/<relative path>` |
+| table | `.csv`, `.tsv`, `.ods` (odfpy), `.xlsx` (openpyxl) | one block per row (`Header: value; …`); source id `mix:<relative path>` |
+| image | `.png`, `.jpg`, `.tif`, … | Always stored as an atomic image record; optional OCR creates linked text records. OCR uses the `tesseract` CLI (languages via `KNOWLEDGE_OCR_LANGUAGES`). |
+| markdown / ontology | `.md`, `.owl`, `.ttl`, … | regular importers |
+
+Import: widget "Mix-Quellen" (`datasources.mix.overview.v1`) on `/data-sources/`
+or POST a folder/file to `/data-sources/import/`
+(`source_workflow.import_mixed_directory` / `import_mixed_file`). The GUI import
+actions offer either image-only storage or image plus OCR text; if OCR is
+unavailable, the image still remains stored and an import warning is shown.
+Mixed sources store their location below the domain folder (not the symlink
+target) so domain scoping works.
+
+**Quick import (`datasources.import.quick.v1`, `django_site/quick_import.py`):**
+format-neutral and path-free. One tile per source folder of the active domain
+(md, pdf, owl, jira, mix) with file/imported counts and an import button, an
+"Alles importieren" button, and a drag & drop upload zone
+(`POST /data-sources/quick-import/`). Uploads are sorted by format into the
+domain's `md/`, `pdf/`, `owl/` or `mix/` (tables, images) folder, never
+overwrite existing files, and are imported immediately (PDFs as jobs). Image
+uploads and mix imports let the user choose whether to add OCR-derived text.
+
+**Sources browser (`/data-sources/sources/`, widget area `sources`,
+`django_site/sources_browser.py`):** store sources of the active domain.
+- `sources.filter.v1`: kind chips with counts (Markdown, PDF, Ontologie,
+  Tabelle, Bild, Sonstige), search, sort, table/cards toggle
+  (`?kind=&q=&sort=&display=&page=`).
+- `sources.list.v1`: type, title, origin folder (`md/`, `pdf/`, `mix/` …, 🔗 for
+  symlinks, "Datei fehlt"), records, artifacts, last update; actions re-import,
+  generate artifacts, remove from store (`KnowledgeStore.delete_source`, files stay).
+- `sources.unimported.v1`: files in `md/`, `pdf/`, `owl/`, `mix/` without a store
+  source (queued/failed PDF jobs are marked, done ones hidden); import per file,
+  per folder or all.
+Actions go to `POST /data-sources/sources/action/`; the client only sends a
+source id or a folder key plus a relative path, which is checked to stay inside
+that folder.
+
 ### External Systems
 
 - **Jira:** OAuth tokens, issue API for syncing
@@ -406,7 +537,7 @@ commands:
 ### Database Layer
 
 - **Django SQLite:** Project metadata, import jobs, user data
-- **Knowledge Cache:** `~/.ki_cache.sqlite` for block storage
+- **Knowledge Store:** `<data_root>/knowledge.db`; InfoSite block store `~/.ki-knowledge/knowledge.db` (see Data Layout Resolver)
 - **Graph DB:** In-memory or Neo4j-compatible format for relations
 
 ---

@@ -1,0 +1,16 @@
+<div class="output-recent-projects">
+  {% if projects %}
+  <ul>
+    {% for project in projects %}
+    <li>
+      <a href="{{ project.url }}">{{ project.title }}</a>
+      {% if project.working_title %}<span class="muted">· {{ project.working_title }}</span>{% endif %}
+      <span class="muted">· {{ project.status }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Für diese Domain sind noch keine Infosite-Projekte angelegt.</p>
+  {% endif %}
+  <a href="{{ project_url }}">Projektübersicht öffnen →</a>
+</div>

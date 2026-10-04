@@ -14,7 +14,7 @@ import networkx as nx
 
 from ki_knowledge.api.app import _field_embedding_backend, _get_components
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import knowledge_data_root, knowledge_jira_root
+from ki_knowledge.config_runtime import knowledge_data_root
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFEmbeddingProvider
 from ki_knowledge.integrations.jira_cache import DomainTerm, JiraIssueCache
 from ki_knowledge.integrations.jira_csv import JiraCSVImporter
@@ -26,29 +26,14 @@ from ki_knowledge.django_site.domain_paths import (
     domain_markdown_dir,
     domain_ontology_dir,
     domain_pdf_dir,
+    domain_state_paths,
     normalize_semantic_domain,
-    _resolve_domain_file,
-    _resolve_existing_domain_dir,
 )
 from ki_knowledge.django_site.knowledge_summary import semantic_store
 
 
-def domain_storage_root() -> Path:
-    raw = os.getenv("KNOWLEDGE_JIRA_ROOT", "").strip()
-    if raw:
-        return Path(raw).expanduser()
-    return knowledge_jira_root(Config.from_env())
-
-
 def domain_db_paths(domain: str | None = None) -> dict[str, Path]:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    domain_dir = _resolve_existing_domain_dir(domain_storage_root(), resolved)
-    return {
-        "domain": domain_dir,
-        "cache_db": _resolve_domain_file(domain_dir, "cache.sqlite", "jira_cache.sqlite"),
-        "graph_db": _resolve_domain_file(domain_dir, "graph.sqlite", "jira_graph.sqlite"),
-        "cypher_path": _resolve_domain_file(domain_dir, "graph.cypher", "jira_graph.cypher"),
-    }
+    return domain_state_paths(normalize_semantic_domain(domain or default_semantic_domain()))
 
 
 @contextmanager
@@ -341,7 +326,6 @@ def jira_domain_analysis(*, limit_terms: int = 20, min_count: int = 2, query: st
 
 
 __all__ = [
-    "domain_storage_root",
     "domain_db_paths",
     "domain_env",
     "jira_cache_db_path",

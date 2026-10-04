@@ -11,6 +11,7 @@ from django.utils import timezone
 import logging
 
 from ki_knowledge.app_config import AppConfig as Config
+from ki_knowledge.data_layout import MARKDOWN, PDF, DataLayout
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class DocumentDiscoveryService:
         """
         self.config = config or Config.from_env()
         self.data_root = Path(self.config.knowledge_data_root)
+        self.layout = DataLayout(self.data_root)
     
     def find_infosite_documents(
         self,
@@ -71,7 +73,7 @@ class DocumentDiscoveryService:
         Returns:
             List of FileInfo for discovered documents
         """
-        source_dir = self.data_root / "md" / domain / working_title
+        source_dir = self.layout.source_dir(MARKDOWN, domain, working_title)
         
         if not source_dir.exists():
             logger.warning(f"Source directory not found: {source_dir}")
@@ -94,7 +96,7 @@ class DocumentDiscoveryService:
         Returns:
             List of FileInfo for markdown files
         """
-        source_dir = self.data_root / "md" / domain
+        source_dir = self.layout.source_dir(MARKDOWN, domain)
         
         if not source_dir.exists():
             logger.warning(f"Domain directory not found: {source_dir}")
@@ -117,7 +119,7 @@ class DocumentDiscoveryService:
         Returns:
             List of FileInfo for PDF files
         """
-        source_dir = self.data_root / "pdf" / domain
+        source_dir = self.layout.source_dir(PDF, domain)
         
         if not source_dir.exists():
             logger.warning(f"PDF directory not found: {source_dir}")
@@ -196,7 +198,7 @@ class DocumentDiscoveryService:
         """
         Get output directory for generated infosite.
         
-        Returns: data_out/<domain>/<working_title>/
+        Returns: the layout's output dir for <domain>/<working_title>/
         
         Args:
             domain: Domain name
@@ -205,7 +207,7 @@ class DocumentDiscoveryService:
         Returns:
             Path to output directory (may not exist yet)
         """
-        return self.data_root / "data_out" / domain / working_title
+        return self.layout.output_dir(domain, working_title)
     
     def list_domains(self) -> List[str]:
         """
@@ -214,13 +216,11 @@ class DocumentDiscoveryService:
         Returns:
             List of domain directory names
         """
-        md_dir = self.data_root / "md"
-        
-        if not md_dir.exists():
-            return []
-        
-        domains = [d.name for d in md_dir.iterdir() if d.is_dir()]
-        return sorted(domains)
+        return [
+            name
+            for name in self.layout.source_domain_names(MARKDOWN)
+            if self.layout.source_dir(MARKDOWN, name).is_dir()
+        ]
     
     def list_working_titles(self, domain: str) -> List[str]:
         """
@@ -229,7 +229,7 @@ class DocumentDiscoveryService:
         Returns:
             List of working title directory names
         """
-        domain_dir = self.data_root / "md" / domain
+        domain_dir = self.layout.source_dir(MARKDOWN, domain)
         
         if not domain_dir.exists():
             return []

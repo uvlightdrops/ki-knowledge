@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
+from ki_knowledge.data_layout import JIRA, DataLayout
 
 
 def config() -> Config:
@@ -26,54 +27,6 @@ def knowledge_data_root(cfg: Config | None = None) -> Path:
     return Path.home() / "dev_data" / "ki-knowledge"
 
 
-def knowledge_markdown_root(cfg: Config | None = None) -> Path:
-    override = os.getenv("KNOWLEDGE_MARKDOWN_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-
-    legacy = os.getenv("KICLI_MD_ROOT", "").strip()
-    if legacy:
-        return Path(legacy).expanduser()
-
-    return knowledge_data_root(cfg) / "md"
-
-
-def knowledge_jira_root(cfg: Config | None = None) -> Path:
-    override = os.getenv("KNOWLEDGE_JIRA_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-
-    legacy = os.getenv("KICLI_JIRA_ROOT", "").strip()
-    if legacy:
-        return Path(legacy).expanduser()
-
-    return knowledge_data_root(cfg) / "jira"
-
-
-def knowledge_ontology_root(cfg: Config | None = None) -> Path:
-    override = os.getenv("KNOWLEDGE_ONTOLOGY_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-
-    legacy = os.getenv("KICLI_OWL_ROOT", "").strip()
-    if legacy:
-        return Path(legacy).expanduser()
-
-    return knowledge_data_root(cfg) / "owl"
-
-
-def knowledge_pdf_root(cfg: Config | None = None) -> Path:
-    override = os.getenv("KNOWLEDGE_PDF_ROOT", "").strip()
-    if override:
-        return Path(override).expanduser()
-
-    legacy = os.getenv("KICLI_PDF_ROOT", "").strip()
-    if legacy:
-        return Path(legacy).expanduser()
-
-    return knowledge_data_root(cfg) / "pdf"
-
-
 def knowledge_api_url() -> str:
     return os.getenv("KNOWLEDGE_API_URL", "http://localhost:8090/api/knowledge").rstrip("/")
 
@@ -82,14 +35,14 @@ def knowledge_db_path(cfg: Config | None = None) -> Path:
     override = os.getenv("KNOWLEDGE_DB_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return knowledge_data_root(cfg) / "knowledge.db"
+    return DataLayout.from_config(cfg).knowledge_db_path()
 
 
 def jira_csv_path(cfg: Config | None = None, domain: str = "default") -> Path:
     override = os.getenv("JIRA_CSV_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return knowledge_jira_root(cfg) / domain / "issues.csv"
+    return DataLayout.from_config(cfg).source_dir(JIRA, domain, "issues.csv")
 
 
 def jira_cache_db_path(cfg: Config | None = None) -> Path:
@@ -99,7 +52,7 @@ def jira_cache_db_path(cfg: Config | None = None) -> Path:
         return Path(override).expanduser()
     if resolved.knowledge_cache_db:
         return Path(resolved.knowledge_cache_db).expanduser()
-    return knowledge_data_root(resolved) / ".jira_cache.sqlite"
+    return DataLayout.from_config(resolved).global_jira_cache_db_path()
 
 
 def jira_graph_db_path(cfg: Config | None = None) -> Path:
@@ -109,4 +62,4 @@ def jira_graph_db_path(cfg: Config | None = None) -> Path:
         return Path(override).expanduser()
     if resolved.knowledge_graph_db:
         return Path(resolved.knowledge_graph_db).expanduser()
-    return knowledge_data_root(resolved) / ".jira_graph.sqlite"
+    return DataLayout.from_config(resolved).global_jira_graph_db_path()

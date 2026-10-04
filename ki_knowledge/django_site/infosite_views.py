@@ -10,6 +10,7 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db.models import Count, Q
 from ki_knowledge.app_config import AppConfig as Config
+from ki_knowledge.data_layout import MARKDOWN, DataLayout
 
 from .infosite_models import InfoSiteMappingRule, InfoSiteProject, SourceDocument
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
@@ -74,7 +75,9 @@ def _source_tree_for_project(project: InfoSiteProject) -> list[dict]:
     if not project.domain or not project.working_title:
         return []
 
-    source_root = Path(settings.KI_CONFIG.knowledge_data_root) / "md" / project.domain / project.working_title
+    source_root = DataLayout(Path(settings.KI_CONFIG.knowledge_data_root)).source_dir(
+        MARKDOWN, project.domain, project.working_title
+    )
     if not source_root.exists():
         return []
 

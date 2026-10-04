@@ -96,6 +96,17 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_h=1,
         data_adapter="datasources.domain_overview",
     ),
+    "datasources.domain.switcher.v1": _widget(
+        widget_id="datasources.domain.switcher.v1",
+        area="datasources",
+        category="overview",
+        label="Domain switcher",
+        description="Switch active domain for current session.",
+        default_size="balanced",
+        default_w=4,
+        default_h=1,
+        data_adapter="shared.domain_switcher",
+    ),
     "datasources.overview.summary.v1": _widget(
         widget_id="datasources.overview.summary.v1",
         area="datasources",
@@ -112,7 +123,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         area="datasources",
         category="import",
         label="Quick import",
-        description="Quick access actions for markdown, PDF, Jira and OWL imports.",
+        description="Format-neutral import: drop files or import any source folder of the domain with one click.",
         default_size="balanced",
         default_w=6,
         default_h=1,
@@ -129,6 +140,47 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_w=4,
         default_h=1,
         data_adapter="datasources.discovery",
+    ),
+    "datasources.mix.overview.v1": _widget(
+        widget_id="datasources.mix.overview.v1",
+        area="datasources",
+        category="sources",
+        label="Mix-Quellen",
+        description="Gemischte Dateiformate im mix/-Ordner der Domain (PDF, Tabellen, Bilder mit OCR, Markdown, OWL).",
+        default_size="balanced",
+        default_w=4,
+        default_h=1,
+        data_adapter="datasources.mix",
+    ),
+    "sources.filter.v1": _widget(
+        widget_id="sources.filter.v1",
+        area="sources",
+        category="browser",
+        label="Filter",
+        description="",
+        default_size="wide",
+        default_w=12,
+        default_h=1,
+    ),
+    "sources.list.v1": _widget(
+        widget_id="sources.list.v1",
+        area="sources",
+        category="browser",
+        label="Quellen im Store",
+        description="",
+        default_size="wide",
+        default_w=12,
+        default_h=2,
+    ),
+    "sources.unimported.v1": _widget(
+        widget_id="sources.unimported.v1",
+        area="sources",
+        category="browser",
+        label="Noch nicht importiert",
+        description="Dateien in md/, pdf/, owl/ und mix/ der Domain ohne Eintrag im Store.",
+        default_size="wide",
+        default_w=12,
+        default_h=1,
     ),
     "datasources.jobs.recent.v1": _widget(
         widget_id="datasources.jobs.recent.v1",
@@ -340,11 +392,32 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         area="admin",
         category="domain",
         label="Domain management",
-        description="Create, select and manage active domains in the knowledge workspace.",
+        description="Registered domains with source counts, directory scan and removal of unused domains.",
         default_size="wide",
         default_w=8,
         default_h=1,
         legacy_aliases=("domain-management",),
+    ),
+    "admin.domain.create.v1": _widget(
+        widget_id="admin.domain.create.v1",
+        area="admin",
+        category="domain",
+        label="Add domain",
+        description="Create a new domain in the knowledge workspace.",
+        default_size="compact",
+        default_w=4,
+        default_h=1,
+    ),
+    "admin.domain.switcher.v1": _widget(
+        widget_id="admin.domain.switcher.v1",
+        area="admin",
+        category="domain",
+        label="Domain switcher",
+        description="Switch active domain for current session.",
+        default_size="balanced",
+        default_w=4,
+        default_h=1,
+        data_adapter="shared.domain_switcher",
     ),
     "admin.domain.db.overview.v1": _widget(
         widget_id="admin.domain.db.overview.v1",
@@ -466,7 +539,7 @@ def legacy_widget_aliases() -> Dict[str, str]:
 
 def builtin_areas() -> List[str]:
     """Return the canonical widget areas, including the top-level dashboard."""
-    return ["dashboard", "datasources", "knowledge", "infooutput", "admin", "settings"]
+    return ["dashboard", "datasources", "sources", "knowledge", "infooutput", "admin", "settings"]
 
 
 def layout_positions_for_widgets(widget_ids: Iterable[str], *, columns: int = 12) -> Dict[str, Dict[str, int]]:
@@ -509,14 +582,21 @@ def default_widget_ids_for_area(area: str | None = None) -> List[str]:
         "dashboard": frontpage_aggregate_widgets(),
         "datasources": [
             "datasources.domain.overview.v1",
+            "datasources.domain.switcher.v1",
             "datasources.overview.summary.v1",
             "datasources.import.quick.v1",
             "datasources.sources.discovery.v1",
+            "datasources.mix.overview.v1",
             "datasources.markdown.files.v1",
             "datasources.ontology.overview.v1",
             "datasources.jobs.recent.v1",
             "datasources.source.list.v1",
             "datasources.ai.summary.v1",
+        ],
+        "sources": [
+            "sources.filter.v1",
+            "sources.list.v1",
+            "sources.unimported.v1",
         ],
         "knowledge": [
             "knowledge.overview.summary.v1",
@@ -539,6 +619,7 @@ def default_widget_ids_for_area(area: str | None = None) -> List[str]:
         ],
         "admin": [
             "admin.domain.management.v1",
+            "admin.domain.create.v1",
             "admin.domain.db.overview.v1",
             "admin.system.status.v1",
             "admin.workspace.config.v1",

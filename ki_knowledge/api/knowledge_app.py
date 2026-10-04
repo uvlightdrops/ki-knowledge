@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import jira_cache_db_path, jira_graph_db_path, knowledge_db_path
+from ki_knowledge.data_layout import DataLayout
 
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
@@ -122,8 +123,7 @@ def _semantic_model_id(assistant: JiraSupportAssistant) -> str:
 def _pdf_batch_processor():
     from ki_knowledge.integrations.pdf_batch import PDFBatchProcessor
 
-    db_path = Path(_DB_PATH).expanduser().with_name(".pdf_import_jobs.sqlite")
-    return PDFBatchProcessor(str(db_path))
+    return PDFBatchProcessor(str(DataLayout.from_config(_CONFIG).pdf_jobs_db_path()))
 
 
 @app.get("/")

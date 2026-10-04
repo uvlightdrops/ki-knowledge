@@ -1,0 +1,39 @@
+<form method="post" action="{{ domain_management_url }}">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <input type="hidden" name="action" value="scan">
+  <button type="submit" title="Durchsucht md/ · jira/ · owl/ · pdf/ · mix/ nach neuen Domain-Ordnern">🔄 Datenverzeichnisse scannen</button>
+</form>
+<div class="table-wrap" style="margin-top:12px;">
+  <table>
+    <thead>
+      <tr><th>Domain</th><th>MD</th><th>Jira</th><th>OWL</th><th>PDF</th><th>Mix</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      {% for state in domain_states %}
+        <tr>
+          <td><strong>{{ state.domain_label }}</strong>{% if state.domain == active_domain %} <span class="chip">active</span>{% endif %}</td>
+          <td>{{ state.markdown_files }}</td>
+          <td>{{ state.jira_csv_files }}</td>
+          <td>{{ state.ontology_files }}</td>
+          <td>{{ state.pdf_files }}</td>
+          <td title="{% for kind, count in (state.mix_counts or {}).items() %}{% if count %}{{ kind }}: {{ count }} {% endif %}{% endfor %}">{{ state.mix_files }}</td>
+          <td>
+            {% if not state.has_md_source and not state.has_jira_source and not state.has_owl_source and not state.has_pdf_source and not state.has_mix_source and not state.cache_exists and not state.graph_exists %}
+              <form method="post" action="{{ domain_management_url }}" style="display:inline;">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="domain" value="{{ state.domain }}">
+                <button type="submit">Entfernen</button>
+              </form>
+            {% else %}
+              <span class="muted">in Nutzung</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">Noch keine Domains registriert.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p><a href="{{ domain_management_url }}">Vollständige Domain-Verwaltung öffnen</a></p>

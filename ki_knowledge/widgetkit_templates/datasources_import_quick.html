@@ -1,11 +1,55 @@
-<p><a href="/data-sources/import/">Import</a></p>
-<p><a href="/data-sources/workspace/">Workspace</a></p>
-<p><a href="/data-sources/pdf/">PDF jobs</a></p>
-<form id="pdf-import-form" method="post" action="/data-sources/import/" class="section">
-  <input type="hidden" name="import_type" value="directory">
-  <input type="hidden" name="next" value="data-sources">
-  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-  <label for="pdf_path">PDF path or folder</label><br>
-  <input id="pdf_path" name="path" type="text" value="" placeholder="/path/to/file.pdf oder /path/to/folder" style="width:100%;margin-top:6px">
-  <div style="margin-top:8px"><button type="submit">Import PDF</button></div>
-</form>
+<div class="qi">
+  <form method="post" action="/data-sources/quick-import/" enctype="multipart/form-data" class="qi-drop" data-quick-import-drop>
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    <input type="file" name="files" multiple accept="{{ upload_accept }}" id="qi-files" class="qi-drop__input">
+    <label for="qi-files" class="qi-drop__label">
+      <span class="qi-drop__icon">⬆️</span>
+      <strong>Dateien hierher ziehen</strong> oder klicken
+      <span class="qi-drop__hint">MD · PDF · OWL · CSV/ODS/XLSX · Bilder – werden nach Format in <em>{{ active_domain }}</em> einsortiert und sofort importiert</span>
+    </label>
+    <label class="qi-image-mode">Bildverarbeitung
+      <select name="image_processing">
+        <option value="ocr" selected>Bildobjekt speichern und zusätzlich OCR-Text erfassen</option>
+        <option value="asset">Nur Bildobjekt speichern, kein OCR</option>
+      </select>
+    </label>
+    <button type="submit">Hochladen & importieren</button>
+  </form>
+
+  <div class="qi-grid">
+    {% for row in rows %}
+      <form method="post" action="/data-sources/quick-import/" class="qi-tile{% if not row.can_import %} qi-tile--empty{% endif %}">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <input type="hidden" name="source" value="{{ row.key }}">
+        <div class="qi-tile__head"><span>{{ row.icon }}</span> <strong>{{ row.label }}</strong></div>
+        <div class="qi-tile__count">{{ row.files }}</div>
+        <div class="qi-tile__meta">Dateien · {{ row.imported }} {{ row.imported_unit }} im Store</div>
+        <div class="qi-tile__dir mono" title="{{ row.dir }} – {{ row.formats }}">{% if row.linked %}🔗 {% endif %}{{ row.folder }}</div>
+        {% if row.key == "mix" %}
+        <label>Bildverarbeitung
+          <select name="image_processing">
+            <option value="ocr" selected>Bildobjekt + OCR-Text</option>
+            <option value="asset">Nur Bildobjekt</option>
+          </select>
+        </label>
+        {% else %}<input type="hidden" name="image_processing" value="ocr">{% endif %}
+        <button type="submit" {% if not row.can_import %}disabled{% endif %}>Importieren</button>
+      </form>
+    {% endfor %}
+  </div>
+
+  <div class="qi-footer">
+    <form method="post" action="/data-sources/quick-import/">
+      <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+      <input type="hidden" name="source" value="all">
+      <label>Bildverarbeitung
+        <select name="image_processing">
+          <option value="ocr" selected>Bildobjekt + OCR-Text</option>
+          <option value="asset">Nur Bildobjekt</option>
+        </select>
+      </label>
+      <button type="submit" {% if not any_files %}disabled{% endif %}>⚡ Alles importieren</button>
+    </form>
+    <span class="qi-links"><a href="/data-sources/workspace/">Workspace</a> · <a href="/data-sources/pdf/">PDF-Jobs</a> · <a href="/data-sources/sources/">Quellen</a></span>
+  </div>
+</div>

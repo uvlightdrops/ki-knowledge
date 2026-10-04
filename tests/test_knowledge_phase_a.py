@@ -23,9 +23,31 @@ def test_markdown_adapter_maps_blocks_into_shared_records(tmp_path: Path):
         ),
     )
 
-    assert len(records) == len(blocks)
-    assert any(record.block_type == "heading" for record in records)
+    assert len(records) == len([block for block in blocks if block.block_type != "heading"])
+    assert all(record.record_type == "text" for record in records)
+    assert all(record.parent_block_id is None for record in records)
     assert any("Hallo Welt" in record.content for record in records)
+
+
+def test_markdown_adapter_promotes_pdf_page_to_record_metadata():
+    blocks = MarkdownBlockParser().parse_markdown(
+        "# Dokument\n\n## Page 12\n\nText von Seite zwölf.\n",
+        "/tmp/book.pdf",
+    )
+    records = MarkdownKnowledgeAdapter.to_records(
+        blocks,
+        KnowledgeSource(
+            source_id="pdf:book.pdf",
+            source_type="pdf",
+            title="book.pdf",
+            location="/tmp/book.pdf",
+        ),
+    )
+
+    assert len(records) == 1
+    assert records[0].path == "Dokument / Page 12"
+    assert records[0].metadata["page"] == 12
+    assert records[0].metadata["provenance"]["source_format"] == "pdf"
 
 
 def test_jira_adapter_exposes_summary_description_and_text_fields():

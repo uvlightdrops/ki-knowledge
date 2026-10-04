@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from urllib.parse import urlencode
 
+from django.contrib import messages
 from django.core.cache import cache
 from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods
@@ -19,7 +21,7 @@ from .dashboard_registry import (
     widget_hierarchy,
     widget_ids,
 )
-from .infosite_models import Domain, GeneratedDocument
+from .infosite_models import Domain, GeneratedDocument, InfoSiteProject
 from .page_widgets import (
     build_admin_widget_cards,
     build_knowledge_widget_cards,
@@ -30,14 +32,18 @@ from .page_widgets import (
     render_widget_data,
 )
 from .widget_shells import widget_shell_builder_save_view, widget_shell_builder_view
+from ..widgetkit_renderer import render_fragment
 from .services import (
     available_data_domains,
+    create_semantic_domain,
     data_layout_snapshot,
+    delete_semantic_domain,
     display_data_path,
     domain_knowledge_summary,
     domain_registry_overview,
     normalize_semantic_domain,
     run_dashboard_task,
+    semantic_domain_states,
     semantic_monitoring_snapshot,
     semantic_terms,
 )
@@ -270,11 +276,18 @@ def output_landing_view(request: HttpRequest):
         .prefetch_related("used_sources")
         .order_by("-generated_at")[:25]
     )
+    domain_documents = (
+        GeneratedDocument.objects.select_related("project")
+        .filter(project__domain=active_domain)
+        .order_by("-generated_at")[:10]
+    )
+    recent_projects = InfoSiteProject.objects.filter(domain=active_domain).order_by("-updated_at")[:10]
     widget_widths = _load_dashboard_widget_widths(request, area_key="infooutput")
     widget_cards = build_output_widget_cards(
         active_domain=active_domain,
         domain_stats=domain_stats,
-        recent_documents=recent_documents,
+        domain_documents=domain_documents,
+        recent_projects=recent_projects,
         formats=[
             {
                 "label": "Infosite",
@@ -343,11 +356,21 @@ def admin_overview_view(request: HttpRequest):
     )
     widget_widths = _load_dashboard_widget_widths(request, area_key="admin")
     domain_rows = domain_registry_overview(active_domain)
+    domain_states = semantic_domain_states()
+    layout_raw = data_layout_snapshot(active_domain)
+    layout = {
+        "data_root": display_data_path(layout_raw.get("data_root", "")),
+        "active_markdown_dir": display_data_path(layout_raw.get("active_markdown_dir", "")),
+        "active_jira_dir": display_data_path(layout_raw.get("active_jira_dir", "")),
+    }
     widget_cards = build_admin_widget_cards(
         active_domain=active_domain,
         domain_rows=domain_rows,
         widget_ids=configured_widget_ids,
         widget_widths=widget_widths,
+        domain_states=domain_states,
+        layout=layout,
+        csrf_token=get_token(request),
     )
     return render(
         request,
@@ -356,10 +379,116 @@ def admin_overview_view(request: HttpRequest):
             "active_domain": active_domain,
             "widget_cards": widget_cards,
             "quick_links": [
-                ("Domain overview", "/admin-overview/", "Current domain and admin-level system facts."),
+                ("Domain Management", "/admin-overview/domains/", "Domains anlegen, Datenverzeichnisse scannen und verwalten."),
+                ("System Status", "/admin-overview/status/", "Laufzeitwerte, Pfade und Systemzustand prüfen."),
                 ("Settings", "/settings/", "Configuration and layout controls."),
                 ("Dashboard Builder", "/settings/layout/builder/?area=admin", "Arrange the admin area widgets."),
             ],
+        },
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def admin_domain_management_view(request: HttpRequest):
+    """Domain management page: create new domains, rescan data directories
+    for domains that already exist on disk but are not yet registered, and
+    remove domains that have no remaining source/db files.
+
+    This closes the gap where ``create_semantic_domain``/``delete_semantic_domain``
+    existed in the services layer but were never wired up to any view - there
+    was no way to add a domain from the GUI. The page body reuses the
+    ``admin_domain_create`` and ``admin_domain_management`` widgetkit fragments
+    (also embedded as the ``admin.domain.create.v1`` and
+    ``admin.domain.management.v1`` widget cards on the admin overview page),
+    so both surfaces share one implementation.
+    """
+
+    active_domain = _active_semantic_domain(request)
+    if request.method == "POST":
+        action = request.POST.get("action", "").strip()
+        if action == "create":
+            new_domain = request.POST.get("domain", "").strip()
+            try:
+                result = create_semantic_domain(new_domain)
+                messages.success(request, f"Domain '{result['domain']}' angelegt.")
+            except ValueError as exc:
+                messages.error(request, str(exc))
+        elif action == "scan":
+            found = available_data_domains()
+            messages.success(request, f"Datenverzeichnisse gescannt: {len(found)} Domain(s) gefunden ({', '.join(found) or '—'}).")
+        elif action == "delete":
+            target_domain = request.POST.get("domain", "").strip()
+            try:
+                result = delete_semantic_domain(target_domain)
+                messages.success(request, f"Domain '{result['domain']}' entfernt ({len(result['removed'])} Datei(en)).")
+            except ValueError as exc:
+                messages.error(request, str(exc))
+        else:
+            return HttpResponseBadRequest("unknown action")
+        return HttpResponseRedirect(reverse("admin-domains"))
+
+    domain_states = semantic_domain_states()
+    domain_rows = domain_registry_overview(active_domain)
+    csrf_token = get_token(request)
+    domain_management_url = reverse("admin-domains")
+    create_html = render_fragment(
+        "admin_domain_create",
+        {"csrf_token": csrf_token, "domain_management_url": domain_management_url},
+    )
+    management_html = render_fragment(
+        "admin_domain_management",
+        {
+            "domain_states": domain_states,
+            "active_domain": active_domain,
+            "csrf_token": csrf_token,
+            "domain_management_url": domain_management_url,
+        },
+    )
+    return render(
+        request,
+        "kicli_django/admin_domain_management.html",
+        {
+            "active_domain": active_domain,
+            "domain_rows": domain_rows,
+            "create_html": create_html,
+            "management_html": management_html,
+        },
+    )
+
+
+@require_GET
+def admin_system_status_view(request: HttpRequest):
+    active_domain = _active_semantic_domain(request)
+    domain_states = [
+        {
+            **state,
+            **{key: display_data_path(state[key]) for key in ("markdown_dir", "jira_dir", "ontology_dir", "pdf_dir", "mix_dir")},
+        }
+        for state in semantic_domain_states()
+    ]
+    layout_raw = data_layout_snapshot(active_domain)
+    layout = {
+        key: display_data_path(value) if isinstance(value, str) and "/" in value else value
+        for key, value in layout_raw.items()
+    }
+    status_html = render_fragment(
+        "admin_system_status",
+        {
+            "active_domain": active_domain,
+            "registered_domain_count": len(domain_states),
+            "layout": layout,
+            "status_url": reverse("admin-status"),
+        },
+    )
+    return render(
+        request,
+        "kicli_django/admin_system_status.html",
+        {
+            "active_domain": active_domain,
+            "registered_domain_count": len(domain_states),
+            "layout": layout,
+            "domain_states": domain_states,
+            "status_html": status_html,
         },
     )
 

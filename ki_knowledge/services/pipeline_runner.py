@@ -12,15 +12,14 @@ record (idempotent) and delegate execution to `run_extraction_job`.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
+from ki_knowledge.data_layout import DataLayout
 from ki_knowledge.integrations.knowledge_pipeline_jobs import KnowledgeExtractionJobStore
 
 
 def get_job_store() -> KnowledgeExtractionJobStore:
-    db_path = Path.home() / ".ki-knowledge" / "pipeline_jobs.db"
-    return KnowledgeExtractionJobStore(db_path)
+    return KnowledgeExtractionJobStore(DataLayout.from_config().pipeline_jobs_db_path())
 
 
 def enqueue_extraction(project) -> str:

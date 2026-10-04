@@ -1,0 +1,14 @@
+<div class="output-recent-documents">
+  {% if documents %}
+  <ul>
+    {% for document in documents %}
+    <li>
+      <a href="{{ document.url }}">{{ document.title }}</a>
+      <span class="muted">· {{ document.path }} · {{ document.review_status }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">{{ empty_message }}</p>
+  {% endif %}
+</div>

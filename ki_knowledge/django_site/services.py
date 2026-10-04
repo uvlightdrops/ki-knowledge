@@ -5,6 +5,9 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
+import sys
+import uuid
 from datetime import datetime, timezone
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -16,6 +19,7 @@ from django.conf import settings
 import networkx as nx
 from ki_core.adapters.ollama import OllamaClient
 from ki_knowledge.app_config import AppConfig as Config
+from ki_knowledge.data_layout import DataLayout
 from ki_core.core.models import ChatRequest, Message, Role
 from ki_knowledge.api.app import _field_embedding_backend, _get_components, _semantic_model_id
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFEmbeddingProvider
@@ -47,6 +51,9 @@ from ki_knowledge.django_site.source_workflow import (
     import_ontology_url,
     import_pdf_directory,
     import_pdf_file,
+    import_mixed_directory,
+    import_mixed_file,
+    mixed_files_summary,
     render_markdown_html,
     tree_lines,
     workspace_markdown_files,
@@ -82,42 +89,29 @@ from ki_knowledge.django_site.jira_workflow import (
     jira_reset_data,
 )
 from ki_knowledge.django_site.domain_paths import (
+    domain_source_roots,
     _cached_delete,
     _cached_get,
     _cached_set,
-    _detect_domain_label,
     _domain_source_ids_cache_key,
     _domain_summary_cache_key,
-    _resolve_domain_file,
-    _resolve_existing_domain_dir,
+    data_layout,
     data_root,
     default_semantic_domain,
     domain_jira_dir,
     domain_markdown_dir,
     domain_ontology_dir,
     domain_pdf_dir,
+    domain_label,
+    domain_state_paths,
+    infer_domain_from_path,
     invalidate_domain_summary_cache,
-    jira_type_root,
-    markdown_type_root,
     normalize_semantic_domain,
-    ontology_type_root,
-    pdf_type_root,
 )
 
 
 def _infer_domain_from_path(path: Path | str | None) -> str | None:
-    raw = str(path or "").strip()
-    if not raw:
-        return None
-    candidate = Path(raw).expanduser()
-    for root in (markdown_type_root(), jira_type_root(), ontology_type_root(), pdf_type_root()):
-        try:
-            relative = candidate.resolve().relative_to(root.resolve())
-        except (OSError, RuntimeError, ValueError):
-            continue
-        if relative.parts:
-            return normalize_semantic_domain(relative.parts[0])
-    return None
+    return infer_domain_from_path(path)
 
 
 @dataclass
@@ -175,7 +169,22 @@ def display_data_path(value: str | Path | None) -> str:
         return "-"
     path = Path(raw).expanduser()
     root = data_root().expanduser()
+    layout = DataLayout(root)
     home = Path.home().expanduser()
+
+    # Try first without following symlinks: if a domain directory (e.g. md/anthro)
+    # is itself a symlink into some other location, we still want to display it
+    # by its location under data_root rather than leaking the symlink target.
+    try:
+        absolute = path if path.is_absolute() else (root / path)
+        relative = absolute.relative_to(root)
+        if not relative.parts:
+            return "."
+        relative = layout.display_relative(relative)
+        return "." if not relative.parts else relative.as_posix()
+    except (OSError, RuntimeError, ValueError):
+        pass
+
     try:
         resolved = path.resolve(strict=False)
     except (OSError, RuntimeError):
@@ -185,10 +194,8 @@ def display_data_path(value: str | Path | None) -> str:
         relative = resolved.relative_to(root.resolve())
         if not relative.parts:
             return "."
-        if relative.parts[0] == "md":
-            relative = relative.relative_to("md")
-            return "." if not relative.parts else relative.as_posix()
-        return relative.as_posix()
+        relative = layout.display_relative(relative)
+        return "." if not relative.parts else relative.as_posix()
     except (OSError, RuntimeError, ValueError):
         pass
 
@@ -738,18 +745,7 @@ def knowledge_api_browser_context(
 
 
 def available_data_domains() -> list[str]:
-    domains: set[str] = set()
-    for base in (markdown_type_root(), jira_type_root(), ontology_type_root(), pdf_type_root()):
-        if not base.exists() or not base.is_dir():
-            continue
-        for child in base.iterdir():
-            if child.is_dir():
-                domains.add(normalize_semantic_domain(child.name))
-    legacy_root = domain_storage_root()
-    if legacy_root.exists() and legacy_root.is_dir():
-        for child in legacy_root.iterdir():
-            if child.is_dir():
-                domains.add(normalize_semantic_domain(child.name))
+    domains = {normalize_semantic_domain(name) for name in data_layout().domain_names()}
     result = sorted(item for item in domains if item)
     _register_domains(result)
     return result
@@ -795,32 +791,13 @@ def normalize_semantic_domain(value: str | None) -> str:
     return normalized or "default"
 
 
-def domain_storage_root() -> Path:
-    raw = os.getenv("KNOWLEDGE_JIRA_ROOT", "").strip()
-    if raw:
-        return Path(raw).expanduser()
-    return jira_type_root()
-
-
 def domain_db_paths(domain: str | None = None) -> dict[str, Path]:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    domain_dir = _resolve_existing_domain_dir(domain_storage_root(), resolved)
-    return {
-        "domain": domain_dir,
-        "cache_db": _resolve_domain_file(domain_dir, "cache.sqlite", "jira_cache.sqlite"),
-        "graph_db": _resolve_domain_file(domain_dir, "graph.sqlite", "jira_graph.sqlite"),
-        "cypher_path": _resolve_domain_file(domain_dir, "graph.cypher", "jira_graph.cypher"),
-    }
+    return domain_state_paths(normalize_semantic_domain(domain or default_semantic_domain()))
 
 
 def semantic_domains() -> list[str]:
     domains = set(available_data_domains())
     domains.add(default_semantic_domain())
-    root = domain_storage_root()
-    if root.exists() and root.is_dir():
-        for child in root.iterdir():
-            if child.is_dir():
-                domains.add(normalize_semantic_domain(child.name))
     return sorted(domains)
 
 
@@ -858,10 +835,6 @@ def semantic_domain_states() -> list[dict[str, Any]]:
         jira_dir = domain_jira_dir(domain)
         ontology_dir = domain_ontology_dir(domain)
         pdf_dir = domain_pdf_dir(domain)
-        md_label = _detect_domain_label(markdown_type_root(), domain)
-        jira_label = _detect_domain_label(jira_type_root(), domain)
-        owl_label = _detect_domain_label(ontology_type_root(), domain)
-        pdf_label = _detect_domain_label(pdf_type_root(), domain)
         cache_path = paths["cache_db"]
         graph_path = paths["graph_db"]
         csv_path = jira_csv_path(domain)
@@ -869,6 +842,7 @@ def semantic_domain_states() -> list[dict[str, Any]]:
         jira_csv_files = len(sorted(path for path in jira_dir.glob("*.csv") if jira_dir.exists() and jira_dir.is_dir() and path.is_file()))
         ontology_files = len(discover_ontology_files(ontology_dir))
         pdf_files = len(discover_pdf_files(pdf_dir))
+        mix = mixed_files_summary(domain)
         pdf_job_stats = get_pdf_job_stats(domain)
         cache_exists = cache_path.exists()
         graph_exists = graph_path.exists()
@@ -886,13 +860,16 @@ def semantic_domain_states() -> list[dict[str, Any]]:
         states.append(
             {
                 "domain": domain,
-                "domain_label": md_label if md_label != domain else (jira_label if jira_label != domain else (owl_label if owl_label != domain else pdf_label)),
+                "domain_label": domain_label(domain),
                 "cache_db": str(cache_path),
                 "graph_db": str(graph_path),
                 "markdown_dir": str(markdown_dir),
                 "jira_dir": str(jira_dir),
                 "ontology_dir": str(ontology_dir),
                 "pdf_dir": str(pdf_dir),
+                "mix_dir": str(mix["dir"]),
+                "mix_files": mix["total"],
+                "mix_counts": mix["counts"],
                 "csv_path": csv_path,
                 "markdown_files": markdown_files,
                 "jira_csv_files": jira_csv_files,
@@ -902,6 +879,7 @@ def semantic_domain_states() -> list[dict[str, Any]]:
                 "has_jira_source": bool(csv_path),
                 "has_owl_source": ontology_files > 0,
                 "has_pdf_source": pdf_files > 0,
+                "has_mix_source": mix["total"] > 0,
                 "pdf_jobs": pdf_job_stats,
                 "pdf_jobs_active": pdf_job_stats.get("processing", 0) > 0,
                 "cache_exists": cache_exists,
@@ -938,9 +916,7 @@ def data_layout_snapshot(domain: str | None = None) -> dict[str, str]:
     resolved = normalize_semantic_domain(domain or default_semantic_domain())
     return {
         "data_root": str(data_root()),
-        "markdown_root": str(markdown_type_root()),
-        "jira_root": str(jira_type_root()),
-        "ontology_root": str(ontology_type_root()),
+        "layout_version": str(data_layout().version),
         "active_markdown_dir": str(domain_markdown_dir(resolved)),
         "active_jira_dir": str(domain_jira_dir(resolved)),
         "active_ontology_dir": str(domain_ontology_dir(resolved)),
@@ -989,16 +965,7 @@ def _is_under_dir(path: Path, root: Path) -> bool:
 
 def source_in_domain(source: Any, domain: str | None = None) -> bool:
     location = Path(str(getattr(source, "location", ""))).expanduser()
-    md_root = domain_markdown_dir(domain)
-    jira_root = domain_jira_dir(domain)
-    owl_root = domain_ontology_dir(domain)
-    pdf_root = domain_pdf_dir(domain)
-    return (
-        _is_under_dir(location, md_root)
-        or _is_under_dir(location, jira_root)
-        or _is_under_dir(location, owl_root)
-        or _is_under_dir(location, pdf_root)
-    )
+    return any(_is_under_dir(location, root) for root in domain_source_roots(domain))
 
 
 def _source_matches_domain_legacy(source: Any, domain: str | None = None) -> bool:
@@ -1015,35 +982,8 @@ def _source_matches_domain_legacy(source: Any, domain: str | None = None) -> boo
 
 
 def _domain_scoped_sources(domain: str | None = None, *, limit: int | None = None) -> list[Any]:
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    if resolved == "default":
-        rows = store().list_sources()[:limit] if limit is not None else store().list_sources()
-        return rows
-
-    roots = [
-        domain_markdown_dir(resolved),
-        domain_jira_dir(resolved),
-        domain_ontology_dir(resolved),
-        domain_pdf_dir(resolved),
-    ]
-    clauses: list[str] = []
-    params: list[str] = []
-    for root in roots:
-        root_str = str(root.expanduser())
-        clauses.append("(location = ? OR location LIKE ? OR location LIKE ?)")
-        params.extend([root_str, f"{root_str}/%", f"{root_str}\\%"])
-    if clauses:
-        sql = "SELECT * FROM knowledge_sources WHERE " + " OR ".join(clauses)
-        sql += " ORDER BY updated_at DESC, source_id"
-        if limit is not None:
-            sql += " LIMIT ?"
-            params.append(str(limit))
-        with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(sql, params).fetchall()
-        store_obj = store()
-        return [store_obj._row_to_source(row) for row in rows]
-    return []
+    from ki_knowledge.django_site.knowledge_summary import _domain_scoped_sources as _impl
+    return _impl(domain, limit=limit)
 
 
 def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
@@ -2140,11 +2080,12 @@ def run_dashboard_task(task_name: str, *, domain: str | None = None, target_doma
 
 
 def pdf_batch_db_path(domain: str | None = None) -> str:
-    """Get the PDF batch database path for a domain."""
-    resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    data_dir = data_root()
-    domain_dir = _resolve_existing_domain_dir(data_dir / "pdf", resolved)
-    return str(domain_dir.parent.parent / ".pdf_import_jobs.sqlite")
+    """Get the PDF batch job database path.
+
+    The job queue is global, not per domain; ``domain`` is accepted for
+    backwards compatibility only.
+    """
+    return str(data_layout().pdf_jobs_db_path())
 
 
 def get_pdf_batch_processor():
@@ -2152,6 +2093,54 @@ def get_pdf_batch_processor():
     from ki_knowledge.integrations.pdf_batch import PDFBatchProcessor
     db_path = pdf_batch_db_path()
     return PDFBatchProcessor(db_path)
+
+
+def start_pdf_worker(domain: str) -> dict[str, Any]:
+    """Launch one detached, tracked PDF worker for a domain from the GUI."""
+    processor = get_pdf_batch_processor()
+    pending = processor.list_jobs(domain=domain, status="pending")
+    if not pending:
+        return {"started": False, "reason": "empty", "worker": processor.get_worker_run()}
+
+    log_dir = Path(pdf_batch_db_path()).parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+    token_hint = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    log_path = log_dir / f"pdf-worker-{token_hint}-{uuid.uuid4().hex[:8]}.log"
+    reservation = processor.reserve_worker(domain, str(log_path))
+    if not reservation["started"]:
+        return {"started": False, "reason": "active", "worker": reservation}
+
+    command = [
+        sys.executable,
+        str(Path(settings.BASE_DIR) / "manage.py"),
+        "process_pdf_jobs",
+        "--domain",
+        domain,
+        "--worker-token",
+        reservation["token"],
+    ]
+    try:
+        with log_path.open("ab") as output:
+            child = subprocess.Popen(
+                command,
+                cwd=str(settings.BASE_DIR),
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                close_fds=True,
+                start_new_session=True,
+            )
+    except OSError as exc:
+        processor.fail_worker_start(reservation["token"], str(exc))
+        return {"started": False, "reason": "launch-failed", "error": str(exc), "worker": processor.get_worker_run()}
+
+    processor.worker_started(reservation["token"], child.pid)
+    return {
+        "started": True,
+        "worker": processor.get_worker_run(),
+        "pending_at_start": len(pending),
+        "log_path": str(log_path),
+    }
 
 
 def pdf_import_jobs(domain: str | None = None, status: str | None = None, limit: int = 100) -> list[dict]:
@@ -2173,7 +2162,9 @@ def pdf_import_jobs(domain: str | None = None, status: str | None = None, limit:
             "error_message": j.error_message,
             "created_at": j.created_at,
             "started_at": j.started_at,
+            "heartbeat_at": j.heartbeat_at,
             "completed_at": j.completed_at,
+            "attempt_count": j.attempt_count,
             "source_id": j.source_id,
             "artifact_id": j.artifact_id,
             "content_preview": _compact_job_preview(j.content_preview),
@@ -2228,7 +2219,7 @@ def pdf_import_report(domain: str | None = None, *, limit: int = 12) -> dict[str
         {
             **job,
             "display_pdf_path": display_data_path(job["pdf_path"]),
-            "age_minutes": _minutes_since(job.get("started_at") or job.get("created_at")),
+            "age_minutes": _minutes_since(job.get("heartbeat_at") or job.get("started_at") or job.get("created_at")),
         }
         for job in jobs
         if job["status"] == "processing"
@@ -2265,7 +2256,7 @@ def pdf_import_report(domain: str | None = None, *, limit: int = 12) -> dict[str
         "stale_processing": [
             job
             for job in processing_jobs
-            if job.get("age_minutes") is not None and job["age_minutes"] >= 30
+            if job.get("age_minutes") is not None and job["age_minutes"] >= 60
         ],
     }
 
@@ -2282,10 +2273,10 @@ def get_pdf_job_stats(domain: str | None = None) -> dict[str, int]:
     }
 
 
-def create_pdf_import_job(pdf_path: str, domain: str | None = None) -> str:
+def create_pdf_import_job(pdf_path: str, domain: str | None = None, *, force: bool = False) -> str:
     """Create a new PDF import job."""
     processor = get_pdf_batch_processor()
-    return processor.create_job(pdf_path, domain=domain or default_semantic_domain())
+    return processor.create_job(pdf_path, domain=domain or default_semantic_domain(), force=force)
 
 
 def delete_pdf_import_jobs(job_ids: list[str], domain: str | None = None) -> dict[str, int]:

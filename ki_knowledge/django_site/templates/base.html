@@ -9,12 +9,13 @@
   <link rel="icon" type="image/x-icon" href="{% static 'django_site/favicon.ico' %}">
   <link rel="stylesheet" href="{% static 'django_site/css/base-theme.css' %}">
   {% block extra_css %}{% endblock %}
+  <script src="{% static 'django_site/js/quick-import.js' %}" defer></script>
 </head>
 <body>
   <header>
     <div class="header-meta">
       <div>
-        <a href="/" title="Return to main dashboard">🏠 Ki-Knowledge</a>
+        <a href="/" title="Return to main dashboard">🏠 Ki-Knowledge <span class="muted">(Dashboard)</span></a>
       </div>
       <div class="header-user">
         <div class="header-domain">
@@ -27,8 +28,6 @@
       </div>
     </div>
     <nav aria-label="Main navigation">
-      <a class="nav-link{% if nav_active_area == 'dashboard' %} active{% endif %}" href="/" title="Dashboard overview for the active domain and recent knowledge activity">Dashboard</a>
-
       <a class="nav-section nav-section--data{% if nav_active_area == 'data-sources' %} active{% endif %}" href="/data-sources/" title="Import area: Markdown, PDF, OWL and Jira sources, discovery and import jobs">
         <span class="nav-section-title">📥 Data Sources</span>
         <small>Markdown · PDF · OWL · Jira</small>
@@ -36,7 +35,7 @@
 
       <a class="nav-section nav-section--knowledge{% if nav_active_area == 'internal-knowledge' %} active{% endif %}" href="/knowledge/" title="Processing area: semantic terms, knowledge-extraction pipeline, records, artifacts and chat">
         <span class="nav-section-title">🧠 Internal Knowledge</span>
-        <small>Semantic · Pipeline · Records · Chat</small>
+        <small>Semantic · Pipeline · Records</small>
       </a>
 
       <a class="nav-section nav-section--infosite{% if nav_active_area == 'info-output' %} active{% endif %}" href="/output/" title="Output area: publish processed knowledge as browsable presentations (Infosite, future: Quiz)">
@@ -59,7 +58,6 @@
         <small>Config · Layout</small>
       </a>
 
-      <a class="nav-mini{% if nav_active_area == 'layout-builder' %} active{% endif %}" href="/settings/layout/builder/" title="Dashboard Builder — arrange widgets by area and grid position" aria-label="Dashboard Builder">🧩</a>
     </nav>
     <div class="nav-quicklinks" aria-label="Submenu for the active area">
       {% for area in nav_areas %}

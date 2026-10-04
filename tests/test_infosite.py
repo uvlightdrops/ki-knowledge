@@ -245,6 +245,31 @@ def test_infosite_generator_creates_static_html_site(tmp_path):
     assert "Complete Index" in html_content or "Overview" in html_content
 
 
+def test_static_html_sidebar_links_to_infosite_documents_and_pdf_pages(tmp_path):
+    output_dir = tmp_path / "output" / "human-design" / "gates"
+    nested_dir = output_dir / "chapters"
+    nested_dir.mkdir(parents=True)
+    (output_dir / "overview.md").write_text(
+        "# Overview\n\n## Guide / Page 1\n\nFirst page text.\n\n## Guide / Page 2\n\nSecond page text.\n",
+        encoding="utf-8",
+    )
+    (nested_dir / "details.md").write_text("# Details\n\nMore information.\n", encoding="utf-8")
+
+    result = InfoSiteGeneratorService(tmp_path).generate_html_site(output_dir)
+
+    assert result.success is True
+    page_html = (output_dir / "html" / "overview.html").read_text(encoding="utf-8")
+    nested_html = (output_dir / "html" / "chapters" / "details.html").read_text(encoding="utf-8")
+    index_html = (output_dir / "html" / "index.html").read_text(encoding="utf-8")
+    assert 'aria-label="InfoSite navigation"' in page_html
+    assert 'href="#guide-page-1">Page 1</a>' in page_html
+    assert 'href="#guide-page-2">Page 2</a>' in page_html
+    assert 'href="chapters/details.html">Details</a>' in page_html
+    assert 'href="../overview.html">Overview</a>' in nested_html
+    assert 'aria-label="InfoSite navigation"' in index_html
+    assert 'href="overview.html">Overview</a>' in index_html
+
+
 def test_infosite_generator_uses_site_hierarchy_for_output_paths(tmp_path):
     """When the project uses a custom hierarchy, generated markdown should follow it."""
     data_root = tmp_path / "dev_data" / "ki-knowledge"

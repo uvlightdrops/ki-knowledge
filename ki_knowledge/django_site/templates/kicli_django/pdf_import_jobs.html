@@ -7,32 +7,7 @@
 <h1>PDF Import Jobs</h1>
 
 <div class="section">
-  <h2>Enqueue New Job</h2>
-  <form method="POST" action="/data-sources/pdf/" style="display: grid; gap: 12px; max-width: 500px;">
-    {% csrf_token %}
-    <div>
-      <label for="domain"><strong>Domain</strong></label>
-      <input type="text" id="domain" name="domain" placeholder="anthro" required 
-             style="width: 100%; padding: 8px; font-size: 0.9rem;">
-      <small class="muted">Knowledge domain (e.g., "anthro", "books", "papers") - determines default PDF path</small>
-    </div>
-    <div>
-      <label for="pdf_path"><strong>PDF Path</strong></label>
-      <input type="text" id="pdf_path" name="pdf_path" placeholder="~/dev_data/ki-knowledge/pdf/books/chapter1.pdf" required 
-             style="width: 100%; padding: 8px; font-family: monospace; font-size: 0.9rem;">
-      <small class="muted">Full path to PDF file or directory. Auto-filled from domain. Supports ~ for home directory.</small>
-    </div>
-    <button type="submit" style="padding: 10px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
-      Enqueue PDF Import
-    </button>
-  </form>
-  <p class="hint" style="margin-top: 12px;">
-    💡 For batch import of entire directories, use: <code>python examples/batch_import_pdfs.py ~/dev_data/ki-knowledge/pdf/anthro "anthro"</code>
-  </p>
-</div>
-
-<div class="section">
-  <h2>Overview</h2>
+  <h2>Queue overview</h2>
   <div class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
     <div>
       <strong>Total:</strong> {{ summary.total }}
@@ -131,32 +106,53 @@
 </div>
 
 <div class="section">
+  <h2>Worker controls</h2>
+  <div class="card">
+    <p>Domain: <strong>{{ active_domain }}</strong> · {{ summary.pending }} wartend · {{ summary.processing }} in Bearbeitung</p>
+    {% if worker_active %}
+      <p><span class="badge badge-warning">Worker {{ worker_run.status }}</span> für <strong>{{ worker_run.domain }}</strong></p>
+    {% elif worker_run and worker_run.status == "failed" %}
+      <p><span class="badge badge-danger">Letzter Worker fehlgeschlagen</span> {{ worker_run.error_message }}</p>
+    {% elif worker_run and worker_run.status == "done" %}
+      <p><span class="badge badge-success">Letzter Worker abgeschlossen</span> · {{ worker_run.domain }}</p>
+    {% endif %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <form method="post" action="{% url 'pdf-import-jobs' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="process-pending">
+        <button type="submit" {% if not summary.pending or worker_active %}disabled{% endif %}>
+          {% if worker_active %}Worker läuft{% else %}▶ Wartende PDFs starten ({{ summary.pending }}){% endif %}
+        </button>
+      </form>
+      <form method="post" action="{% url 'pdf-import-jobs' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="retry-failed">
+        <button type="submit" {% if not summary.failed %}disabled{% endif %} onclick="return confirm('Fehlgeschlagene Jobs erneut einreihen?')">Fehlgeschlagene erneut einreihen ({{ summary.failed }})</button>
+      </form>
+      <form method="post" action="{% url 'pdf-import-jobs' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reset-stale">
+        <label for="timeout_seconds" class="muted">Lease-Timeout (s)</label>
+        <input id="timeout_seconds" type="number" name="timeout_seconds" min="30" max="86400" value="3600" style="width: 90px; padding: 6px;">
+        <button type="submit" onclick="return confirm('Abgelaufene Worker-Leases als fehlgeschlagen markieren? Es werden keine Jobs gestartet.')">Abgelaufene Leases markieren</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="section">
   <h2>Jobs</h2>
-  
   {% if jobs %}
     <form id="bulk-delete-form" method="post" action="{% url 'pdf-import-jobs' %}" style="margin-bottom: 12px;">
       {% csrf_token %}
       <input type="hidden" name="action" value="delete-selected">
       <input type="hidden" name="domain" value="{{ active_domain }}">
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <button type="submit" form="process-pending-form">Process pending jobs</button>
-        <button type="submit" onclick="return confirm('Ausgewählte alte Jobs löschen?')">Delete selected</button>
-        <button type="submit" name="action" value="delete-old" onclick="return confirm('Alle alten Jobs löschen?')">Delete old jobs</button>
-        <button type="submit" form="reset-stale-form" onclick="return confirm('Stuck processing jobs zurücksetzen?')">Reset stuck jobs</button>
-      </div>
+      <button type="submit" onclick="return confirm('Ausgewählte abgeschlossene/fehlgeschlagene Jobs löschen?')">Ausgewählte Historie löschen</button>
     </form>
-    <form id="process-pending-form" method="post" action="{% url 'pdf-import-jobs' %}" style="display:inline-block; margin: 0 0 12px 0;">
+    <form method="post" action="{% url 'pdf-import-jobs' %}" style="display:inline-block; margin-bottom: 12px;">
       {% csrf_token %}
-      <input type="hidden" name="action" value="process-pending">
-      <input type="hidden" name="domain" value="{{ active_domain }}">
-      <input type="hidden" name="timeout_seconds" value="600">
-    </form>
-    <form id="reset-stale-form" method="post" action="{% url 'pdf-import-jobs' %}" style="display:inline-block; margin: 0 0 12px 0;">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="reset-stale">
-      <input type="hidden" name="domain" value="{{ active_domain }}">
-      <label for="timeout_seconds" class="muted" style="margin-right: 8px;">Timeout (s)</label>
-      <input id="timeout_seconds" type="number" name="timeout_seconds" min="5" max="3600" value="30" style="width: 80px; padding: 6px;">
+      <input type="hidden" name="action" value="delete-old">
+      <button type="submit" onclick="return confirm('Alle abgeschlossenen/fehlgeschlagenen Jobs dieser Domain löschen?')">Alte Historie löschen</button>
     </form>
     <div class="table-wrap">
       <table>
@@ -169,6 +165,7 @@
             <th>Status</th>
             <th>Progress</th>
             <th>Pages</th>
+            <th>Attempts</th>
             <th>Created</th>
             <th>Error</th>
             <th>Action</th>
@@ -218,6 +215,7 @@
                   -
                 {% endif %}
               </td>
+              <td>{{ job.attempt_count }}</td>
               <td class="mono" style="font-size: 0.85rem;">{{ job.created_at|date:"Y-m-d H:i:s" }}</td>
               <td style="font-size: 0.85rem; color: #ef4444;">
                 {% if job.error_message %}
@@ -259,46 +257,28 @@
 </div>
 
 <script>
-// Auto-update PDF path based on domain input
-document.addEventListener('DOMContentLoaded', function() {
-  const domainInput = document.getElementById('domain');
-  const pdfPathInput = document.getElementById('pdf_path');
-  
-  if (!domainInput || !pdfPathInput) return;
-  
-  // Function to update PDF path
-  function updatePdfPath() {
-    const domain = domainInput.value.trim();
-    if (domain) {
-      // Set default path to domain directory
-      pdfPathInput.value = `~/dev_data/ki-knowledge/pdf/${domain}/`;
-    } else {
-      pdfPathInput.value = '';
-    }
-  }
-  
-  // Update on domain change
-  domainInput.addEventListener('input', updatePdfPath);
-  
-  // Set initial value if domain is pre-filled
-  if (domainInput.value) {
-    updatePdfPath();
-  }
-});
-
-// Auto-refresh job status every 3 seconds
-setInterval(function() {
-  fetch('/data-sources/pdf/jobs.json?domain={{ active_domain }}&status={{ status }}')
-    .then(r => r.json())
-    .then(data => {
-      // Update page with new data (optional: reload page)
-      const hasProcessing = data.summary.processing > 0;
-      if (hasProcessing) {
-        // Keep polling while processing
-        console.log('PDF jobs processing:', data.summary);
+(() => {
+  const endpoint = "{% url 'pdf-import-jobs-json' %}";
+  const domain = "{{ active_domain|escapejs }}";
+  const status = "{{ status_filter|escapejs }}";
+  let current = "{{ summary.pending }}:{{ summary.processing }}:{{ summary.done }}:{{ summary.failed }}:{{ worker_run.token|default:''|escapejs }}:{{ worker_run.status|default:''|escapejs }}";
+  window.setInterval(async () => {
+    try {
+      const response = await fetch(`${endpoint}?domain=${encodeURIComponent(domain)}&status=${encodeURIComponent(status)}`, {
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const worker = data.worker || {};
+      const next = `${data.summary.pending}:${data.summary.processing}:${data.summary.done}:${data.summary.failed}:${worker.token || ""}:${worker.status || ""}`;
+      if (next !== current || data.summary.processing > 0 || ["starting", "running"].includes(worker.status)) {
+        current = next;
+        window.location.reload();
       }
-    })
-    .catch(e => console.error('Failed to fetch job status:', e));
-}, 3000);
+    } catch (error) {
+      console.error("Failed to refresh PDF job status", error);
+    }
+  }, 10000);
+})();
 </script>
 {% endblock %}

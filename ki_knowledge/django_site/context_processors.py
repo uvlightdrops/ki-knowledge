@@ -60,8 +60,8 @@ NAV_AREAS = [
         "prefixes": ["/admin-overview/"],
         "submenu": [
             ("Übersicht", "/admin-overview/", "Zentrale Admin-Übersicht über Domains, Status und Systemwerte."),
-            ("Domain Management", "/admin-overview/", "Domain-Status, Überblick und aktive Verwaltung."),
-            ("System Status", "/admin-overview/", "Anwendungsstatus und Laufzeitwerte prüfen."),
+            ("Domain Management", "/admin-overview/domains/", "Domains anlegen, Datenverzeichnisse scannen und verwalten."),
+            ("System Status", "/admin-overview/status/", "Anwendungsstatus und Laufzeitwerte prüfen."),
         ],
     },
     {

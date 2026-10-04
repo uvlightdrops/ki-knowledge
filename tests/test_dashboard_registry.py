@@ -16,7 +16,8 @@ from ki_knowledge.django_site.dashboard_registry import (
     widget_hierarchy,
 )
 from ki_knowledge.django_site.infosite_models import DashboardDefinition, DashboardWidgetPlacement, ensure_domain_registered
-from ki_knowledge.django_site.views import _load_dashboard_widget_ids
+from ki_knowledge.django_site.ui_dispatcher import resolve_ui_action
+from ki_knowledge.django_site.views_common import _load_dashboard_widget_ids
 
 
 def test_widget_registry_has_functional_areas_only():
@@ -93,6 +94,7 @@ def test_widget_lookup_resolves_legacy_aliases():
 def test_builtin_areas_are_functional_only():
     assert builtin_areas() == [
         "datasources",
+        "sources",
         "knowledge",
         "infooutput",
         "admin",
@@ -134,6 +136,52 @@ def test_persisted_dashboard_configuration_is_loaded_for_dashboard_area():
         "datasources.overview.summary.v1",
         "knowledge.overview.summary.v1",
     ]
+
+
+@pytest.mark.django_db
+def test_removing_widget_from_shared_fallback_preserves_other_widgets():
+    User = get_user_model()
+    user = User.objects.create_user(username="layout-editor")
+    domain = ensure_domain_registered("remove-widget-domain")
+    shared_dashboard = DashboardDefinition.objects.create(
+        owner=None,
+        domain=domain,
+        area_key="settings",
+        slug="settings-remove-widget-domain",
+        title="Shared settings",
+    )
+    widget_ids = [
+        "settings.layout.registry.v1",
+        "settings.config.summary.v1",
+        "settings.layout.preview.v1",
+    ]
+    for index, widget_id in enumerate(widget_ids):
+        DashboardWidgetPlacement.objects.create(
+            dashboard=shared_dashboard,
+            widget_id=widget_id,
+            sort_index=index,
+        )
+
+    request = RequestFactory().post("/")
+    SessionMiddleware(lambda request: None).process_request(request)
+    request.session["semantic_active_domain"] = domain.slug
+    request.session.save()
+    request.user = user
+
+    selected = resolve_ui_action(
+        "remove",
+        request=request,
+        area_key="settings",
+        widget_id=widget_ids[1],
+    )
+
+    assert selected == [widget_ids[0], widget_ids[2]]
+    assert list(
+        DashboardWidgetPlacement.objects.filter(dashboard=shared_dashboard)
+        .order_by("sort_index")
+        .values_list("widget_id", flat=True)
+    ) == widget_ids
+    assert _load_dashboard_widget_ids(request, area_key="settings") == selected
 
 
 def test_domain_summary_cache_avoids_repeated_store_scan(monkeypatch):

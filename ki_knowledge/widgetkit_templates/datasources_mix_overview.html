@@ -1,0 +1,21 @@
+<p><strong>Ordner:</strong> <span class="mono">{{ mix_dir_display }}</span>{% if not mix.exists %} <span class="chip">fehlt</span>{% endif %}</p>
+{% if mix.total %}
+  <ul>
+    {% for kind, count in counts %}{% if count %}<li>{{ kind }}: {{ count }}</li>{% endif %}{% endfor %}
+    {% if unsupported %}<li title="{{ mix.unsupported_examples|join(', ') }}">nicht unterstützt: {{ unsupported }}</li>{% endif %}
+  </ul>
+{% else %}
+  <p>Keine Dateien. Lege Dateien oder einen Symlink unter <span class="mono">{{ mix_dir_display }}</span> ab.</p>
+{% endif %}
+<p><strong>OCR (Bilder):</strong>
+  {% if mix.ocr_available %}✅ OCR verfügbar{% else %}— OCR nicht verfügbar; Bilder können dennoch als Bildobjekte importiert werden. Hinweise zur Einrichtung stehen in der Dokumentation.{% endif %}
+</p>
+{% if mix.total %}
+<form method="post" action="/data-sources/import/">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <input type="hidden" name="import_type" value="directory">
+  <input type="hidden" name="next" value="data-sources">
+  <input type="hidden" name="path" value="{{ mix_dir }}">
+  <button type="submit" title="Tabellen/Bilder/Markdown/OWL direkt, PDFs als Jobs">Mix importieren</button>
+</form>
+{% endif %}

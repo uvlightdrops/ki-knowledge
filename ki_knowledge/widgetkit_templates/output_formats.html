@@ -1,0 +1,13 @@
+<div class="output-formats">
+  {% for format in formats %}
+  <article class="output-format">
+    <strong>
+      {% if format.url %}<a href="{{ format.url }}">{{ format.label }}</a>{% else %}{{ format.label }}{% endif %}
+      <span class="muted">· {{ format.status }}</span>
+    </strong>
+    <p>{{ format.description }}</p>
+  </article>
+  {% else %}
+  <p class="muted">Keine Ausgabeformate konfiguriert.</p>
+  {% endfor %}
+</div>

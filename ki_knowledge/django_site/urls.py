@@ -24,7 +24,10 @@ urlpatterns = [
     path("data-sources/", views.data_sources_view, name="data-sources"),
     path("data-sources/workspace/", views.workspace, name="workspace"),
     path("data-sources/import/", views.import_action, name="import-action"),
+    path("data-sources/quick-import/", views.quick_import_action, name="quick-import-action"),
     path("data-sources/sources/", views.sources, name="sources"),
+    path("data-sources/sources/action/", views.sources_action, name="sources-action"),
+    path("data-sources/sources/infosite/create/", views.create_source_infosite_project, name="source-infosite-create"),
     path("data-sources/sources/<path:source_id>/", views.source_detail, name="source-detail"),
     path("data-sources/pdf/", views.pdf_import_jobs_view, name="pdf-import-jobs"),
     path("data-sources/pdf/report/", views.pdf_import_report_view, name="pdf-import-report"),
@@ -67,6 +70,8 @@ urlpatterns = [
 
     # --- 🛠️ Admin ------------------------------------------------------------
     path("admin-overview/", views.admin_overview_view, name="admin-overview"),
+    path("admin-overview/domains/", views.admin_domain_management_view, name="admin-domains"),
+    path("admin-overview/status/", views.admin_system_status_view, name="admin-status"),
 
     # --- ⚙️ Settings ----------------------------------------------------------
     path("settings/", views.settings_view, name="settings"),
