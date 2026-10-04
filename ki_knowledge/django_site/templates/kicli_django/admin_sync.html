@@ -6,9 +6,16 @@
 
 <div class="grid section">
   <div class="card">
+    <h3>Node Configuration</h3>
+    {% include "kicli_django/admin_sync_node_form.html" %}
+  </div>
+  <div class="card">
     <h3>Node Overview</h3>
     {% include "kicli_django/admin_sync_overview.html" %}
   </div>
+</div>
+
+<div class="grid section">
   <div class="card">
     <h3>Sync History</h3>
     {% include "kicli_django/admin_sync_history.html" with worker_command_example="python manage.py process_distributed_sync_jobs --pending --domain "|add:active_domain %}
