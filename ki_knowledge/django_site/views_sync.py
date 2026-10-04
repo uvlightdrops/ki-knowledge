@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 
-from django.http import HttpRequest, HttpResponseBadRequest, JsonResponse
+from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
+
+from ki_knowledge.app_config import AppConfig as Config
 
 from .distributed_sync import (
     apply_remote_domain_payload,
     apply_remote_node_heartbeat,
     ensure_local_node_config,
     local_sync_payload,
+    pull_from_master,
 )
 
 
@@ -23,6 +26,25 @@ def _json_body(request: HttpRequest) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("json body must be an object")
     return payload
+
+
+def _configured_sync_secret() -> str:
+    config = Config.from_env()
+    return (config.distributed_sync_shared_secret or "").strip()
+
+
+def _require_sync_secret(request: HttpRequest):
+    expected = _configured_sync_secret()
+    if not expected:
+        return None
+    provided = (
+        request.headers.get("X-KI-Sync-Secret", "").strip()
+        or request.GET.get("sync_secret", "").strip()
+        or request.POST.get("sync_secret", "").strip()
+    )
+    if provided != expected:
+        return HttpResponseForbidden("sync secret missing or invalid")
+    return None
 
 
 @require_GET
@@ -43,6 +65,9 @@ def sync_status_view(request: HttpRequest):
 
 @require_POST
 def sync_heartbeat_view(request: HttpRequest):
+    denied = _require_sync_secret(request)
+    if denied is not None:
+        return denied
     try:
         payload = _json_body(request)
         node = apply_remote_node_heartbeat(payload)
@@ -59,9 +84,13 @@ def sync_heartbeat_view(request: HttpRequest):
 
 @require_GET
 def sync_export_view(request: HttpRequest):
+    denied = _require_sync_secret(request)
+    if denied is not None:
+        return denied
     domains = [item.strip() for item in request.GET.getlist("domain") if item.strip()]
     include_projects = request.GET.get("include_projects", "1").strip() != "0"
     include_documents = request.GET.get("include_documents", "1").strip() != "0"
+    include_knowledge = request.GET.get("include_knowledge", "1").strip() != "0"
     payload = local_sync_payload(domains or None)
     if not include_projects:
         for domain in payload["domains"]:
@@ -70,14 +99,49 @@ def sync_export_view(request: HttpRequest):
         for domain in payload["domains"]:
             for project in domain["projects"]:
                 project["documents"] = []
+    if include_knowledge:
+        from .distributed_sync import knowledge_sync_payload
+
+        knowledge_payload = knowledge_sync_payload(domains or None)
+        by_slug = {entry["slug"]: entry for entry in knowledge_payload["domains"]}
+        for domain in payload["domains"]:
+            knowledge_entry = by_slug.get(domain["slug"], {})
+            domain["knowledge_sources"] = knowledge_entry.get("knowledge_sources", [])
+            domain["knowledge_records"] = knowledge_entry.get("knowledge_records", [])
+            domain["knowledge_artifacts"] = knowledge_entry.get("knowledge_artifacts", [])
+            domain["knowledge_relations"] = knowledge_entry.get("knowledge_relations", [])
+    else:
+        for domain in payload["domains"]:
+            domain["knowledge_sources"] = []
+            domain["knowledge_records"] = []
+            domain["knowledge_artifacts"] = []
+            domain["knowledge_relations"] = []
     return JsonResponse(payload)
 
 
 @require_POST
 def sync_push_view(request: HttpRequest):
+    denied = _require_sync_secret(request)
+    if denied is not None:
+        return denied
     try:
         payload = _json_body(request)
         result = apply_remote_domain_payload(payload)
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
+    return JsonResponse({"status": "ok", **result})
+
+
+@require_POST
+def sync_pull_view(request: HttpRequest):
+    denied = _require_sync_secret(request)
+    if denied is not None:
+        return denied
+    domains = [item.strip() for item in request.POST.getlist("domain") if item.strip()]
+    try:
+        result = pull_from_master(domains=domains or None)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+    except Exception as exc:
+        return HttpResponseBadRequest(f"master pull failed: {exc}")
     return JsonResponse({"status": "ok", **result})

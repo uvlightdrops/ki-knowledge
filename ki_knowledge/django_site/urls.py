@@ -54,6 +54,7 @@ urlpatterns = [
     path("knowledge/sync/heartbeat/", views.sync_heartbeat_view, name="sync-heartbeat"),
     path("knowledge/sync/export/", views.sync_export_view, name="sync-export"),
     path("knowledge/sync/push/", views.sync_push_view, name="sync-push"),
+    path("knowledge/sync/pull/", views.sync_pull_view, name="sync-pull"),
     # Semantic sub-area (term extraction, domain analysis, graph/hybrid search)
     path("knowledge/semantic/", views.semantic_landing_view, name="semantic"),
     path("knowledge/semantic/terms/", views.semantic_terms_view, name="semantic-terms"),

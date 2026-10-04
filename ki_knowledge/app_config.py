@@ -173,6 +173,7 @@ class AppConfig:
     distributed_master_url: str = ""
     distributed_sync_on_connect: bool = True
     distributed_postgres_dsn: str = ""
+    distributed_sync_shared_secret: str = ""
 
     raw: ConfigDict = field(default_factory=ConfigDict)
 
@@ -239,6 +240,7 @@ class AppConfig:
             distributed_master_url=distributed_cfg.get("master_url", ""),
             distributed_sync_on_connect=distributed_cfg.get("sync_on_connect", True),
             distributed_postgres_dsn=distributed_cfg.get("postgres_dsn", ""),
+            distributed_sync_shared_secret=distributed_cfg.get("sync_shared_secret", ""),
             raw=payload,
         )
 

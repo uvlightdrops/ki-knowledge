@@ -47,6 +47,9 @@
 - **Konfliktarm starten**
   - Keine Multi-Master-Semantik.
   - Eine Domain gehört genau einem Home Node.
+- **Interne API-Absicherung**
+  - Sync-Endpunkte werden zuerst per gemeinsamem Secret abgesichert.
+  - Header `X-KI-Sync-Secret` ist der bevorzugte Transport.
 
 ## Direkt danach im Repo
 
@@ -54,3 +57,10 @@
 2. `NodeConfig` in Domain-Management und Status-Seiten anzeigen.
 3. Eine kleine Sync-API-Spezifikation für Domain-Register/Heartbeat/Push festziehen.
 4. Danach die erste Push-Route und Export-Payload implementieren.
+
+## Aktueller Stand
+
+- Foundation für Domain-Ownership und Node-Registry ist umgesetzt.
+- Export/Push für `InfoSiteProject` und `SourceDocument`-Metadaten ist vorhanden.
+- Sync-Endpunkte können jetzt optional per `apps.ki_knowledge.distributed.sync_shared_secret`
+  geschützt werden.

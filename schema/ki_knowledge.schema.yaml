@@ -139,6 +139,9 @@ properties:
               postgres_dsn:
                 type: string
                 default: ""
+              sync_shared_secret:
+                type: string
+                default: ""
             additionalProperties: true
           django:
             type: object

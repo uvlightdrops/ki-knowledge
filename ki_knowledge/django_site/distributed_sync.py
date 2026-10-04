@@ -3,9 +3,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+import requests
 from django.utils import timezone
 
 from ki_knowledge.app_config import AppConfig as Config
+from ki_knowledge.django_site.knowledge_summary import _domain_scoped_sources, store
+from ki_knowledge.integrations.knowledge_store import KnowledgeStore
+from ki_knowledge.knowledge.models import KnowledgeArtifact, KnowledgeBlockRecord, KnowledgeRelationRecord, KnowledgeSource
 
 from .infosite_models import Domain, InfoSiteProject, NodeConfig, SourceDocument, current_node_id
 
@@ -136,6 +140,92 @@ def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
     }
 
 
+def knowledge_source_snapshot(source: KnowledgeSource) -> dict[str, Any]:
+    return {
+        "source_id": source.source_id,
+        "source_type": source.source_type,
+        "title": source.title,
+        "location": source.location,
+        "metadata": source.metadata,
+    }
+
+
+def knowledge_record_snapshot(record: KnowledgeBlockRecord) -> dict[str, Any]:
+    return {
+        "block_id": record.block_id,
+        "source_id": record.source_id,
+        "block_type": record.block_type,
+        "title": record.title,
+        "content": record.content,
+        "parent_block_id": record.parent_block_id,
+        "path": record.path,
+        "order_index": record.order_index,
+        "tags": record.tags,
+        "metadata": record.metadata,
+        "object_type": record.object_type,
+    }
+
+
+def knowledge_artifact_snapshot(artifact: KnowledgeArtifact) -> dict[str, Any]:
+    return {
+        "artifact_id": artifact.artifact_id,
+        "artifact_type": artifact.artifact_type,
+        "source_id": artifact.source_id,
+        "source_block_ids": artifact.source_block_ids,
+        "content": artifact.content,
+        "metadata": artifact.metadata,
+    }
+
+
+def knowledge_relation_snapshot(relation: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source_block_id": str(relation.get("source_block_id", "")).strip(),
+        "target_block_id": str(relation.get("target_block_id", "")).strip(),
+        "relation": str(relation.get("relation", "")).strip(),
+        "weight": float(relation.get("weight", 1.0) or 1.0),
+        "metadata": relation.get("metadata") if isinstance(relation.get("metadata"), dict) else {},
+    }
+
+
+def knowledge_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
+    store_obj = store()
+    resolved_domains = domains or [domain.slug for domain in Domain.objects.all().order_by("slug")]
+    domain_entries: list[dict[str, Any]] = []
+    for domain_slug in resolved_domains:
+        sources = _domain_scoped_sources(domain_slug)
+        source_snapshots = [knowledge_source_snapshot(source) for source in sources]
+        records: list[dict[str, Any]] = []
+        artifacts: list[dict[str, Any]] = []
+        relation_rows: list[dict[str, Any]] = []
+        block_ids: list[str] = []
+        for source in sources:
+            source_records = store_obj.list_records(source_id=source.source_id)
+            records.extend(knowledge_record_snapshot(record) for record in source_records)
+            artifacts.extend(
+                knowledge_artifact_snapshot(artifact)
+                for artifact in store_obj.list_artifacts(source_id=source.source_id)
+            )
+            block_ids.extend(record.block_id for record in source_records)
+        relation_rows.extend(
+            knowledge_relation_snapshot(relation)
+            for relation in store_obj.list_relations_for_blocks(block_ids)
+        )
+        domain_entries.append(
+            {
+                "slug": domain_slug,
+                "knowledge_sources": source_snapshots,
+                "knowledge_records": records,
+                "knowledge_artifacts": artifacts,
+                "knowledge_relations": relation_rows,
+            }
+        )
+    return {
+        "node": asdict(local_node_snapshot()),
+        "domains": domain_entries,
+        "generated_at": timezone.now().isoformat(),
+    }
+
+
 def _parse_dt(value: Any):
     if not value:
         return None
@@ -186,6 +276,76 @@ def _upsert_source_document(project: InfoSiteProject, payload: dict[str, Any]) -
         },
     )
     return document
+
+
+def _upsert_knowledge_source(store_obj: KnowledgeStore, payload: dict[str, Any]) -> None:
+    store_obj.upsert_source(
+        KnowledgeSource(
+            source_id=str(payload.get("source_id", "")).strip(),
+            source_type=str(payload.get("source_type", "")).strip(),
+            title=str(payload.get("title", "")).strip(),
+            location=str(payload.get("location", "")).strip(),
+            metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
+        )
+    )
+
+
+def _upsert_knowledge_record(store_obj: KnowledgeStore, payload: dict[str, Any]) -> None:
+    source_id = str(payload.get("source_id", "")).strip()
+    block_id = str(payload.get("block_id", "")).strip()
+    if not source_id or not block_id:
+        return
+    store_obj.upsert_record(
+        KnowledgeBlockRecord(
+            block_id=block_id,
+            source_id=source_id,
+            block_type=str(payload.get("block_type", "")).strip(),
+            title=str(payload.get("title", "")).strip(),
+            content=str(payload.get("content", "")).strip(),
+            parent_block_id=str(payload.get("parent_block_id", "")).strip() or None,
+            path=str(payload.get("path", "")).strip(),
+            order_index=int(payload.get("order_index", 0) or 0),
+            tags=[str(tag) for tag in payload.get("tags", []) if str(tag).strip()],
+            metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
+            object_type=str(payload.get("object_type", "")).strip(),
+        )
+    )
+
+
+def _upsert_knowledge_artifact(store_obj: KnowledgeStore, payload: dict[str, Any]) -> None:
+    artifact_id = str(payload.get("artifact_id", "")).strip()
+    source_id = str(payload.get("source_id", "")).strip()
+    if not artifact_id or not source_id:
+        return
+    store_obj.upsert_artifact(
+        KnowledgeArtifact(
+            artifact_id=artifact_id,
+            artifact_type=str(payload.get("artifact_type", "")).strip(),
+            source_id=source_id,
+            source_block_ids=[str(block_id) for block_id in payload.get("source_block_ids", []) if str(block_id).strip()],
+            content=str(payload.get("content", "")).strip(),
+            metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
+        )
+    )
+
+
+def _upsert_knowledge_relation(store_obj: KnowledgeStore, payload: dict[str, Any]) -> None:
+    relation = KnowledgeRelationRecord(
+        source_block_id=str(payload.get("source_block_id", "")).strip(),
+        target_block_id=str(payload.get("target_block_id", "")).strip(),
+        relation=str(payload.get("relation", "")).strip() or "related_to",
+        weight=float(payload.get("weight", 1.0) or 1.0),
+        metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
+    )
+    if not relation.source_block_id or not relation.target_block_id:
+        return
+    store_obj.add_relation(
+        relation.source_block_id,
+        relation.target_block_id,
+        relation=relation.relation,
+        weight=relation.weight,
+        metadata=relation.metadata,
+    )
 
 
 def apply_remote_node_heartbeat(payload: dict[str, Any]) -> NodeConfig:
@@ -279,6 +439,47 @@ def apply_remote_domain_payload(payload: dict[str, Any]) -> dict[str, Any]:
                                 "file_path": document.file_path,
                             }
                         )
+        knowledge_sources_payload = item.get("knowledge_sources")
+        knowledge_records_payload = item.get("knowledge_records")
+        knowledge_artifacts_payload = item.get("knowledge_artifacts")
+        knowledge_relations_payload = item.get("knowledge_relations")
+        applied_knowledge_sources = 0
+        applied_knowledge_records = 0
+        applied_knowledge_artifacts = 0
+        applied_knowledge_relations = 0
+        if (
+            isinstance(knowledge_sources_payload, list)
+            or isinstance(knowledge_records_payload, list)
+            or isinstance(knowledge_artifacts_payload, list)
+            or isinstance(knowledge_relations_payload, list)
+        ):
+            store_obj = store()
+            if isinstance(knowledge_sources_payload, list):
+                for source_payload in knowledge_sources_payload:
+                    if not isinstance(source_payload, dict):
+                        continue
+                    if not str(source_payload.get("source_id", "")).strip():
+                        continue
+                    _upsert_knowledge_source(store_obj, source_payload)
+                    applied_knowledge_sources += 1
+            if isinstance(knowledge_records_payload, list):
+                for record_payload in knowledge_records_payload:
+                    if not isinstance(record_payload, dict):
+                        continue
+                    _upsert_knowledge_record(store_obj, record_payload)
+                    applied_knowledge_records += 1
+            if isinstance(knowledge_artifacts_payload, list):
+                for artifact_payload in knowledge_artifacts_payload:
+                    if not isinstance(artifact_payload, dict):
+                        continue
+                    _upsert_knowledge_artifact(store_obj, artifact_payload)
+                    applied_knowledge_artifacts += 1
+            if isinstance(knowledge_relations_payload, list):
+                for relation_payload in knowledge_relations_payload:
+                    if not isinstance(relation_payload, dict):
+                        continue
+                    _upsert_knowledge_relation(store_obj, relation_payload)
+                    applied_knowledge_relations += 1
         applied.append(
             {
                 "slug": domain.slug,
@@ -288,6 +489,41 @@ def apply_remote_domain_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "visibility": domain.visibility,
                 "projects": applied_projects,
                 "documents": applied_documents,
+                "knowledge_sources": applied_knowledge_sources,
+                "knowledge_records": applied_knowledge_records,
+                "knowledge_artifacts": applied_knowledge_artifacts,
+                "knowledge_relations": applied_knowledge_relations,
             }
         )
     return {"applied_domains": applied, "count": len(applied)}
+
+
+def pull_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
+    config = Config.from_env()
+    master_url = (config.distributed_master_url or "").strip()
+    if not master_url:
+        raise ValueError("master_url not configured")
+
+    export_url = master_url.rstrip("/") + "/knowledge/sync/export/"
+    headers: dict[str, str] = {}
+    if config.distributed_sync_shared_secret.strip():
+        headers["X-KI-Sync-Secret"] = config.distributed_sync_shared_secret.strip()
+    params: list[tuple[str, str]] = [
+        ("include_projects", "1"),
+        ("include_documents", "1"),
+        ("include_knowledge", "1"),
+    ]
+    for domain in domains or []:
+        normalized = str(domain).strip()
+        if normalized:
+            params.append(("domain", normalized))
+
+    response = requests.get(export_url, params=params, headers=headers, timeout=max(config.request_timeout, 5))
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("master export payload must be an object")
+    result = apply_remote_domain_payload(payload)
+    result["pulled_from"] = export_url
+    result["requested_domains"] = [domain for _, domain in params if _ == "domain"]
+    return result
