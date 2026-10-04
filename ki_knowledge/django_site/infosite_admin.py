@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count, Q
 
-from .infosite_models import InfoSiteMappingRule, InfoSiteProject, SourceDocument
+from .infosite_models import Domain, InfoSiteMappingRule, InfoSiteProject, NodeConfig, SourceDocument
 
 
 def _status_badge_html(value: str, *, colors: dict[str, str], default: str = "gray") -> str:
@@ -107,3 +107,17 @@ class InfoSiteMappingRuleAdmin(admin.ModelAdmin):
     list_filter = ["project", "mode", "active"]
     search_fields = ["source_path", "target_section", "target_title", "target_parent"]
     ordering = ["project__title", "order_index", "target_section"]
+
+
+@admin.register(Domain)
+class DomainAdmin(admin.ModelAdmin):
+    list_display = ["slug", "display_name", "home_node", "sync_mode", "visibility", "last_sync_at"]
+    list_filter = ["sync_mode", "visibility", "created_at"]
+    search_fields = ["slug", "display_name", "home_node"]
+
+
+@admin.register(NodeConfig)
+class NodeConfigAdmin(admin.ModelAdmin):
+    list_display = ["node_id", "display_name", "role", "sync_on_connect", "is_enabled", "last_seen_at"]
+    list_filter = ["role", "sync_on_connect", "is_enabled", "created_at"]
+    search_fields = ["node_id", "display_name", "base_url"]

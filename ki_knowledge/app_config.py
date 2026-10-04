@@ -167,6 +167,13 @@ class AppConfig:
     jira_use_graph: bool = False
     jira_cache_refresh: bool = False
 
+    distributed_enabled: bool = False
+    distributed_node_id: str = ""
+    distributed_node_role: str = "standalone"
+    distributed_master_url: str = ""
+    distributed_sync_on_connect: bool = True
+    distributed_postgres_dsn: str = ""
+
     raw: ConfigDict = field(default_factory=ConfigDict)
 
     @classmethod
@@ -183,6 +190,9 @@ class AppConfig:
         knowledge_paths = knowledge_cfg.get("paths", {}) or {}
         infosite_cfg = payload.get("infosite", {}) or {}
         jira_cfg = payload.get("jira", {}) or {}
+        app_cfg = payload.get("apps", {}) or {}
+        ki_knowledge_cfg = app_cfg.get("ki_knowledge", {}) or {}
+        distributed_cfg = ki_knowledge_cfg.get("distributed", {}) or {}
 
         return cls(
             ki_base_url=ki_cfg.get("base_url", ""),
@@ -223,6 +233,12 @@ class AppConfig:
             jira_use_hybrid_search=jira_cfg.get("use_hybrid_search", True),
             jira_use_graph=jira_cfg.get("use_graph", False),
             jira_cache_refresh=jira_cfg.get("cache_refresh", False),
+            distributed_enabled=distributed_cfg.get("enabled", False),
+            distributed_node_id=distributed_cfg.get("node_id", ""),
+            distributed_node_role=distributed_cfg.get("node_role", "standalone"),
+            distributed_master_url=distributed_cfg.get("master_url", ""),
+            distributed_sync_on_connect=distributed_cfg.get("sync_on_connect", True),
+            distributed_postgres_dsn=distributed_cfg.get("postgres_dsn", ""),
             raw=payload,
         )
 

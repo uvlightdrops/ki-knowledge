@@ -117,6 +117,29 @@ properties:
           api_url:
             type: string
             default: ""
+          distributed:
+            type: object
+            title: "Distributed Collaboration Settings"
+            properties:
+              enabled:
+                type: boolean
+                default: false
+              node_id:
+                type: string
+                default: ""
+              node_role:
+                type: string
+                default: "standalone"
+              master_url:
+                type: string
+                default: ""
+              sync_on_connect:
+                type: boolean
+                default: true
+              postgres_dsn:
+                type: string
+                default: ""
+            additionalProperties: true
           django:
             type: object
             properties:

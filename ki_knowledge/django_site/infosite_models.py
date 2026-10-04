@@ -30,6 +30,10 @@ class Domain(models.Model):
     slug = models.SlugField(max_length=100, unique=True)
     display_name = models.CharField(max_length=150, blank=True)
     description = models.TextField(blank=True)
+    home_node = models.CharField(max_length=120, blank=True)
+    sync_mode = models.CharField(max_length=20, default="local")
+    visibility = models.CharField(max_length=20, default="private")
+    last_sync_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -52,12 +56,48 @@ def ensure_domain_registered(slug: str | None, *, display_name: str | None = Non
         return None
     domain, created = Domain.objects.get_or_create(
         slug=normalized,
-        defaults={"display_name": display_name or normalized},
+        defaults={
+            "display_name": display_name or normalized,
+            "home_node": current_node_id(),
+            "sync_mode": "local",
+            "visibility": "private",
+        },
     )
     if not created and display_name and not domain.display_name:
         domain.display_name = display_name
         domain.save(update_fields=["display_name"])
     return domain
+
+
+class NodeConfig(models.Model):
+    ROLE_CHOICES = [
+        ("standalone", "Standalone"),
+        ("master", "Master"),
+        ("host", "Host"),
+    ]
+
+    node_id = models.CharField(max_length=120, unique=True)
+    display_name = models.CharField(max_length=150, blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="standalone")
+    base_url = models.URLField(blank=True)
+    is_enabled = models.BooleanField(default=True)
+    sync_on_connect = models.BooleanField(default=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["node_id"]
+
+    def __str__(self) -> str:
+        return self.display_name or self.node_id
+
+
+def current_node_id() -> str:
+    from ki_knowledge.app_config import AppConfig as Config
+
+    config = Config.from_env()
+    return (config.distributed_node_id or "").strip() or "local-node"
 
 
 class DashboardDefinition(models.Model):

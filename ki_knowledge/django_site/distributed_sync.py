@@ -1,0 +1,293 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from typing import Any
+
+from django.utils import timezone
+
+from ki_knowledge.app_config import AppConfig as Config
+
+from .infosite_models import Domain, InfoSiteProject, NodeConfig, SourceDocument, current_node_id
+
+
+@dataclass
+class LocalNodeSnapshot:
+    node_id: str
+    role: str
+    base_url: str
+    sync_on_connect: bool
+    distributed_enabled: bool
+    master_url: str
+
+
+def local_node_snapshot() -> LocalNodeSnapshot:
+    config = Config.from_env()
+    return LocalNodeSnapshot(
+        node_id=current_node_id(),
+        role=(config.distributed_node_role or "standalone").strip() or "standalone",
+        base_url="",
+        sync_on_connect=bool(config.distributed_sync_on_connect),
+        distributed_enabled=bool(config.distributed_enabled),
+        master_url=(config.distributed_master_url or "").strip(),
+    )
+
+
+def ensure_local_node_config() -> NodeConfig:
+    snapshot = local_node_snapshot()
+    node, _ = NodeConfig.objects.update_or_create(
+        node_id=snapshot.node_id,
+        defaults={
+            "role": snapshot.role,
+            "base_url": snapshot.base_url,
+            "sync_on_connect": snapshot.sync_on_connect,
+            "is_enabled": snapshot.distributed_enabled or snapshot.role == "master",
+            "last_seen_at": timezone.now(),
+        },
+    )
+    return node
+
+
+def domain_metadata_snapshot(domain: Domain) -> dict[str, Any]:
+    projects = [
+        project_metadata_snapshot(project)
+        for project in InfoSiteProject.objects.filter(domain=domain.slug).order_by("id")
+    ]
+    return {
+        "slug": domain.slug,
+        "display_name": domain.display_name,
+        "description": domain.description,
+        "home_node": domain.home_node,
+        "sync_mode": domain.sync_mode,
+        "visibility": domain.visibility,
+        "last_sync_at": domain.last_sync_at.isoformat() if domain.last_sync_at else None,
+        "project_count": len(projects),
+        "projects": [
+            {
+                **project,
+                "updated_at": project["updated_at"].isoformat() if project["updated_at"] else None,
+            }
+            for project in projects
+        ],
+    }
+
+
+def project_metadata_snapshot(project: InfoSiteProject) -> dict[str, Any]:
+    return {
+        "remote_id": project.id,
+        "title": project.title,
+        "domain": project.domain,
+        "working_title": project.working_title,
+        "description": project.description,
+        "source_directory": project.source_directory,
+        "site_structure": project.site_structure,
+        "enabled": project.enabled,
+        "auto_discover": project.auto_discover,
+        "sync_status": project.sync_status,
+        "last_sync_at": project.last_sync_at.isoformat() if project.last_sync_at else None,
+        "last_sync_error": project.last_sync_error,
+        "generation_status": project.generation_status,
+        "output_dir": project.output_dir,
+        "generated_at": project.generated_at.isoformat() if project.generated_at else None,
+        "generation_error": project.generation_error,
+        "version_count": project.version_count,
+        "generate_html_site": project.generate_html_site,
+        "html_site_generated": project.html_site_generated,
+        "updated_at": project.updated_at.isoformat() if project.updated_at else None,
+        "documents": [
+            source_document_metadata_snapshot(document)
+            for document in project.documents.order_by("file_path")
+        ],
+    }
+
+
+def source_document_metadata_snapshot(document: SourceDocument) -> dict[str, Any]:
+    return {
+        "file_path": document.file_path,
+        "file_type": document.file_type,
+        "title": document.title,
+        "file_size": document.file_size,
+        "modified_at": document.modified_at.isoformat() if document.modified_at else None,
+        "import_status": document.import_status,
+        "imported": document.imported,
+        "imported_at": document.imported_at.isoformat() if document.imported_at else None,
+        "import_error": document.import_error,
+        "review_status": document.review_status,
+        "editor_notes": document.editor_notes,
+        "updated_at": document.updated_at.isoformat() if document.updated_at else None,
+    }
+
+
+def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
+    node = ensure_local_node_config()
+    queryset = Domain.objects.all().order_by("slug")
+    if domains:
+        queryset = queryset.filter(slug__in=domains)
+    return {
+        "node": asdict(local_node_snapshot()),
+        "registered_node": {
+            "node_id": node.node_id,
+            "role": node.role,
+            "sync_on_connect": node.sync_on_connect,
+            "is_enabled": node.is_enabled,
+            "last_seen_at": node.last_seen_at.isoformat() if node.last_seen_at else None,
+        },
+        "domains": [domain_metadata_snapshot(domain) for domain in queryset],
+        "generated_at": timezone.now().isoformat(),
+    }
+
+
+def _parse_dt(value: Any):
+    if not value:
+        return None
+    return timezone.datetime.fromisoformat(str(value))
+
+
+def _upsert_project(domain: Domain, payload: dict[str, Any]) -> InfoSiteProject:
+    project, _ = InfoSiteProject.objects.update_or_create(
+        domain=domain.slug,
+        working_title=str(payload.get("working_title", "")).strip(),
+        defaults={
+            "title": str(payload.get("title", "")).strip() or str(payload.get("working_title", "")).strip() or domain.slug,
+            "description": str(payload.get("description", "")).strip(),
+            "source_directory": str(payload.get("source_directory", "")).strip(),
+            "site_structure": payload.get("site_structure") if isinstance(payload.get("site_structure"), (dict, list)) else {},
+            "enabled": bool(payload.get("enabled", True)),
+            "auto_discover": bool(payload.get("auto_discover", True)),
+            "sync_status": str(payload.get("sync_status", "pending")).strip() or "pending",
+            "last_sync_at": _parse_dt(payload.get("last_sync_at")),
+            "last_sync_error": str(payload.get("last_sync_error", "")).strip(),
+            "generation_status": str(payload.get("generation_status", "pending")).strip() or "pending",
+            "output_dir": str(payload.get("output_dir", "")).strip(),
+            "generated_at": _parse_dt(payload.get("generated_at")),
+            "generation_error": str(payload.get("generation_error", "")).strip(),
+            "version_count": int(payload.get("version_count", 0) or 0),
+            "generate_html_site": bool(payload.get("generate_html_site", False)),
+            "html_site_generated": bool(payload.get("html_site_generated", False)),
+        },
+    )
+    return project
+
+
+def _upsert_source_document(project: InfoSiteProject, payload: dict[str, Any]) -> SourceDocument:
+    document, _ = SourceDocument.objects.update_or_create(
+        project=project,
+        file_path=str(payload.get("file_path", "")).strip(),
+        defaults={
+            "file_type": str(payload.get("file_type", "other")).strip() or "other",
+            "title": str(payload.get("title", "")).strip(),
+            "file_size": payload.get("file_size"),
+            "modified_at": _parse_dt(payload.get("modified_at")),
+            "import_status": str(payload.get("import_status", "discovered")).strip() or "discovered",
+            "imported": bool(payload.get("imported", False)),
+            "imported_at": _parse_dt(payload.get("imported_at")),
+            "import_error": str(payload.get("import_error", "")).strip(),
+            "review_status": str(payload.get("review_status", "none")).strip() or "none",
+            "editor_notes": str(payload.get("editor_notes", "")).strip(),
+        },
+    )
+    return document
+
+
+def apply_remote_node_heartbeat(payload: dict[str, Any]) -> NodeConfig:
+    node_id = str(payload.get("node_id", "")).strip()
+    if not node_id:
+        raise ValueError("node_id missing")
+    node, _ = NodeConfig.objects.update_or_create(
+        node_id=node_id,
+        defaults={
+            "display_name": str(payload.get("display_name", "")).strip(),
+            "role": str(payload.get("role", "host")).strip() or "host",
+            "base_url": str(payload.get("base_url", "")).strip(),
+            "sync_on_connect": bool(payload.get("sync_on_connect", True)),
+            "is_enabled": bool(payload.get("is_enabled", True)),
+            "last_seen_at": timezone.now(),
+        },
+    )
+    return node
+
+
+def apply_remote_domain_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    remote_node_id = str(payload.get("node_id", "")).strip()
+    if not remote_node_id:
+        raise ValueError("node_id missing")
+    domains = payload.get("domains")
+    if not isinstance(domains, list):
+        raise ValueError("domains must be a list")
+
+    applied: list[dict[str, Any]] = []
+    for item in domains:
+        if not isinstance(item, dict):
+            continue
+        slug = str(item.get("slug", "")).strip()
+        if not slug:
+            continue
+        domain, created = Domain.objects.get_or_create(
+            slug=slug,
+            defaults={
+                "display_name": str(item.get("display_name", "")).strip() or slug,
+                "description": str(item.get("description", "")).strip(),
+                "home_node": str(item.get("home_node", "")).strip() or remote_node_id,
+                "sync_mode": str(item.get("sync_mode", "push")).strip() or "push",
+                "visibility": str(item.get("visibility", "private")).strip() or "private",
+                "last_sync_at": timezone.now(),
+            },
+        )
+        updated_fields: list[str] = []
+        if not created:
+            target_home_node = str(item.get("home_node", "")).strip() or domain.home_node or remote_node_id
+            next_values = {
+                "display_name": str(item.get("display_name", "")).strip() or domain.display_name or slug,
+                "description": str(item.get("description", "")).strip(),
+                "sync_mode": str(item.get("sync_mode", "")).strip() or domain.sync_mode,
+                "visibility": str(item.get("visibility", "")).strip() or domain.visibility,
+                "last_sync_at": timezone.now(),
+            }
+            if not domain.home_node:
+                next_values["home_node"] = target_home_node
+            for field_name, next_value in next_values.items():
+                if getattr(domain, field_name) != next_value:
+                    setattr(domain, field_name, next_value)
+                    updated_fields.append(field_name)
+            if updated_fields:
+                domain.save(update_fields=updated_fields)
+        projects_payload = item.get("projects")
+        applied_projects: list[dict[str, Any]] = []
+        applied_documents: list[dict[str, Any]] = []
+        if isinstance(projects_payload, list):
+            for project_payload in projects_payload:
+                if not isinstance(project_payload, dict):
+                    continue
+                project = _upsert_project(domain, project_payload)
+                applied_projects.append(
+                    {
+                        "title": project.title,
+                        "working_title": project.working_title,
+                    }
+                )
+                documents_payload = project_payload.get("documents")
+                if isinstance(documents_payload, list):
+                    for document_payload in documents_payload:
+                        if not isinstance(document_payload, dict):
+                            continue
+                        file_path = str(document_payload.get("file_path", "")).strip()
+                        if not file_path:
+                            continue
+                        document = _upsert_source_document(project, document_payload)
+                        applied_documents.append(
+                            {
+                                "project": project.working_title,
+                                "file_path": document.file_path,
+                            }
+                        )
+        applied.append(
+            {
+                "slug": domain.slug,
+                "created": created,
+                "home_node": domain.home_node,
+                "sync_mode": domain.sync_mode,
+                "visibility": domain.visibility,
+                "projects": applied_projects,
+                "documents": applied_documents,
+            }
+        )
+    return {"applied_domains": applied, "count": len(applied)}

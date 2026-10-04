@@ -69,6 +69,15 @@ DATABASES = {
     }
 }
 
+POSTGRES_DSN = (
+    os.getenv("KI_KNOWLEDGE_POSTGRES_DSN", "").strip()
+    or getattr(_CONFIG, "distributed_postgres_dsn", "").strip()
+)
+if POSTGRES_DSN:
+    import dj_database_url
+
+    DATABASES["default"] = dj_database_url.parse(POSTGRES_DSN, conn_max_age=600)
+
 # Default dev cache: safe local caching for repeated dashboard metadata and
 # template fragments without requiring an external cache service.
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
