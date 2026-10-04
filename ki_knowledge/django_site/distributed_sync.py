@@ -11,7 +11,7 @@ from ki_knowledge.django_site.knowledge_summary import _domain_scoped_sources, s
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.knowledge.models import KnowledgeArtifact, KnowledgeBlockRecord, KnowledgeRelationRecord, KnowledgeSource
 
-from .infosite_models import Domain, InfoSiteProject, NodeConfig, SourceDocument, current_node_id
+from .infosite_models import Domain, InfoSiteProject, NodeConfig, SourceDocument, SyncRun, current_node_id
 
 
 @dataclass
@@ -49,6 +49,31 @@ def ensure_local_node_config() -> NodeConfig:
         },
     )
     return node
+
+
+def _domain_for_slug(domain_slug: str | None) -> Domain | None:
+    if not domain_slug:
+        return None
+    return Domain.objects.filter(slug=str(domain_slug).strip()).first()
+
+
+def record_sync_run_started(*, direction: str, domain_slug: str | None = None, source_url: str = "") -> SyncRun:
+    return SyncRun.objects.create(
+        domain=_domain_for_slug(domain_slug),
+        node=ensure_local_node_config(),
+        direction=direction,
+        status="started",
+        source_url=source_url,
+    )
+
+
+def record_sync_run_finished(run: SyncRun, *, status: str, summary: dict[str, Any] | None = None, error_message: str = "") -> SyncRun:
+    run.status = status
+    run.summary_json = summary or {}
+    run.error_message = error_message
+    run.completed_at = timezone.now()
+    run.save(update_fields=["status", "summary_json", "error_message", "completed_at"])
+    return run
 
 
 def domain_metadata_snapshot(domain: Domain) -> dict[str, Any]:
@@ -126,7 +151,7 @@ def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
     queryset = Domain.objects.all().order_by("slug")
     if domains:
         queryset = queryset.filter(slug__in=domains)
-    return {
+    payload = {
         "node": asdict(local_node_snapshot()),
         "registered_node": {
             "node_id": node.node_id,
@@ -138,6 +163,15 @@ def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
         "domains": [domain_metadata_snapshot(domain) for domain in queryset],
         "generated_at": timezone.now().isoformat(),
     }
+    knowledge_payload = knowledge_sync_payload(domains or None)
+    by_slug = {entry["slug"]: entry for entry in knowledge_payload["domains"]}
+    for domain in payload["domains"]:
+        knowledge_entry = by_slug.get(domain["slug"], {})
+        domain["knowledge_sources"] = knowledge_entry.get("knowledge_sources", [])
+        domain["knowledge_records"] = knowledge_entry.get("knowledge_records", [])
+        domain["knowledge_artifacts"] = knowledge_entry.get("knowledge_artifacts", [])
+        domain["knowledge_relations"] = knowledge_entry.get("knowledge_relations", [])
+    return payload
 
 
 def knowledge_source_snapshot(source: KnowledgeSource) -> dict[str, Any]:
@@ -505,6 +539,8 @@ def pull_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
         raise ValueError("master_url not configured")
 
     export_url = master_url.rstrip("/") + "/knowledge/sync/export/"
+    primary_domain = domains[0] if domains else None
+    run = record_sync_run_started(direction="pull", domain_slug=primary_domain, source_url=export_url)
     headers: dict[str, str] = {}
     if config.distributed_sync_shared_secret.strip():
         headers["X-KI-Sync-Secret"] = config.distributed_sync_shared_secret.strip()
@@ -518,12 +554,39 @@ def pull_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
         if normalized:
             params.append(("domain", normalized))
 
-    response = requests.get(export_url, params=params, headers=headers, timeout=max(config.request_timeout, 5))
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        raise ValueError("master export payload must be an object")
-    result = apply_remote_domain_payload(payload)
-    result["pulled_from"] = export_url
-    result["requested_domains"] = [domain for _, domain in params if _ == "domain"]
-    return result
+    try:
+        response = requests.get(export_url, params=params, headers=headers, timeout=max(config.request_timeout, 5))
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("master export payload must be an object")
+        result = apply_remote_domain_payload(payload)
+        result["pulled_from"] = export_url
+        result["requested_domains"] = [domain for key, domain in params if key == "domain"]
+        record_sync_run_finished(run, status="succeeded", summary=result)
+        return result
+    except Exception as exc:
+        record_sync_run_finished(run, status="failed", error_message=str(exc))
+        raise
+
+
+def export_sync_summary(*, domains: list[str] | None = None) -> dict[str, Any]:
+    primary_domain = domains[0] if domains else None
+    run = record_sync_run_started(direction="export", domain_slug=primary_domain)
+    try:
+        payload = local_sync_payload(domains)
+        domain_count = len(payload.get("domains", []))
+        project_count = sum(len(domain.get("projects", [])) for domain in payload.get("domains", []))
+        source_count = sum(len(domain.get("knowledge_sources", [])) for domain in payload.get("domains", []))
+        record_count = sum(len(domain.get("knowledge_records", [])) for domain in payload.get("domains", []))
+        result = {
+            "domains": domain_count,
+            "projects": project_count,
+            "knowledge_sources": source_count,
+            "knowledge_records": record_count,
+        }
+        record_sync_run_finished(run, status="succeeded", summary=result)
+        return result
+    except Exception as exc:
+        record_sync_run_finished(run, status="failed", error_message=str(exc))
+        raise

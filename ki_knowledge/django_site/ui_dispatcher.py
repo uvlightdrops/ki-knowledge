@@ -22,6 +22,7 @@ from ki_knowledge.django_site.knowledge_summary import (
     knowledge_base_reset_domain,
     semantic_store,
 )
+from ki_knowledge.django_site.distributed_sync import export_sync_summary, pull_from_master
 from ki_knowledge.django_site.jira_workflow import domain_db_paths
 from ki_knowledge.integrations.semantic_terms import SemanticEnrichmentService
 
@@ -98,6 +99,18 @@ def run_dashboard_task(task_name: str, *, domain: str | None = None, target_doma
 
     if task_name == "jira_reimport":
         result = jira_reimport_data(resolved_domain)
+        return {"task": task_name, "domain": resolved_domain, **result}
+
+    if task_name == "sync_pull_master":
+        from ki_knowledge.services.distributed_sync_runner import enqueue_sync
+
+        result = enqueue_sync(domain=resolved_domain, job_type="pull")
+        return {"task": task_name, "domain": resolved_domain, **result}
+
+    if task_name == "sync_export_domain":
+        from ki_knowledge.services.distributed_sync_runner import enqueue_sync
+
+        result = enqueue_sync(domain=resolved_domain, job_type="export")
         return {"task": task_name, "domain": resolved_domain, **result}
 
     store_obj = semantic_store(resolved_domain)

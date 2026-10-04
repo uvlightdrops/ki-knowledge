@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Count, Q
 
-from .infosite_models import Domain, InfoSiteMappingRule, InfoSiteProject, NodeConfig, SourceDocument
+from .infosite_models import Domain, InfoSiteMappingRule, InfoSiteProject, NodeConfig, SourceDocument, SyncRun
 
 
 def _status_badge_html(value: str, *, colors: dict[str, str], default: str = "gray") -> str:
@@ -121,3 +121,10 @@ class NodeConfigAdmin(admin.ModelAdmin):
     list_display = ["node_id", "display_name", "role", "sync_on_connect", "is_enabled", "last_seen_at"]
     list_filter = ["role", "sync_on_connect", "is_enabled", "created_at"]
     search_fields = ["node_id", "display_name", "base_url"]
+
+
+@admin.register(SyncRun)
+class SyncRunAdmin(admin.ModelAdmin):
+    list_display = ["direction", "domain", "node", "status", "source_url", "started_at", "completed_at"]
+    list_filter = ["direction", "status", "started_at"]
+    search_fields = ["source_url", "error_message", "domain__slug", "node__node_id"]

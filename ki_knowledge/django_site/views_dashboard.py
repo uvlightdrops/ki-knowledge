@@ -22,6 +22,7 @@ from .dashboard_registry import (
     widget_ids,
 )
 from .infosite_models import Domain, GeneratedDocument, InfoSiteProject
+from .infosite_models import SyncRun
 from .page_widgets import (
     build_admin_widget_cards,
     build_knowledge_widget_cards,
@@ -423,12 +424,37 @@ def admin_domain_management_view(request: HttpRequest):
                 messages.success(request, f"Domain '{result['domain']}' entfernt ({len(result['removed'])} Datei(en)).")
             except ValueError as exc:
                 messages.error(request, str(exc))
+        elif action == "sync_pull":
+            try:
+                result = run_dashboard_task("sync_pull_master", domain=active_domain)
+                messages.success(
+                    request,
+                    f"Distributed-Sync-Job eingereiht. Worker starten mit "
+                    f"'python manage.py process_distributed_sync_jobs --pending --domain {active_domain}'. "
+                    f"{_format_task_message(result)}",
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
+        elif action == "sync_export":
+            try:
+                result = run_dashboard_task("sync_export_domain", domain=active_domain)
+                messages.success(
+                    request,
+                    f"Distributed-Sync-Job eingereiht. Worker starten mit "
+                    f"'python manage.py process_distributed_sync_jobs --pending --domain {active_domain}'. "
+                    f"{_format_task_message(result)}",
+                )
+            except ValueError as exc:
+                messages.error(request, str(exc))
         else:
             return HttpResponseBadRequest("unknown action")
         return HttpResponseRedirect(reverse("admin-domains"))
 
     domain_states = semantic_domain_states()
     domain_rows = domain_registry_overview(active_domain)
+    sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
+    from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
+    sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
     csrf_token = get_token(request)
     domain_management_url = reverse("admin-domains")
     create_html = render_fragment(
@@ -452,6 +478,8 @@ def admin_domain_management_view(request: HttpRequest):
             "domain_rows": domain_rows,
             "create_html": create_html,
             "management_html": management_html,
+            "sync_runs": sync_runs,
+            "sync_jobs": sync_jobs,
         },
     )
 
@@ -467,6 +495,9 @@ def admin_system_status_view(request: HttpRequest):
         for state in semantic_domain_states()
     ]
     layout_raw = data_layout_snapshot(active_domain)
+    sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
+    from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
+    sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
     layout = {
         key: display_data_path(value) if isinstance(value, str) and "/" in value else value
         for key, value in layout_raw.items()
@@ -489,6 +520,8 @@ def admin_system_status_view(request: HttpRequest):
             "layout": layout,
             "domain_states": domain_states,
             "status_html": status_html,
+            "sync_runs": sync_runs,
+            "sync_jobs": sync_jobs,
         },
     )
 

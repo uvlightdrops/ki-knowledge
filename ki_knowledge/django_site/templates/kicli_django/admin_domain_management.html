@@ -10,6 +10,17 @@
 </div>
 
 <div class="card" style="margin-top:16px;">
+  <h3>Distributed Sync</h3>
+  <p class="muted">Master/Host-Synchronisation für die aktive Domain direkt auslösen.</p>
+  <form method="post" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+    {% csrf_token %}
+    <input type="hidden" name="domain" value="{{ active_domain }}">
+    <button class="button" type="submit" name="action" value="sync_pull">Vom Master pullen</button>
+    <button class="button" type="submit" name="action" value="sync_export">Lokalen Export prüfen</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top:16px;">
   {{ management_html|safe }}
 </div>
 
@@ -30,6 +41,54 @@
             <td>{{ entry.infosite_project_count }}</td>
             <td>{{ entry.infosite_source_count }}</td>
           </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h3>Letzte Sync-Läufe</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Richtung</th><th>Status</th><th>Node</th><th>Quelle</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
+      <tbody>
+        {% for run in sync_runs %}
+          <tr>
+            <td>{{ run.direction }}</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.node.node_id|default:"-" }}</td>
+            <td class="mono">{{ run.source_url|default:"-" }}</td>
+            <td>{{ run.started_at }}</td>
+            <td>{{ run.completed_at|default:"-" }}</td>
+            <td>{{ run.error_message|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">Noch keine Sync-Läufe vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h3>Distributed Sync Jobs</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Job</th><th>Typ</th><th>Status</th><th>Domain</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
+      <tbody>
+        {% for job in sync_jobs %}
+          <tr>
+            <td class="mono">{{ job.job_id }}</td>
+            <td>{{ job.job_type }}</td>
+            <td>{{ job.status }}</td>
+            <td>{{ job.domain }}</td>
+            <td>{{ job.started_at|default:job.created_at }}</td>
+            <td>{{ job.completed_at|default:"-" }}</td>
+            <td>{{ job.error_message|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">Noch keine Distributed-Sync-Jobs vorhanden.</td></tr>
         {% endfor %}
       </tbody>
     </table>

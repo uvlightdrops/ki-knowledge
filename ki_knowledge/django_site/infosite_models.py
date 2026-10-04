@@ -93,6 +93,49 @@ class NodeConfig(models.Model):
         return self.display_name or self.node_id
 
 
+class SyncRun(models.Model):
+    STATUS_CHOICES = [
+        ("started", "Started"),
+        ("succeeded", "Succeeded"),
+        ("failed", "Failed"),
+    ]
+
+    DIRECTION_CHOICES = [
+        ("pull", "Pull"),
+        ("push", "Push"),
+        ("export", "Export"),
+    ]
+
+    domain = models.ForeignKey(
+        Domain,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sync_runs",
+    )
+    node = models.ForeignKey(
+        NodeConfig,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sync_runs",
+    )
+    direction = models.CharField(max_length=20, choices=DIRECTION_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="started")
+    source_url = models.CharField(max_length=500, blank=True)
+    summary_json = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+
+    def __str__(self) -> str:
+        domain_slug = self.domain.slug if self.domain else "-"
+        return f"{self.direction}:{domain_slug}:{self.status}"
+
+
 def current_node_id() -> str:
     from ki_knowledge.app_config import AppConfig as Config
 
