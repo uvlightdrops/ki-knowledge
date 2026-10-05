@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "ki_knowledge.django_site",
+    "widgetkit_django",
     # Wagtail: parallel CMS/workflow layer on top of the canonical
     # data-source core (see ki_knowledge.wagtail_cms). Introduced as an
     # additive layer, not a replacement for existing infosite views.

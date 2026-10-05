@@ -34,6 +34,19 @@ ki-knowledge/
 └── tests/
 ```
 
+## widgetkit-django
+
+The reusable dashboard/layout builder extraction now lives in:
+
+- `ki_knowledge/widgetkit_django/`
+
+Documentation:
+
+- extraction log: `docs/widgetkit-django-extraction.md`
+- host integration guide: `docs/widgetkit-django-host-integration.md`
+- packaging roadmap: `docs/widgetkit-django-packaging-roadmap.md`
+- package README: `ki_knowledge/widgetkit_django/README.md`
+
 ## Dependencies
 
 - `ki-core` as local base library (`/home/flow/dev_flow/ki-core`)

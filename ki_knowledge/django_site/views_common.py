@@ -7,14 +7,15 @@ from urllib.parse import urlencode
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 
+from .distributed_runtime import maybe_send_automatic_heartbeat
 from .dashboard_registry import (
+    canonical_widget_id,
     default_widget_ids_for_area,
     frontpage_aggregate_widgets,
     widget_by_id,
 )
+from .layout_store import DjangoDashboardLayoutStore, subpage_dashboard_slug
 from .infosite_models import (
-    DashboardDefinition,
-    DashboardWidgetPlacement,
     GeneratedDocument,
     ensure_domain_registered,
 )
@@ -30,9 +31,11 @@ _KNOWLEDGE_API_URL_SESSION_KEY = "knowledge_api_url"
 _SEMANTIC_DOMAIN_SESSION_KEY = "semantic_active_domain"
 _DASHBOARD_BUILDER_SESSION_KEY = "dashboard_builder_widgets"
 _SHELL_BUILDER_SESSION_KEY = "shell_builder_state"
+_LAYOUT_STORE = DjangoDashboardLayoutStore()
 
 
 def _active_semantic_domain(request: HttpRequest) -> str:
+    maybe_send_automatic_heartbeat()
     query_domain = request.GET.get("domain", "").strip()
     if query_domain:
         domain = normalize_semantic_domain(query_domain)
@@ -97,63 +100,90 @@ def _get_or_create_dashboard(request: HttpRequest, *, area_key: str = "settings"
     return dashboard
 
 
+def _subpage_dashboard_slug(area_key: str, subpage_key: str | None, active_domain: str) -> str:
+    return subpage_dashboard_slug(area_key, subpage_key, active_domain)
 
-def _load_dashboard_widget_ids(request: HttpRequest, *, area_key: str = "dashboard", fallback: list[str] | None = None) -> list[str]:
+
+
+def _load_dashboard_widget_ids(
+    request: HttpRequest,
+    *,
+    area_key: str = "dashboard",
+    fallback: list[str] | None = None,
+    subpage_key: str | None = None,
+) -> list[str]:
     """Return the persisted layout for a dashboard area or a safe fallback."""
     if fallback is None:
-        fallback = list(default_widget_ids_for_area(area_key))
+        fallback = list(default_widget_ids_for_area(area_key, subpage_key))
+    resolved_subpage_key = (subpage_key or request.GET.get("subpage", request.POST.get("subpage", "overview"))).strip().lower() or "overview"
     active_domain = _active_semantic_domain(request)
     domain_obj = ensure_domain_registered(active_domain)
     if domain_obj is None:
         return list(fallback)
 
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
-    dashboard = (
-        DashboardDefinition.objects.filter(domain=domain_obj, area_key=area_key, owner=owner)
-        .order_by("-updated_at", "-created_at")
-        .first()
+    placements = _LAYOUT_STORE.load_placements(
+        area_key=area_key,
+        subpage_key=resolved_subpage_key,
+        active_domain=active_domain,
+        owner=owner,
     )
-    if dashboard is None:
-        dashboard = DashboardDefinition.objects.filter(domain=domain_obj, area_key=area_key, owner__isnull=True).order_by("-updated_at", "-created_at").first()
-    if dashboard is None:
+    if not placements:
+        placements = _LAYOUT_STORE.load_shared_placements(
+            area_key=area_key,
+            subpage_key=resolved_subpage_key,
+            active_domain=active_domain,
+        )
+    if not placements:
         return list(fallback)
 
-    selected = list(
-        DashboardWidgetPlacement.objects.filter(dashboard=dashboard)
-        .order_by("sort_index", "widget_id")
-        .values_list("widget_id", flat=True)
-    )
+    selected = [canonical_widget_id(item.widget_id) for item in placements]
     if not selected:
         return []
-    return selected
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for widget_id in selected:
+        if widget_id in seen:
+            continue
+        seen.add(widget_id)
+        deduped.append(widget_id)
+    return deduped
 
 
-def _load_dashboard_widget_widths(request: HttpRequest, *, area_key: str = "dashboard") -> dict[str, int]:
+def _load_dashboard_widget_widths(
+    request: HttpRequest,
+    *,
+    area_key: str = "dashboard",
+    subpage_key: str | None = None,
+) -> dict[str, int]:
     """Return persisted per-widget width values for the current area."""
+    resolved_subpage_key = (subpage_key or request.GET.get("subpage", request.POST.get("subpage", "overview"))).strip().lower() or "overview"
     active_domain = _active_semantic_domain(request)
     domain_obj = ensure_domain_registered(active_domain)
     if domain_obj is None:
-        return {}
-
-    owner = request.user if getattr(request.user, "is_authenticated", False) else None
-    dashboard = (
-        DashboardDefinition.objects.filter(domain=domain_obj, area_key=area_key, owner=owner)
-        .order_by("-updated_at", "-created_at")
-        .first()
-    )
-    if dashboard is None:
-        dashboard = DashboardDefinition.objects.filter(domain=domain_obj, area_key=area_key, owner__isnull=True).order_by("-updated_at", "-created_at").first()
-    if dashboard is None:
         return {}
 
     widths: dict[str, int] = {}
-    for placement in DashboardWidgetPlacement.objects.filter(dashboard=dashboard):
+    owner = request.user if getattr(request.user, "is_authenticated", False) else None
+    placements = _LAYOUT_STORE.load_placements(
+        area_key=area_key,
+        subpage_key=resolved_subpage_key,
+        active_domain=active_domain,
+        owner=owner,
+    )
+    if not placements:
+        placements = _LAYOUT_STORE.load_shared_placements(
+            area_key=area_key,
+            subpage_key=resolved_subpage_key,
+            active_domain=active_domain,
+        )
+    for placement in placements:
         try:
             width = int(placement.w or 6)
         except (TypeError, ValueError):
             continue
         if 3 <= width <= 12:
-            widths[placement.widget_id] = width
+            widths[canonical_widget_id(placement.widget_id)] = width
     return widths
 
 
@@ -171,7 +201,7 @@ def _sync_dashboard_selection(request: HttpRequest, *, area_key: str = "settings
         except ValueError:
             loaded = []
         if isinstance(loaded, list):
-            widget_order = [str(item) for item in loaded if str(item).strip()]
+            widget_order = [canonical_widget_id(str(item)) for item in loaded if str(item).strip()]
     if raw_sizes:
         try:
             loaded = json.loads(raw_sizes)
@@ -185,7 +215,7 @@ def _sync_dashboard_selection(request: HttpRequest, *, area_key: str = "settings
                 except (TypeError, ValueError):
                     continue
                 if 3 <= width <= 12:
-                    cleaned[str(key)] = width
+                    cleaned[canonical_widget_id(str(key))] = width
             if cleaned:
                 widget_sizes = cleaned
 

@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from django.middleware.csrf import get_token
+from django.template.loader import render_to_string
 
 from .dashboard_registry import widget_adapter_key, widget_by_id
 from .infosite_models import GeneratedDocument
 from .infosite_models import NodeConfig, SyncRun, current_node_id
+from widgetkit_django.layout_targets import layout_builder_url
 from .services import domain_knowledge_summary, domain_registry_overview
 from ..widgetkit_core import DataSourceSpec, TableDataSourceAdapter, empty_payload
 from ..widgetkit_renderer import render_fragment, render_card
@@ -51,6 +53,16 @@ def _card(widget_id: str, *, label: str, description: str, body: str, width: int
     return {"widget_id": widget_id, "label": label, "description": description, "body": body, "width": max(3, min(int(width), 12))}
 
 
+def _widget_min_width(spec: Any) -> int:
+    if spec is None:
+        return 3
+    try:
+        min_width = int(getattr(spec, "min_w", 3))
+    except (TypeError, ValueError):
+        min_width = 3
+    return max(3, min(min_width, 12))
+
+
 def _widget_width(spec: Any, *, widget_widths: dict[str, int] | None = None) -> int:
     if spec is None:
         return 6
@@ -59,7 +71,7 @@ def _widget_width(spec: Any, *, widget_widths: dict[str, int] | None = None) -> 
         width = int(resolved)
     except (TypeError, ValueError):
         width = int(getattr(spec, "default_w", 6))
-    return max(3, min(width, 12))
+    return max(_widget_min_width(spec), min(width, 12))
 
 
 def _build_widget_card(body: str, spec: Any, *, widget_widths: dict[str, int] | None = None) -> dict[str, str]:
@@ -160,14 +172,51 @@ def _render_infooutput_formats(ctx: dict[str, Any]) -> str:
     return render_fragment("output_formats", {"formats": ctx["formats"]})
 
 
+def _render_knowledge_semantic_overview(ctx: dict[str, Any]) -> str:
+    return render_to_string(
+        "kicli_django/widgets/knowledge_semantic_overview.html",
+        {
+            "active_domain": ctx["active_domain"],
+            "term_count": ctx["term_count"],
+        },
+    )
+
+
+def _render_infosite_dashboard_stats(ctx: dict[str, Any]) -> str:
+    stats = ctx["infosite_stats"]
+    return render_to_string("infosite/widgets/dashboard_stats.html", {"stats": stats})
+
+
+def _render_infosite_dashboard_projects(ctx: dict[str, Any]) -> str:
+    return render_to_string("infosite/widgets/dashboard_projects.html", {"projects": ctx["infosite_projects"]})
+
+
+def _render_infosite_import_workflow(ctx: dict[str, Any]) -> str:
+    return render_to_string("infosite/widgets/dashboard_import_workflow.html", {})
+
+
+def _render_infosite_refine_workflow(ctx: dict[str, Any]) -> str:
+    return render_to_string("infosite/widgets/dashboard_refine_workflow.html", {})
+
+
+def _render_infooutput_quiz_overview(ctx: dict[str, Any]) -> str:
+    return render_to_string("kicli_django/widgets/output_quiz_overview.html", {})
+
+
+def _render_infooutput_quiz_status(ctx: dict[str, Any]) -> str:
+    return render_to_string("kicli_django/widgets/output_quiz_status.html", {"active_domain": ctx["active_domain"]})
+
+
 def _sync_widget_context(ctx: dict[str, Any]) -> dict[str, Any]:
     local_node = ctx["local_node"]
     return {
         "local_node": local_node,
+        "runtime_node": ctx["runtime_node"],
         "sync_runs": ctx["sync_runs"],
         "sync_jobs": ctx["sync_jobs"],
         "master_domain_catalog": ctx["master_domain_catalog"],
         "master_domain_catalog_error": ctx["master_domain_catalog_error"],
+        "known_hosts": ctx.get("known_hosts", []),
         "sync_admin_url": ctx["sync_admin_url"],
         "domain_management_url": ctx["domain_management_url"],
         "worker_command_example": f"python manage.py process_distributed_sync_jobs --pending --domain {ctx['active_domain']}",
@@ -184,6 +233,7 @@ def _widget_fragment_handlers() -> dict[str, Any]:
         "datasources.mix.overview.v1": _render_mix_overview,
         "datasources.jobs.recent.v1": lambda ctx: render_fragment("datasources_jobs_recent", {"pdf_jobs": ctx["pdf_jobs"], "jira_issues": ctx["jira_issues"]}),
         "knowledge.overview.summary.v1": lambda ctx: render_fragment("knowledge_overview_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
+        "knowledge.semantic.overview.v1": _render_knowledge_semantic_overview,
         "knowledge.semantic.monitor.v1": lambda ctx: render_fragment("knowledge_semantic_monitor", {"active_domain": ctx["active_domain"]}),
         "knowledge.semantic.quick.v1": lambda ctx: render_fragment("knowledge_semantic_quick", {"active_domain": ctx["active_domain"]}),
         "knowledge.records.summary.v1": lambda ctx: render_fragment("knowledge_records_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
@@ -210,16 +260,23 @@ def _widget_fragment_handlers() -> dict[str, Any]:
             "layout": ctx["layout"],
             "status_url": ctx["status_url"],
         }),
-        "admin.sync.overview.v1": lambda ctx: render_fragment("admin_sync_overview", _sync_widget_context(ctx)),
-        "admin.sync.history.v1": lambda ctx: render_fragment("admin_sync_history", _sync_widget_context(ctx)),
-        "admin.sync.catalog.v1": lambda ctx: render_fragment("admin_sync_catalog", _sync_widget_context(ctx)),
+        "admin.sync.overview.v1": lambda ctx: render_to_string("kicli_django/admin_sync_overview.html", _sync_widget_context(ctx)),
+        "admin.sync.history.v1": lambda ctx: render_to_string("kicli_django/admin_sync_history.html", _sync_widget_context(ctx)),
+        "admin.sync.catalog.v1": lambda ctx: render_to_string("kicli_django/admin_sync_catalog.html", _sync_widget_context(ctx)),
+        "admin.sync.hosts.v1": lambda ctx: render_to_string("kicli_django/admin_sync_hosts.html", _sync_widget_context(ctx)),
         "infooutput.overview.summary.v1": _render_infooutput_overview,
         "infooutput.formats.summary.v1": _render_infooutput_formats,
         "infooutput.domain.overview.v1": _render_infooutput_domains,
         "infooutput.infosite.recent.v1": _render_infooutput_projects,
         "infooutput.documents.recent.v1": _render_infooutput_documents,
         "infooutput.generated.documents.v1": lambda ctx: _render_infooutput_documents(ctx, generated_only=True),
-        "settings.layout.registry.v1": lambda ctx: f"<p><strong>Active area:</strong> {ctx['config_summary'].get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>",
+        "infooutput.infosite.stats.v1": _render_infosite_dashboard_stats,
+        "infooutput.infosite.projects.v1": _render_infosite_dashboard_projects,
+        "infooutput.infosite.workflow.import.v1": _render_infosite_import_workflow,
+        "infooutput.infosite.workflow.refine.v1": _render_infosite_refine_workflow,
+        "infooutput.quiz.overview.v1": _render_infooutput_quiz_overview,
+        "infooutput.quiz.status.v1": _render_infooutput_quiz_status,
+        "settings.layout.registry.v1": lambda ctx: f"<p><strong>Active area:</strong> {ctx['config_summary'].get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"{layout_builder_url('settings', 'overview')}\">Open layout builder</a></p>",
         "settings.config.summary.v1": lambda ctx: render_fragment("settings_config_summary", {"config_summary": ctx["config_summary"]}),
         "settings.layout.preview.v1": lambda ctx: render_fragment("settings_layout_preview", {"active_domain": ctx["active_domain"]}),
     }
@@ -463,9 +520,9 @@ def build_sources_widget_cards(
     )
     shared = {**ctx, "csrf_token": csrf_token, "hidden": hidden}
     templates = {
-        "sources.filter.v1": "sources_filter",
-        "sources.list.v1": "sources_list",
-        "sources.unimported.v1": "sources_unimported",
+        "datasources.sources.filter.v1": "sources_filter",
+        "datasources.sources.list.v1": "sources_list",
+        "datasources.sources.unimported.v1": "sources_unimported",
     }
     cards: list[dict[str, str]] = []
     for widget_id in widget_ids:
@@ -478,6 +535,40 @@ def build_sources_widget_cards(
     return cards
 
 
+def build_workspace_widget_cards(
+    *,
+    request: Any,
+    active_domain: str,
+    all_domains: list[dict[str, Any]],
+    active_domain_state: dict[str, Any],
+    markdown_count: int,
+    sources: list[Any],
+    widget_ids: list[str],
+    widget_widths: dict[str, int] | None = None,
+) -> list[dict[str, str]]:
+    cards: list[dict[str, str]] = []
+    csrf_token = get_token(request) if request is not None else ""
+    handlers = _widget_fragment_handlers()
+    for widget_id in widget_ids:
+        spec = widget_by_id(widget_id)
+        if spec is None:
+            continue
+        handler = handlers.get(widget_id)
+        body = handler({
+            "active_domain": active_domain,
+            "active_domain_state": active_domain_state,
+            "all_domains": all_domains,
+            "sources": sources,
+            "markdown_count": markdown_count,
+            "owl_sources": 0,
+            "csrf_token": csrf_token,
+            "pdf_jobs": {"pending": 0, "processing": 0, "done": 0, "failed": 0, "total": 0},
+            "jira_issues": 0,
+        }) if handler else f"<p>{spec.description}</p>"
+        cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
+    return cards
+
+
 def build_knowledge_widget_cards(
     *,
     active_domain: str,
@@ -485,6 +576,7 @@ def build_knowledge_widget_cards(
     quick_links: list[tuple[str, str, str]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
+    term_count: int | None = None,
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
     handlers = _widget_fragment_handlers()
@@ -493,7 +585,12 @@ def build_knowledge_widget_cards(
         if spec is None:
             continue
         handler = handlers.get(widget_id)
-        body = handler({"active_domain": active_domain, "scoped_knowledge": scoped_knowledge, "quick_links": quick_links}) if handler else f"<p>{spec.description}</p>"
+        body = handler({
+            "active_domain": active_domain,
+            "scoped_knowledge": scoped_knowledge,
+            "quick_links": quick_links,
+            "term_count": term_count or 0,
+        }) if handler else f"<p>{spec.description}</p>"
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
@@ -507,9 +604,13 @@ def build_output_widget_cards(
     formats: list[dict[str, Any]],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
+    infosite_projects: list[Any] | None = None,
+    infosite_stats: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
     handlers = _widget_fragment_handlers()
+    infosite_projects = infosite_projects if infosite_projects is not None else []
+    infosite_stats = infosite_stats if infosite_stats is not None else {}
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
@@ -521,6 +622,8 @@ def build_output_widget_cards(
             "domain_documents": domain_documents,
             "recent_projects": recent_projects,
             "formats": formats,
+            "infosite_projects": infosite_projects,
+            "infosite_stats": infosite_stats,
         }) if handler else f"<p>{spec.description}</p>"
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
@@ -540,8 +643,10 @@ def build_admin_widget_cards(
     sync_runs: list[Any] | None = None,
     sync_jobs: list[Any] | None = None,
     local_node: Any | None = None,
+    runtime_node: Any | None = None,
     master_domain_catalog: dict[str, Any] | None = None,
     master_domain_catalog_error: str = "",
+    known_hosts: list[Any] | None = None,
     sync_admin_url: str = "/admin-overview/sync/",
 ) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
@@ -550,6 +655,7 @@ def build_admin_widget_cards(
     layout = layout if layout is not None else {}
     sync_runs = sync_runs if sync_runs is not None else []
     sync_jobs = sync_jobs if sync_jobs is not None else []
+    known_hosts = known_hosts if known_hosts is not None else []
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
         if spec is None:
@@ -574,14 +680,16 @@ def build_admin_widget_cards(
                 "layout": layout,
                 "status_url": status_url,
             })
-        elif widget_id in {"admin.sync.overview.v1", "admin.sync.history.v1", "admin.sync.catalog.v1"}:
+        elif widget_id in {"admin.sync.overview.v1", "admin.sync.history.v1", "admin.sync.catalog.v1", "admin.sync.hosts.v1"}:
             body = handler({
                 "active_domain": active_domain,
                 "local_node": local_node,
+                "runtime_node": runtime_node,
                 "sync_runs": sync_runs,
                 "sync_jobs": sync_jobs,
                 "master_domain_catalog": master_domain_catalog,
                 "master_domain_catalog_error": master_domain_catalog_error,
+                "known_hosts": known_hosts,
                 "sync_admin_url": sync_admin_url,
                 "domain_management_url": domain_management_url,
             })
@@ -610,7 +718,7 @@ def build_settings_widget_cards(
             continue
         handler = handlers.get(widget_id)
         if widget_id == "settings.layout.registry.v1":
-            body = f"<p><strong>Active area:</strong> {config_summary.get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"/settings/layout/builder/\">Open layout builder</a></p>"
+            body = f"<p><strong>Active area:</strong> {config_summary.get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"{layout_builder_url('settings', 'overview')}\">Open layout builder</a></p>"
         elif handler:
             body = handler({"config_summary": config_summary, "active_domain": active_domain})
         else:

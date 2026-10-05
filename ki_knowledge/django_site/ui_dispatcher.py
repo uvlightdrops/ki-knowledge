@@ -222,11 +222,14 @@ def resolve_ui_action(
     builder/editor (add/remove/reset/reorder) to the persisted layout state.
     """
     from ki_knowledge.django_site.dashboard_registry import (
+        canonical_widget_id,
         default_widget_ids_for_area,
         layout_positions_for_widgets,
         widget_by_id,
     )
-    from ki_knowledge.django_site.infosite_models import DashboardDefinition, DashboardWidgetPlacement, ensure_domain_registered
+    from ki_knowledge.django_site.infosite_models import ensure_domain_registered
+    from ki_knowledge.django_site.layout_store import DjangoDashboardLayoutStore
+    from widgetkit_django.builder_actions import resolve_builder_action
 
     if request is None:
         return []
@@ -244,135 +247,25 @@ def resolve_ui_action(
         return []
 
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
-    dashboard, created = DashboardDefinition.objects.get_or_create(
-        owner=owner,
-        domain=domain_obj,
+    subpage_key = request.POST.get("subpage", request.GET.get("subpage", "overview")).strip().lower() or "overview"
+    title = f"{area_key.title()} / {subpage_key.title()} dashboard for {domain}"
+    store = DjangoDashboardLayoutStore()
+    return resolve_builder_action(
+        action,
+        store=store,
         area_key=area_key,
-        slug=f"{area_key}-{domain}",
-        defaults={"title": f"{area_key.title()} dashboard for {domain}"},
+        subpage_key=subpage_key,
+        active_domain=domain,
+        owner=owner,
+        title=title,
+        widget_id=widget_id,
+        widget_order=widget_order,
+        widget_sizes=widget_sizes,
+        canonical_widget_id=canonical_widget_id,
+        widget_by_id=widget_by_id,
+        default_widget_ids_for_area=default_widget_ids_for_area,
+        layout_positions_for_widgets=layout_positions_for_widgets,
     )
-
-    if created:
-        # The builder may be displaying the shared layout as a fallback. Seed
-        # the editable dashboard with that same layout before applying changes.
-        source_dashboard = None
-        if owner is not None:
-            source_dashboard = (
-                DashboardDefinition.objects.filter(
-                    owner__isnull=True,
-                    domain=domain_obj,
-                    area_key=area_key,
-                )
-                .order_by("-updated_at", "-created_at")
-                .first()
-            )
-        source_placements = (
-            list(
-                DashboardWidgetPlacement.objects.filter(dashboard=source_dashboard)
-                .order_by("sort_index", "widget_id")
-            )
-            if source_dashboard is not None
-            else []
-        )
-        if source_placements:
-            for placement in source_placements:
-                if widget_by_id(placement.widget_id) is None:
-                    continue
-                DashboardWidgetPlacement.objects.create(
-                    dashboard=dashboard,
-                    widget_id=placement.widget_id,
-                    sort_index=placement.sort_index,
-                    x=placement.x,
-                    y=placement.y,
-                    w=placement.w,
-                    h=placement.h,
-                    config_json=placement.config_json,
-                )
-        elif source_dashboard is None:
-            default_ids = [
-                candidate
-                for candidate in default_widget_ids_for_area(area_key)
-                if widget_by_id(candidate) is not None
-            ]
-            positions = layout_positions_for_widgets(default_ids)
-            for index, candidate in enumerate(default_ids):
-                position = positions[candidate]
-                DashboardWidgetPlacement.objects.create(
-                    dashboard=dashboard,
-                    widget_id=candidate,
-                    sort_index=index,
-                    x=position["x"],
-                    y=position["y"],
-                    w=position["w"],
-                    h=position["h"],
-                )
-
-    selections = list(
-        DashboardWidgetPlacement.objects.filter(dashboard=dashboard)
-        .order_by("sort_index", "widget_id")
-        .values_list("widget_id", flat=True)
-    )
-
-    normalized_action = (action or "").strip()
-    if normalized_action == "reset":
-        DashboardWidgetPlacement.objects.filter(dashboard=dashboard).delete()
-        return []
-
-    if normalized_action == "add" and widget_id:
-        if widget_by_id(widget_id) is not None and widget_id not in selections:
-            selections.append(widget_id)
-            DashboardWidgetPlacement.objects.filter(dashboard=dashboard).delete()
-            for index, selected_widget_id in enumerate(selections):
-                position = layout_positions_for_widgets(selections)[selected_widget_id]
-                width = widget_sizes.get(selected_widget_id, position["w"]) if widget_sizes else position["w"]
-                width = max(3, min(int(width), 12))
-                DashboardWidgetPlacement.objects.create(
-                    dashboard=dashboard,
-                    widget_id=selected_widget_id,
-                    sort_index=index,
-                    w=width,
-                    h=position["h"],
-                    x=position["x"],
-                    y=position["y"],
-                )
-        return selections
-
-    if normalized_action == "remove" and widget_id:
-        DashboardWidgetPlacement.objects.filter(dashboard=dashboard, widget_id=widget_id).delete()
-        selections = list(
-            DashboardWidgetPlacement.objects.filter(dashboard=dashboard)
-            .order_by("sort_index", "widget_id")
-            .values_list("widget_id", flat=True)
-        )
-        return selections
-
-    if normalized_action == "save-order":
-        ordered = widget_order or []
-        valid_ids: list[str] = []
-        seen: set[str] = set()
-        for candidate in ordered:
-            item = str(candidate).strip()
-            if not item or item in seen or widget_by_id(item) is None:
-                continue
-            seen.add(item)
-            valid_ids.append(item)
-        DashboardWidgetPlacement.objects.filter(dashboard=dashboard).delete()
-        for index, selected_widget_id in enumerate(valid_ids):
-            position = layout_positions_for_widgets(valid_ids)[selected_widget_id]
-            width = widget_sizes.get(selected_widget_id, position["w"]) if widget_sizes else position["w"]
-            width = max(3, min(int(width), 12))
-            DashboardWidgetPlacement.objects.create(
-                dashboard=dashboard,
-                widget_id=selected_widget_id,
-                sort_index=index,
-                w=width,
-                h=position["h"],
-                x=position["x"],
-                y=position["y"],
-            )
-        return valid_ids
-
-    return selections
 
 
 __all__ = [

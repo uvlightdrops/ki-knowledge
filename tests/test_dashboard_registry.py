@@ -8,6 +8,8 @@ from django.test import RequestFactory
 from ki_knowledge.django_site.dashboard_registry import (
     area_widget_ids,
     builtin_areas,
+    canonical_widget_id,
+    default_widget_ids_for_area,
     frontpage_aggregate_widgets,
     layout_positions_for_widgets,
     legacy_widget_aliases,
@@ -93,12 +95,30 @@ def test_widget_lookup_resolves_legacy_aliases():
 
 def test_builtin_areas_are_functional_only():
     assert builtin_areas() == [
+        "dashboard",
         "datasources",
-        "sources",
         "knowledge",
         "infooutput",
         "admin",
         "settings",
+    ]
+
+
+def test_sources_widgets_are_part_of_datasources_taxonomy():
+    assert widget_by_id("datasources.sources.filter.v1").area == "datasources"
+    assert widget_by_id("datasources.sources.list.v1").area == "datasources"
+    assert widget_by_id("datasources.sources.unimported.v1").area == "datasources"
+    assert widget_by_id("sources.filter.v1").widget_id == "datasources.sources.filter.v1"
+    assert widget_by_id("sources.list.v1").widget_id == "datasources.sources.list.v1"
+    assert widget_by_id("sources.unimported.v1").widget_id == "datasources.sources.unimported.v1"
+    assert canonical_widget_id("sources.filter.v1") == "datasources.sources.filter.v1"
+
+
+def test_default_widget_ids_can_resolve_subpage_specific_defaults():
+    assert default_widget_ids_for_area("datasources", "workspace") == [
+        "datasources.domain.switcher.v1",
+        "datasources.markdown.files.v1",
+        "datasources.mix.overview.v1",
     ]
 
 
@@ -182,6 +202,52 @@ def test_removing_widget_from_shared_fallback_preserves_other_widgets():
         .values_list("widget_id", flat=True)
     ) == widget_ids
     assert _load_dashboard_widget_ids(request, area_key="settings") == selected
+
+
+@pytest.mark.django_db
+def test_save_order_seeds_subpage_defaults_before_persisting_widths():
+    User = get_user_model()
+    user, _ = User.objects.get_or_create(username="workspace-layout-editor")
+    domain = ensure_domain_registered("workspace-layout-domain")
+
+    request = RequestFactory().post("/", {
+        "subpage": "workspace",
+    })
+    SessionMiddleware(lambda request: None).process_request(request)
+    request.session["semantic_active_domain"] = domain.slug
+    request.session.save()
+    request.user = user
+
+    ordered = [
+        "datasources.mix.overview.v1",
+        "datasources.domain.switcher.v1",
+        "datasources.markdown.files.v1",
+    ]
+    selected = resolve_ui_action(
+        "save-order",
+        request=request,
+        area_key="datasources",
+        widget_order=ordered,
+        widget_sizes={"datasources.markdown.files.v1": 8},
+    )
+
+    assert selected == ordered
+    dashboard = DashboardDefinition.objects.get(
+        owner=user,
+        domain=domain,
+        area_key="datasources",
+        slug="datasources-workspace-workspace-layout-domain",
+    )
+    placements = list(
+        DashboardWidgetPlacement.objects.filter(dashboard=dashboard)
+        .order_by("sort_index")
+        .values_list("widget_id", "w")
+    )
+    assert placements == [
+        ("datasources.mix.overview.v1", 4),
+        ("datasources.domain.switcher.v1", 4),
+        ("datasources.markdown.files.v1", 8),
+    ]
 
 
 def test_domain_summary_cache_avoids_repeated_store_scan(monkeypatch):

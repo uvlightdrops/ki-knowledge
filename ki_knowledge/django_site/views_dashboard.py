@@ -5,7 +5,6 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.conf import settings
-from django.core.cache import cache
 from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.middleware.csrf import get_token
@@ -24,6 +23,9 @@ from .dashboard_registry import (
 )
 from .infosite_models import Domain, GeneratedDocument, InfoSiteProject
 from .infosite_models import NodeConfig, SyncRun, current_node_id
+from widgetkit_django.layout_targets import layout_builder_url
+from widgetkit_django.registry import CallbackWidgetRegistry
+from widgetkit_django.views import BuilderViewConfig, dashboard_builder_view as widgetkit_dashboard_builder_view
 from .page_widgets import (
     build_admin_widget_cards,
     build_knowledge_widget_cards,
@@ -64,13 +66,30 @@ from .views_common import (
     _selected_markdown,
     _sync_dashboard_selection,
 )
-from .distributed_sync import remote_domain_catalog
+from .layout_store import DjangoDashboardLayoutStore
+from .distributed_api import (
+    fetch_master_domain_catalog,
+    get_runtime_node_settings,
+    list_known_hosts,
+    persist_local_node_settings,
+    send_host_pull_command,
+    send_master_heartbeat,
+)
 
 _JIRA_CHAT_SESSION_KEY = "jira_support_chat_history"
 _OLLAMA_CHAT_SESSION_KEY = "ollama_chat_history"
 _KNOWLEDGE_API_URL_SESSION_KEY = "knowledge_api_url"
 _SEMANTIC_DOMAIN_SESSION_KEY = "semantic_active_domain"
 _DASHBOARD_BUILDER_SESSION_KEY = "dashboard_builder_widgets"
+
+
+_WIDGETKIT_REGISTRY = CallbackWidgetRegistry(
+    builtin_areas_fn=builtin_areas,
+    widget_hierarchy_fn=widget_hierarchy,
+    widget_ids_fn=lambda: list(widget_ids()),
+    widget_by_id_fn=widget_by_id,
+    default_widget_ids_for_area_fn=default_widget_ids_for_area,
+)
 
 def dashboard(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -221,18 +240,36 @@ def knowledge_landing_view(request: HttpRequest):
 def semantic_landing_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
     terms = semantic_terms(domain=active_domain)
+    scoped_knowledge = domain_knowledge_summary(active_domain)
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="knowledge",
+        fallback=default_widget_ids_for_area("knowledge", "semantic"),
+        subpage_key="semantic",
+    )
+    widget_widths = _load_dashboard_widget_widths(request, area_key="knowledge", subpage_key="semantic")
+    quick_links = [
+        ("Semantic Layer", "/knowledge/semantic/terms/", "Explore the semantic vocabulary and concept graph."),
+        ("Support Chat", "/knowledge/chat/support/", "Use a source-agnostic semantic chat across domain data."),
+        ("Knowledge API", "/knowledge/api/", "Inspect the knowledge graph and browser context."),
+        ("Data Sources", "/data-sources/", "Return to the source overview and import entry points."),
+    ]
+    widget_cards = build_knowledge_widget_cards(
+        active_domain=active_domain,
+        scoped_knowledge=scoped_knowledge,
+        quick_links=quick_links,
+        widget_ids=widget_ids,
+        widget_widths=widget_widths,
+        term_count=len(terms),
+    )
     return render(
         request,
         "kicli_django/semantic_landing.html",
         {
             "active_domain": active_domain,
             "term_count": len(terms),
-            "quick_links": [
-                ("Semantic Layer", "/knowledge/semantic/terms/", "Explore the semantic vocabulary and concept graph."),
-                ("Support Chat", "/knowledge/chat/support/", "Use a source-agnostic semantic chat across domain data."),
-                ("Knowledge API", "/knowledge/api/", "Inspect the knowledge graph and browser context."),
-                ("Data Sources", "/data-sources/", "Return to the source overview and import entry points."),
-            ],
+            "quick_links": quick_links,
+            "widget_cards": widget_cards,
         },
     )
 
@@ -341,10 +378,29 @@ def output_quiz_view(request: HttpRequest):
     """Placeholder page for the planned Quiz output format (no data model or
     generator yet, see docs/navigation-ia-proposal.md, offene Frage 6)."""
     active_domain = _active_semantic_domain(request)
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="infooutput",
+        fallback=default_widget_ids_for_area("infooutput", "quiz"),
+        subpage_key="quiz",
+    )
+    widget_widths = _load_dashboard_widget_widths(request, area_key="infooutput", subpage_key="quiz")
+    widget_cards = build_output_widget_cards(
+        active_domain=active_domain,
+        domain_stats=[],
+        domain_documents=[],
+        recent_projects=[],
+        formats=[],
+        widget_ids=widget_ids,
+        widget_widths=widget_widths,
+    )
     return render(
         request,
         "kicli_django/output_quiz.html",
-        {"active_domain": active_domain},
+        {
+            "active_domain": active_domain,
+            "widget_cards": widget_cards,
+        },
     )
 
 
@@ -362,23 +418,15 @@ def admin_overview_view(request: HttpRequest):
     domain_states = semantic_domain_states()
     layout_raw = data_layout_snapshot(active_domain)
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
-    local_node, _ = NodeConfig.objects.get_or_create(
-        node_id=current_node_id(),
-        defaults={
-            "role": getattr(settings.KI_CONFIG, "distributed_node_role", "standalone") or "standalone",
-            "base_url": "",
-            "sync_on_connect": bool(getattr(settings.KI_CONFIG, "distributed_sync_on_connect", True)),
-            "is_enabled": bool(getattr(settings.KI_CONFIG, "distributed_enabled", False)),
-            "sync_shared_secret": (getattr(settings.KI_CONFIG, "distributed_sync_shared_secret", "") or "").strip(),
-        },
-    )
+    local_node = persist_local_node_settings()
+    runtime_node = get_runtime_node_settings()
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
     master_domain_catalog = None
     master_domain_catalog_error = ""
-    if local_node.role == "host" and local_node.is_enabled:
+    if runtime_node.role == "host" and runtime_node.distributed_enabled:
         try:
-            master_domain_catalog = remote_domain_catalog()
+            master_domain_catalog = fetch_master_domain_catalog()
         except Exception as exc:
             master_domain_catalog_error = str(exc)
     layout = {
@@ -397,8 +445,10 @@ def admin_overview_view(request: HttpRequest):
         sync_runs=sync_runs,
         sync_jobs=sync_jobs,
         local_node=local_node,
+        runtime_node=runtime_node,
         master_domain_catalog=master_domain_catalog,
         master_domain_catalog_error=master_domain_catalog_error,
+        known_hosts=list_known_hosts() if runtime_node.role == "master" else [],
     )
     return render(
         request,
@@ -411,7 +461,7 @@ def admin_overview_view(request: HttpRequest):
                 ("Distributed Sync", "/admin-overview/sync/", "Node-Konfiguration, Master-Katalog und Sync-Historie verwalten."),
                 ("System Status", "/admin-overview/status/", "Laufzeitwerte, Pfade und Systemzustand prüfen."),
                 ("Settings", "/settings/", "Configuration and layout controls."),
-                ("Dashboard Builder", "/settings/layout/builder/?area=admin", "Arrange the admin area widgets."),
+                ("Dashboard Builder", layout_builder_url("admin", "overview"), "Arrange the admin overview widgets."),
             ],
         },
     )
@@ -475,17 +525,21 @@ def admin_domain_management_view(request: HttpRequest):
             except ValueError as exc:
                 messages.error(request, str(exc))
         elif action == "save_node_config":
-            local_node, _ = NodeConfig.objects.get_or_create(node_id=current_node_id())
-            local_node.display_name = request.POST.get("display_name", "").strip()
-            local_node.role = request.POST.get("role", "").strip() or local_node.role
-            local_node.base_url = request.POST.get("base_url", "").strip()
-            local_node.sync_on_connect = request.POST.get("sync_on_connect", "").strip().lower() in {"1", "true", "yes", "on"}
-            local_node.is_enabled = request.POST.get("is_enabled", "").strip().lower() in {"1", "true", "yes", "on"}
-            new_secret = request.POST.get("sync_shared_secret", "").strip()
-            if new_secret:
-                local_node.sync_shared_secret = new_secret
-            local_node.save()
-            messages.success(request, "Lokale Node-Konfiguration gespeichert. Hinweis: AppConfig/YAML kann diese Werte beim Neustart wieder überschreiben.")
+            persist_local_node_settings(
+                display_name=request.POST.get("display_name", "").strip(),
+                role=request.POST.get("role", "").strip() or None,
+                base_url=request.POST.get("base_url", "").strip(),
+                sync_on_connect=request.POST.get("sync_on_connect", "").strip().lower() in {"1", "true", "yes", "on"},
+                is_enabled=request.POST.get("is_enabled", "").strip().lower() in {"1", "true", "yes", "on"},
+                sync_shared_secret=request.POST.get("sync_shared_secret", "").strip(),
+            )
+            messages.success(request, "Lokale Node-Konfiguration gespeichert und als aktive Runtime-Konfiguration übernommen.")
+        elif action == "send_heartbeat":
+            try:
+                result = send_master_heartbeat()
+                messages.success(request, f"Heartbeat gesendet. {_format_task_message(result)}")
+            except Exception as exc:
+                messages.error(request, f"Heartbeat fehlgeschlagen: {exc}")
         elif action == "adopt_master_domain":
             target_domain = request.POST.get("domain", "").strip()
             if not target_domain:
@@ -510,30 +564,44 @@ def admin_domain_management_view(request: HttpRequest):
                     )
                 except ValueError as exc:
                     messages.error(request, str(exc))
+        elif action == "run_sync_job":
+            job_id = request.POST.get("job_id", "").strip()
+            if not job_id:
+                messages.error(request, "Keine Job-ID angegeben.")
+            else:
+                from ki_knowledge.services.distributed_sync_runner import run_sync_job
+
+                try:
+                    result = run_sync_job(job_id)
+                    messages.success(
+                        request,
+                        f"Distributed-Sync-Job {job_id} ausgeführt. {_format_task_message(result)}",
+                    )
+                except Exception as exc:
+                    messages.error(request, f"Distributed-Sync-Job {job_id} fehlgeschlagen: {exc}")
         else:
             return HttpResponseBadRequest("unknown action")
         return HttpResponseRedirect(reverse("admin-domains"))
 
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="admin",
+        fallback=default_widget_ids_for_area("admin", "domains"),
+        subpage_key="domains",
+    )
+    widget_widths = _load_dashboard_widget_widths(request, area_key="admin", subpage_key="domains")
     domain_states = semantic_domain_states()
     domain_rows = domain_registry_overview(active_domain)
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
-    local_node, _ = NodeConfig.objects.get_or_create(
-        node_id=current_node_id(),
-        defaults={
-            "role": getattr(settings.KI_CONFIG, "distributed_node_role", "standalone") or "standalone",
-            "base_url": "",
-            "sync_on_connect": bool(getattr(settings.KI_CONFIG, "distributed_sync_on_connect", True)),
-            "is_enabled": bool(getattr(settings.KI_CONFIG, "distributed_enabled", False)),
-            "sync_shared_secret": (getattr(settings.KI_CONFIG, "distributed_sync_shared_secret", "") or "").strip(),
-        },
-    )
+    local_node = persist_local_node_settings()
+    runtime_node = get_runtime_node_settings()
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
     master_domain_catalog = None
     master_domain_catalog_error = ""
-    if local_node.role == "host" and local_node.is_enabled:
+    if runtime_node.role == "host" and runtime_node.distributed_enabled:
         try:
-            master_domain_catalog = remote_domain_catalog()
+            master_domain_catalog = fetch_master_domain_catalog()
         except Exception as exc:
             master_domain_catalog_error = str(exc)
     csrf_token = get_token(request)
@@ -551,6 +619,23 @@ def admin_domain_management_view(request: HttpRequest):
             "domain_management_url": domain_management_url,
         },
     )
+    widget_cards = build_admin_widget_cards(
+        active_domain=active_domain,
+        domain_rows=domain_rows,
+        widget_ids=widget_ids,
+        widget_widths=widget_widths,
+        domain_states=domain_states,
+        csrf_token=csrf_token,
+        domain_management_url=domain_management_url,
+        sync_runs=sync_runs,
+        sync_jobs=sync_jobs,
+        local_node=local_node,
+        runtime_node=runtime_node,
+        master_domain_catalog=master_domain_catalog,
+        master_domain_catalog_error=master_domain_catalog_error,
+        known_hosts=list_known_hosts() if runtime_node.role == "master" else [],
+        sync_admin_url=reverse("admin-sync"),
+    )
     return render(
         request,
         "kicli_django/admin_domain_management.html",
@@ -562,8 +647,10 @@ def admin_domain_management_view(request: HttpRequest):
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
             "local_node": local_node,
+            "runtime_node": runtime_node,
             "master_domain_catalog": master_domain_catalog,
             "master_domain_catalog_error": master_domain_catalog_error,
+            "widget_cards": widget_cards,
         },
     )
 
@@ -571,6 +658,13 @@ def admin_domain_management_view(request: HttpRequest):
 @require_GET
 def admin_system_status_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="admin",
+        fallback=default_widget_ids_for_area("admin"),
+        subpage_key="status",
+    )
+    widget_widths = _load_dashboard_widget_widths(request, area_key="admin", subpage_key="status")
     domain_states = [
         {
             **state,
@@ -595,6 +689,17 @@ def admin_system_status_view(request: HttpRequest):
             "status_url": reverse("admin-status"),
         },
     )
+    widget_cards = build_admin_widget_cards(
+        active_domain=active_domain,
+        domain_rows=domain_registry_overview(active_domain),
+        widget_ids=widget_ids,
+        widget_widths=widget_widths,
+        domain_states=domain_states,
+        layout=layout,
+        status_url=reverse("admin-status"),
+        sync_runs=sync_runs,
+        sync_jobs=sync_jobs,
+    )
     return render(
         request,
         "kicli_django/admin_system_status.html",
@@ -606,43 +711,71 @@ def admin_system_status_view(request: HttpRequest):
             "status_html": status_html,
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
+            "widget_cards": widget_cards,
         },
     )
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 def admin_sync_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
-    local_node, _ = NodeConfig.objects.get_or_create(
-        node_id=current_node_id(),
-        defaults={
-            "role": getattr(settings.KI_CONFIG, "distributed_node_role", "standalone") or "standalone",
-            "base_url": "",
-            "sync_on_connect": bool(getattr(settings.KI_CONFIG, "distributed_sync_on_connect", True)),
-            "is_enabled": bool(getattr(settings.KI_CONFIG, "distributed_enabled", False)),
-            "sync_shared_secret": (getattr(settings.KI_CONFIG, "distributed_sync_shared_secret", "") or "").strip(),
-        },
-    )
+    if request.method == "POST":
+        action = request.POST.get("action", "").strip()
+        if action == "run_sync_job":
+            job_id = request.POST.get("job_id", "").strip()
+            if not job_id:
+                messages.error(request, "Keine Job-ID angegeben.")
+            else:
+                from ki_knowledge.services.distributed_sync_runner import run_sync_job
+
+                try:
+                    result = run_sync_job(job_id)
+                    messages.success(
+                        request,
+                        f"Distributed-Sync-Job {job_id} ausgeführt. {_format_task_message(result)}",
+                    )
+                except Exception as exc:
+                    messages.error(request, f"Distributed-Sync-Job {job_id} fehlgeschlagen: {exc}")
+            return HttpResponseRedirect(reverse("admin-sync"))
+        if action == "trigger_host_pull":
+            host_node_id = request.POST.get("host_node_id", "").strip()
+            target_domain = request.POST.get("domain", "").strip()
+            domains = [target_domain] if target_domain else []
+            try:
+                result = send_host_pull_command(host_node_id=host_node_id, domains=domains or None)
+                messages.success(
+                    request,
+                    f"Host {host_node_id} hat Pull-Auftrag erhalten. {_format_task_message(result)}",
+                )
+            except Exception as exc:
+                messages.error(request, f"Host-Pull für {host_node_id} fehlgeschlagen: {exc}")
+            return HttpResponseRedirect(reverse("admin-sync"))
+        return HttpResponseBadRequest("unknown action")
+    local_node = persist_local_node_settings()
+    runtime_node = get_runtime_node_settings()
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(Q(domain__slug=active_domain) | Q(domain__isnull=True)).order_by("-started_at")[:20])
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=20)
     master_domain_catalog = None
     master_domain_catalog_error = ""
-    if local_node.role == "host" and local_node.is_enabled:
+    if runtime_node.role == "host" and runtime_node.distributed_enabled:
         try:
-            master_domain_catalog = remote_domain_catalog()
+            master_domain_catalog = fetch_master_domain_catalog()
         except Exception as exc:
             master_domain_catalog_error = str(exc)
+    known_hosts = list_known_hosts() if runtime_node.role == "master" else []
     return render(
         request,
         "kicli_django/admin_sync.html",
         {
             "active_domain": active_domain,
             "local_node": local_node,
+            "runtime_node": runtime_node,
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
             "master_domain_catalog": master_domain_catalog,
             "master_domain_catalog_error": master_domain_catalog_error,
+            "known_hosts": known_hosts,
         },
     )
 
@@ -678,7 +811,7 @@ def settings_view(request: HttpRequest):
             "widget_cards": widget_cards,
             "quick_links": [
                 ("Configuration", "/settings/config/", "View active AppConfig values (LLM providers, knowledge paths, infosite, jira). Secrets are shown as set/not set only."),
-                ("Dashboard Builder", "/settings/layout/builder/", "Arrange widgets by area and drag them into the active layout grid."),
+                ("Dashboard Builder", layout_builder_url("settings", "overview"), "Arrange widgets by area and drag them into the active layout grid."),
             ],
         },
     )
@@ -794,93 +927,32 @@ def layout_settings_view(request: HttpRequest):
 @require_http_methods(["GET", "POST"])
 
 def dashboard_builder_view(request: HttpRequest):
-    active_domain = _active_semantic_domain(request)
-    registry = widget_hierarchy()
-    area_key = request.GET.get("area", request.POST.get("area", "settings")).strip() or "settings"
-    if area_key not in set(builtin_areas()):
-        area_key = "settings"
-
-    if request.method == "POST":
-        selected_widget_ids = _sync_dashboard_selection(request, area_key=area_key)
-        cache.clear()
-    else:
+    def _selection_loader(request: HttpRequest, area_key: str, subpage_key: str, fallback: list[str]) -> list[str]:
         selected_widget_ids = _load_dashboard_widget_ids(
             request,
             area_key=area_key,
-            fallback=default_widget_ids_for_area(area_key),
+            subpage_key=subpage_key,
+            fallback=fallback,
         )
         request.session[_DASHBOARD_BUILDER_SESSION_KEY] = selected_widget_ids
         request.session.modified = True
+        return selected_widget_ids
 
-    from .dashboard_registry import widget_by_id, widget_ids
-    from .infosite_models import DashboardWidgetPlacement
+    def _selection_syncer(request: HttpRequest, area_key: str) -> list[str]:
+        return _sync_dashboard_selection(request, area_key=area_key)
 
-    placement_by_widget = {
-        item.widget_id: item
-        for item in DashboardWidgetPlacement.objects.filter(
-            dashboard__domain__slug=active_domain,
-            dashboard__area_key=area_key,
-            dashboard__owner=request.user if getattr(request.user, 'is_authenticated', False) else None,
-        )
-    }
-
-    selected_widget_meta = []
-    for widget_id in selected_widget_ids:
-        spec = widget_by_id(widget_id)
-        if spec is None:
-            continue
-        placement = placement_by_widget.get(widget_id)
-        width = placement.w if placement is not None else spec.default_w
-        selected_widget_meta.append({"spec": spec, "width": width})
-
-    all_widget_ids = list(widget_ids())
-    unused_widget_ids = [widget_id for widget_id in all_widget_ids if widget_id not in selected_widget_ids]
-    unused_specs = [
-        widget_by_id(widget_id)
-        for widget_id in unused_widget_ids
-        if widget_by_id(widget_id) is not None and widget_by_id(widget_id).area == area_key
-    ]
-    widget_catalog = [
-        widget_by_id(widget_id)
-        for widget_id in all_widget_ids
-        if widget_by_id(widget_id) is not None
-    ]
-    area_tabs = [
-        {"key": area, "label": area.replace("_", " ").title()} for area in builtin_areas()
-    ]
-    widget_preview_payload = build_widget_preview_payload(widget_ids=all_widget_ids)
-    widget_preview_payload_json = json.dumps(widget_preview_payload, ensure_ascii=False)
-
-    widget_area_entries = []
-    for area in builtin_areas():
-        area_tree = registry.get(area, {})
-        category_entries = []
-        for category_name, category_value in area_tree.items():
-            if category_name == "_widgets":
-                continue
-            category_entries.append({
-                "name": category_name,
-                "widgets": category_value.get("_widgets", []),
-            })
-        widget_area_entries.append({
-            "area": area,
-            "categories": category_entries,
-        })
-
-    return render(
+    return widgetkit_dashboard_builder_view(
         request,
-        "kicli_django/dashboard_builder.html",
-        {
-            "active_domain": active_domain,
-            "widget_area_entries": widget_area_entries,
-            "selected_widgets": selected_widget_meta,
-            "selected_widget_ids": selected_widget_ids,
-            "unused_widgets": unused_specs,
-            "area_key": area_key,
-            "builtin_areas": builtin_areas(),
-            "area_tabs": area_tabs,
-            "widget_width_options": [3, 4, 6, 8, 9, 12],
-        },
+        config=BuilderViewConfig(
+            registry=_WIDGETKIT_REGISTRY,
+            layout_store=DjangoDashboardLayoutStore(),
+            active_domain_getter=_active_semantic_domain,
+            selection_loader=_selection_loader,
+            selection_syncer=_selection_syncer,
+            builder_url_name="settings-layout-builder",
+            base_template_name="base.html",
+            page_title="Dashboard Builder",
+        ),
     )
 
 
