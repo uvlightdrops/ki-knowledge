@@ -15,7 +15,7 @@ def enqueue_sync_job(*, domain: str, job_type: str, payload: dict[str, Any] | No
 
 
 def run_sync_job(job_id: str) -> dict[str, Any]:
-    from ki_knowledge.django_site.distributed_sync import export_sync_summary, pull_from_master
+    from ki_knowledge.django_site.distributed_api import export_sync_snapshot, pull_domains_from_master
 
     store = get_job_store()
     job = store.get_job(job_id)
@@ -25,9 +25,9 @@ def run_sync_job(job_id: str) -> dict[str, Any]:
     store.mark_started(job_id)
     try:
         if job.job_type == "pull":
-            result = pull_from_master(domains=[job.domain])
+            result = pull_domains_from_master(domains=[job.domain])
         elif job.job_type == "export":
-            result = export_sync_summary(domains=[job.domain])
+            result = export_sync_snapshot(domains=[job.domain])
         else:
             raise ValueError(f"unsupported distributed sync job type: {job.job_type}")
         store.mark_done(job_id, result=result)

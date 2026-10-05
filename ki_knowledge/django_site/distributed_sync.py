@@ -111,13 +111,7 @@ def domain_metadata_snapshot(domain: Domain) -> dict[str, Any]:
         "visibility": domain.visibility,
         "last_sync_at": domain.last_sync_at.isoformat() if domain.last_sync_at else None,
         "project_count": len(projects),
-        "projects": [
-            {
-                **project,
-                "updated_at": project["updated_at"].isoformat() if project["updated_at"] else None,
-            }
-            for project in projects
-        ],
+        "projects": projects,
     }
 
 
@@ -196,6 +190,8 @@ def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
 
 
 def remote_domain_catalog(*, master_url: str | None = None) -> dict[str, Any]:
+    from .distributed_api import build_domain_catalog_from_payload
+
     target_master_url = (master_url or resolved_master_url()).strip()
     if not target_master_url:
         raise ValueError("master_url not configured")
@@ -220,35 +216,53 @@ def remote_domain_catalog(*, master_url: str | None = None) -> dict[str, Any]:
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("master export payload must be an object")
+    return {"master_url": target_master_url, **build_domain_catalog_from_payload(payload)}
 
-    domains_payload = payload.get("domains")
-    if not isinstance(domains_payload, list):
-        raise ValueError("master export payload missing domains list")
 
-    local_domains = {domain.slug for domain in Domain.objects.all().only("slug")}
-    catalog = []
-    for item in domains_payload:
-        if not isinstance(item, dict):
-            continue
-        slug = str(item.get("slug", "")).strip()
-        if not slug:
-            continue
-        catalog.append(
-            {
-                "slug": slug,
-                "display_name": str(item.get("display_name", "")).strip() or slug,
-                "description": str(item.get("description", "")).strip(),
-                "home_node": str(item.get("home_node", "")).strip(),
-                "sync_mode": str(item.get("sync_mode", "")).strip() or "push",
-                "visibility": str(item.get("visibility", "")).strip() or "private",
-                "project_count": int(item.get("project_count", 0) or 0),
-                "available_locally": slug in local_domains,
-            }
-        )
+def known_host_registry() -> list[NodeConfig]:
+    return list(
+        NodeConfig.objects.exclude(node_id=current_node_id())
+        .exclude(role="standalone")
+        .order_by("-last_seen_at", "node_id")
+    )
+
+
+def trigger_host_pull(*, host_node_id: str, domains: list[str] | None = None) -> dict[str, Any]:
+    host = NodeConfig.objects.filter(node_id=str(host_node_id).strip()).first()
+    if host is None:
+        raise ValueError("unknown host node")
+    if host.role != "host":
+        raise ValueError("selected node is not a host")
+    host_url = str(host.base_url or "").strip()
+    if not host_url:
+        raise ValueError("host base_url not configured")
+
+    pull_url = host_url.rstrip("/") + "/knowledge/sync/pull/"
+    headers: dict[str, str] = {}
+    sync_secret = resolved_sync_secret()
+    if sync_secret:
+        headers["X-KI-Sync-Secret"] = sync_secret
+    payload: list[tuple[str, str]] = []
+    for domain in domains or []:
+        normalized = str(domain).strip()
+        if normalized:
+            payload.append(("domain", normalized))
+
+    response = requests.post(
+        pull_url,
+        data=payload,
+        headers=headers,
+        timeout=max(Config.from_env().request_timeout, 5),
+    )
+    response.raise_for_status()
+    result = response.json()
+    if not isinstance(result, dict):
+        raise ValueError("host pull response must be an object")
     return {
-        "master_url": target_master_url,
-        "domain_count": len(catalog),
-        "domains": catalog,
+        "host_node_id": host.node_id,
+        "host_url": host_url,
+        "requested_domains": [value for key, value in payload if key == "domain"],
+        **result,
     }
 
 

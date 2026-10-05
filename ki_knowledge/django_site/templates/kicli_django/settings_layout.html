@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load widgetkit_django %}
 {% block title %}Layout settings · KICLI{% endblock %}
 {% block content %}
   <h1>Layout settings</h1>
-    <p class="muted"><a href="{% url 'settings-layout-builder' %}">→ Dashboard Builder öffnen</a></p>
+    <p class="muted"><a href="{% layout_builder_url 'settings' 'overview' %}">→ Dashboard Builder öffnen</a></p>
 
   <div class="section card" style="margin-bottom: 20px;">
     <h3>Widget taxonomy</h3>

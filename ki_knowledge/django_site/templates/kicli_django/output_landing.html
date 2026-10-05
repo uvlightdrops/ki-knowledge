@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load widgetkit_django %}
 {% block title %}Info Output · KICLI{% endblock %}
 {% block content %}
   <h1>📤 Info Output</h1>
     <p class="muted">Ausgabeformate, die verarbeitetes Wissen nach außen präsentieren.</p>
-    <p class="muted"><a href="{% url 'settings-layout-builder' %}?area=infooutput">→ Bereichs-Layout für Info Output bearbeiten</a></p>
+    <p class="muted"><a href="{% layout_builder_url 'infooutput' 'overview' %}">→ Bereichs-Layout für Info Output bearbeiten</a></p>
 
   {% if widget_cards %}
   <div class="widget-grid section">

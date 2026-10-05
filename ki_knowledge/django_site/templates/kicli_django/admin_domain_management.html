@@ -4,172 +4,23 @@
 <h1>🗂️ Domain Management</h1>
 <p class="muted">Domains anlegen, bestehende Datenverzeichnisse (md · jira · owl · pdf) scannen und Domains ohne verbleibende Dateien entfernen. Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
 
-<div class="card">
-  <h3>Domain anlegen</h3>
-  {{ create_html|safe }}
-</div>
+{% if widget_cards %}
+  <div class="grid">
+    {% for card in widget_cards %}
+      <section class="card" style="grid-column: span {{ card.width|default:6 }};">
+        <h3>{{ card.label }}</h3>
+        {{ card.body|safe }}
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card">
+    <h3>Domain anlegen</h3>
+    {{ create_html|safe }}
+  </div>
 
-<div class="card" style="margin-top:16px;">
-  <h3>Local Node Configuration</h3>
-  <p class="muted">Für Hosts ist die <strong>Master Base URL</strong> sinnvoller als eine nackte IP, weil der Sync über HTTP-Endpunkte mit Schema und Port läuft. Beispiel: <code>http://master-host:8000</code>.</p>
-  <form method="post" class="stack">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="save_node_config">
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
-      <label>
-        <div>Node ID</div>
-        <input type="text" value="{{ local_node.node_id }}" disabled>
-      </label>
-      <label>
-        <div>Display Name</div>
-        <input type="text" name="display_name" value="{{ local_node.display_name }}">
-      </label>
-      <label>
-        <div>Role</div>
-        <select name="role">
-          <option value="standalone"{% if local_node.role == "standalone" %} selected{% endif %}>standalone</option>
-          <option value="master"{% if local_node.role == "master" %} selected{% endif %}>master</option>
-          <option value="host"{% if local_node.role == "host" %} selected{% endif %}>host</option>
-        </select>
-      </label>
-      <label>
-        <div>Master / Local Base URL</div>
-        <input type="text" name="base_url" value="{{ local_node.base_url }}" placeholder="http://host:8000">
-      </label>
-      <label>
-        <div>Sync Shared Secret</div>
-        <input type="password" name="sync_shared_secret" value="" placeholder="{% if local_node.sync_shared_secret %}bereits gesetzt{% else %}optional{% endif %}">
-      </label>
-    </div>
-    <label><input type="checkbox" name="sync_on_connect" {% if local_node.sync_on_connect %}checked{% endif %}> Sync on connect</label>
-    <label><input type="checkbox" name="is_enabled" {% if local_node.is_enabled %}checked{% endif %}> Distributed sync enabled</label>
-    <button class="button" type="submit">Node-Konfiguration speichern</button>
-  </form>
-</div>
-
-<div class="card" style="margin-top:16px;">
-  <h3>Distributed Sync</h3>
-  <p class="muted">Master/Host-Synchronisation für die aktive Domain direkt auslösen.</p>
-  <form method="post" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-    {% csrf_token %}
-    <input type="hidden" name="domain" value="{{ active_domain }}">
-    <button class="button" type="submit" name="action" value="sync_pull">Vom Master pullen</button>
-    <button class="button" type="submit" name="action" value="sync_export">Lokalen Export prüfen</button>
-  </form>
-</div>
-
-{% if local_node.role == "host" %}
-<div class="card" style="margin-top:16px;">
-  <h3>Domains vom Master übernehmen</h3>
-  {% if master_domain_catalog_error %}
-    <p class="muted">Master-Katalog konnte nicht geladen werden: {{ master_domain_catalog_error }}</p>
-  {% elif master_domain_catalog %}
-    <p class="muted">Verfügbar von <code>{{ master_domain_catalog.master_url }}</code>. Übernommene Domains können lokal weiterbearbeitet und danach per Pull synchronisiert werden.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Domain</th><th>Home Node</th><th>Sync</th><th>Visibility</th><th>Projects</th><th>Status</th><th>Aktion</th></tr></thead>
-        <tbody>
-          {% for entry in master_domain_catalog.domains %}
-            <tr>
-              <td><strong>{{ entry.display_name }}</strong><br><span class="muted mono">{{ entry.slug }}</span></td>
-              <td>{{ entry.home_node|default:"-" }}</td>
-              <td>{{ entry.sync_mode }}</td>
-              <td>{{ entry.visibility }}</td>
-              <td>{{ entry.project_count }}</td>
-              <td>{% if entry.available_locally %}<span class="chip">lokal vorhanden</span>{% else %}<span class="chip">nur master</span>{% endif %}</td>
-              <td>
-                <form method="post">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="adopt_master_domain">
-                  <input type="hidden" name="domain" value="{{ entry.slug }}">
-                  <button class="button" type="submit">{% if entry.available_locally %}Erneut syncen{% else %}Übernehmen{% endif %}</button>
-                </form>
-              </td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="7">Der Master meldet derzeit keine Domains.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% else %}
-    <p class="muted">Noch kein Master-Katalog verfügbar.</p>
-  {% endif %}
-</div>
+  <div class="card" style="margin-top:16px;">
+    {{ management_html|safe }}
+  </div>
 {% endif %}
-
-<div class="card" style="margin-top:16px;">
-  {{ management_html|safe }}
-</div>
-
-<div class="card" style="margin-top:16px;">
-  <h3>Domain-Übersicht (Registry)</h3>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Domain</th><th>Home Node</th><th>Sync</th><th>Visibility</th><th>Sources</th><th>Knowledge</th><th>Projects</th><th>Outputs</th></tr></thead>
-      <tbody>
-        {% for entry in domain_rows %}
-          <tr>
-            <td><strong>{{ entry.display_name }}</strong>{% if entry.is_active %} <span class="chip">active</span>{% endif %}</td>
-            <td>{{ entry.home_node|default:"-" }}</td>
-            <td>{{ entry.sync_mode }}</td>
-            <td>{{ entry.visibility }}</td>
-            <td>{{ entry.knowledge_sources }}</td>
-            <td>{{ entry.knowledge_records }}</td>
-            <td>{{ entry.infosite_project_count }}</td>
-            <td>{{ entry.infosite_source_count }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card" style="margin-top:16px;">
-  <h3>Letzte Sync-Läufe</h3>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Richtung</th><th>Status</th><th>Node</th><th>Quelle</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
-      <tbody>
-        {% for run in sync_runs %}
-          <tr>
-            <td>{{ run.direction }}</td>
-            <td>{{ run.status }}</td>
-            <td>{{ run.node.node_id|default:"-" }}</td>
-            <td class="mono">{{ run.source_url|default:"-" }}</td>
-            <td>{{ run.started_at }}</td>
-            <td>{{ run.completed_at|default:"-" }}</td>
-            <td>{{ run.error_message|default:"-" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="7">Noch keine Sync-Läufe vorhanden.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card" style="margin-top:16px;">
-  <h3>Distributed Sync Jobs</h3>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Job</th><th>Typ</th><th>Status</th><th>Domain</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
-      <tbody>
-        {% for job in sync_jobs %}
-          <tr>
-            <td class="mono">{{ job.job_id }}</td>
-            <td>{{ job.job_type }}</td>
-            <td>{{ job.status }}</td>
-            <td>{{ job.domain }}</td>
-            <td>{{ job.started_at|default:job.created_at }}</td>
-            <td>{{ job.completed_at|default:"-" }}</td>
-            <td>{{ job.error_message|default:"-" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="7">Noch keine Distributed-Sync-Jobs vorhanden.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
 {% endblock %}

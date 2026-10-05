@@ -36,7 +36,9 @@ class WidgetSpec:
     description: str
     default_size: str = "balanced"
     default_w: int = 6
+    min_w: int = 3
     default_h: int = 1
+    resizable: bool = True
     render_kind: str = "card"
     preview_kind: str = "summary"
     config_schema: tuple[str, ...] = ()
@@ -53,7 +55,9 @@ def _widget(
     description: str,
     default_size: str = "balanced",
     default_w: int = 6,
+    min_w: int = 3,
     default_h: int = 1,
+    resizable: bool = True,
     render_kind: str = "card",
     preview_kind: str = "summary",
     config_schema: Iterable[str] = (),
@@ -68,7 +72,9 @@ def _widget(
         description=description,
         default_size=default_size,
         default_w=default_w,
+        min_w=min_w,
         default_h=default_h,
+        resizable=resizable,
         render_kind=render_kind,
         preview_kind=preview_kind,
         config_schema=tuple(config_schema),
@@ -93,6 +99,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Overview of the configured domains and their active source footprint.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
         data_adapter="datasources.domain_overview",
     ),
@@ -152,35 +159,41 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_h=1,
         data_adapter="datasources.mix",
     ),
-    "sources.filter.v1": _widget(
-        widget_id="sources.filter.v1",
-        area="sources",
-        category="browser",
+    "datasources.sources.filter.v1": _widget(
+        widget_id="datasources.sources.filter.v1",
+        area="datasources",
+        category="sources.browser",
         label="Filter",
         description="",
         default_size="wide",
         default_w=12,
+        min_w=8,
         default_h=1,
+        legacy_aliases=("sources.filter.v1",),
     ),
-    "sources.list.v1": _widget(
-        widget_id="sources.list.v1",
-        area="sources",
-        category="browser",
+    "datasources.sources.list.v1": _widget(
+        widget_id="datasources.sources.list.v1",
+        area="datasources",
+        category="sources.browser",
         label="Quellen im Store",
         description="",
         default_size="wide",
         default_w=12,
+        min_w=8,
         default_h=2,
+        legacy_aliases=("sources.list.v1",),
     ),
-    "sources.unimported.v1": _widget(
-        widget_id="sources.unimported.v1",
-        area="sources",
-        category="browser",
+    "datasources.sources.unimported.v1": _widget(
+        widget_id="datasources.sources.unimported.v1",
+        area="datasources",
+        category="sources.browser",
         label="Noch nicht importiert",
         description="Dateien in md/, pdf/, owl/ und mix/ der Domain ohne Eintrag im Store.",
         default_size="wide",
         default_w=12,
+        min_w=8,
         default_h=1,
+        legacy_aliases=("sources.unimported.v1",),
     ),
     "datasources.jobs.recent.v1": _widget(
         widget_id="datasources.jobs.recent.v1",
@@ -190,6 +203,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Latest import and sync jobs for the configured domain.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
         data_adapter="infooutput.overview",
     ),
@@ -201,6 +215,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Most relevant source cards for the current domain.",
         default_size="wide",
         default_w=8,
+        min_w=8,
         default_h=1,
         data_adapter="admin.domain_db",
     ),
@@ -243,6 +258,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Knowledge base counts and aggregate indicators.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
     ),
     "knowledge.semantic.monitor.v1": _widget(
@@ -295,6 +311,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Browser and search view for the knowledge API across sources and records.",
         default_size="balanced",
         default_w=4,
+        min_w=6,
         default_h=1,
     ),
     "knowledge.jobs.recent.v1": _widget(
@@ -305,6 +322,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Recent semantic enrichment, indexing and background task activity.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
     ),
     "knowledge.tools.summary.v1": _widget(
@@ -327,6 +345,16 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_w=6,
         default_h=1,
     ),
+    "knowledge.semantic.overview.v1": _widget(
+        widget_id="knowledge.semantic.overview.v1",
+        area="knowledge",
+        category="semantic",
+        label="Semantic overview",
+        description="High-level entry summary for the semantic workspace of the active domain.",
+        default_size="balanced",
+        default_w=6,
+        default_h=1,
+    ),
     "infooutput.overview.summary.v1": _widget(
         widget_id="infooutput.overview.summary.v1",
         area="infooutput",
@@ -335,6 +363,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Generated output overview and publication summary.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
     ),
     "infooutput.infosite.recent.v1": _widget(
@@ -365,6 +394,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Available output formats, planning status and navigation targets.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
     ),
     "infooutput.domain.overview.v1": _widget(
@@ -375,6 +405,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Generated-document status across all configured domains.",
         default_size="wide",
         default_w=8,
+        min_w=6,
         default_h=1,
     ),
     "infooutput.generated.documents.v1": _widget(
@@ -387,6 +418,69 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_w=4,
         default_h=1,
     ),
+    "infooutput.infosite.stats.v1": _widget(
+        widget_id="infooutput.infosite.stats.v1",
+        area="infooutput",
+        category="infosite",
+        label="Infosite stats",
+        description="Project, document and import totals for Infosite management.",
+        default_size="wide",
+        default_w=12,
+        min_w=8,
+        default_h=1,
+    ),
+    "infooutput.infosite.projects.v1": _widget(
+        widget_id="infooutput.infosite.projects.v1",
+        area="infooutput",
+        category="infosite",
+        label="Infosite projects",
+        description="Project table with quick actions for discovery, import, AI refinement and management.",
+        default_size="wide",
+        default_w=12,
+        min_w=8,
+        default_h=2,
+    ),
+    "infooutput.infosite.workflow.import.v1": _widget(
+        widget_id="infooutput.infosite.workflow.import.v1",
+        area="infooutput",
+        category="infosite",
+        label="Import workflow",
+        description="Step-by-step import workflow for Infosite source documents.",
+        default_size="balanced",
+        default_w=6,
+        default_h=1,
+    ),
+    "infooutput.infosite.workflow.refine.v1": _widget(
+        widget_id="infooutput.infosite.workflow.refine.v1",
+        area="infooutput",
+        category="infosite",
+        label="AI refine workflow",
+        description="Step-by-step AI refinement workflow for Infosite markdown content.",
+        default_size="balanced",
+        default_w=6,
+        default_h=1,
+    ),
+    "infooutput.quiz.overview.v1": _widget(
+        widget_id="infooutput.quiz.overview.v1",
+        area="infooutput",
+        category="quiz",
+        label="Quiz overview",
+        description="Current concept and purpose of the planned quiz output format.",
+        default_size="balanced",
+        default_w=8,
+        min_w=6,
+        default_h=1,
+    ),
+    "infooutput.quiz.status.v1": _widget(
+        widget_id="infooutput.quiz.status.v1",
+        area="infooutput",
+        category="quiz",
+        label="Quiz status",
+        description="Current planning status and next likely integration points for quiz output.",
+        default_size="balanced",
+        default_w=4,
+        default_h=1,
+    ),
     "admin.domain.management.v1": _widget(
         widget_id="admin.domain.management.v1",
         area="admin",
@@ -395,6 +489,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Registered domains with source counts, directory scan and removal of unused domains.",
         default_size="wide",
         default_w=8,
+        min_w=8,
         default_h=1,
         legacy_aliases=("domain-management",),
     ),
@@ -427,6 +522,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Overview of the active domain database state and related knowledge counts.",
         default_size="balanced",
         default_w=4,
+        min_w=6,
         default_h=1,
         legacy_aliases=("knowledge-summary",),
     ),
@@ -470,6 +566,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Recent distributed sync runs and queued jobs.",
         default_size="wide",
         default_w=8,
+        min_w=8,
         default_h=1,
         data_adapter="admin.sync",
     ),
@@ -481,6 +578,19 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         description="Host-side adoption view for master-managed domains.",
         default_size="wide",
         default_w=8,
+        min_w=6,
+        default_h=1,
+        data_adapter="admin.sync",
+    ),
+    "admin.sync.hosts.v1": _widget(
+        widget_id="admin.sync.hosts.v1",
+        area="admin",
+        category="sync",
+        label="Known hosts",
+        description="Master-side host registry with recent node presence.",
+        default_size="wide",
+        default_w=8,
+        min_w=8,
         default_h=1,
         data_adapter="admin.sync",
     ),
@@ -538,6 +648,12 @@ def widget_by_id(widget_id: str) -> WidgetSpec | None:
     return None
 
 
+def canonical_widget_id(widget_id: str) -> str:
+    """Return the canonical widget id for a canonical or legacy widget identifier."""
+    spec = widget_by_id(widget_id)
+    return spec.widget_id if spec is not None else str(widget_id)
+
+
 def area_widget_ids(area: str | None = None) -> List[str]:
     """Return widget ids filtered by area name."""
     if area is None:
@@ -572,7 +688,7 @@ def legacy_widget_aliases() -> Dict[str, str]:
 
 def builtin_areas() -> List[str]:
     """Return the canonical widget areas, including the top-level dashboard."""
-    return ["dashboard", "datasources", "sources", "knowledge", "infooutput", "admin", "settings"]
+    return ["dashboard", "datasources", "knowledge", "infooutput", "admin", "settings"]
 
 
 def layout_positions_for_widgets(widget_ids: Iterable[str], *, columns: int = 12) -> Dict[str, Dict[str, int]]:
@@ -603,7 +719,7 @@ def layout_positions_for_widgets(widget_ids: Iterable[str], *, columns: int = 12
     return positions
 
 
-def default_widget_ids_for_area(area: str | None = None) -> List[str]:
+def default_widget_ids_for_area(area: str | None = None, subpage: str | None = None) -> List[str]:
     """Return the canonical widget ids for a known area-specific layout.
 
     These are the seed layouts used when a page/area has not yet been explicitly
@@ -611,6 +727,7 @@ def default_widget_ids_for_area(area: str | None = None) -> List[str]:
     registry instead of inventing new page-specific identifiers.
     """
     area_key = (area or "dashboard").strip().lower()
+    subpage_key = (subpage or "").strip().lower()
     defaults: Dict[str, List[str]] = {
         "dashboard": frontpage_aggregate_widgets(),
         "datasources": [
@@ -625,11 +742,6 @@ def default_widget_ids_for_area(area: str | None = None) -> List[str]:
             "datasources.jobs.recent.v1",
             "datasources.source.list.v1",
             "datasources.ai.summary.v1",
-        ],
-        "sources": [
-            "sources.filter.v1",
-            "sources.list.v1",
-            "sources.unimported.v1",
         ],
         "knowledge": [
             "knowledge.overview.summary.v1",
@@ -658,6 +770,7 @@ def default_widget_ids_for_area(area: str | None = None) -> List[str]:
             "admin.sync.overview.v1",
             "admin.sync.history.v1",
             "admin.sync.catalog.v1",
+            "admin.sync.hosts.v1",
             "admin.workspace.config.v1",
         ],
         "settings": [
@@ -666,6 +779,85 @@ def default_widget_ids_for_area(area: str | None = None) -> List[str]:
             "settings.layout.preview.v1",
         ],
     }
+    subpage_defaults: Dict[tuple[str, str], List[str]] = {
+        ("admin", "domains"): [
+            "admin.domain.management.v1",
+            "admin.domain.create.v1",
+            "admin.domain.db.overview.v1",
+            "admin.workspace.config.v1",
+        ],
+        ("admin", "sync"): [
+            "admin.sync.overview.v1",
+            "admin.sync.history.v1",
+            "admin.sync.catalog.v1",
+            "admin.sync.hosts.v1",
+        ],
+        ("admin", "status"): [
+            "admin.system.status.v1",
+            "admin.workspace.config.v1",
+        ],
+        ("knowledge", "semantic"): [
+            "knowledge.semantic.overview.v1",
+            "knowledge.semantic.monitor.v1",
+            "knowledge.semantic.quick.v1",
+            "knowledge.graph.overview.v1",
+            "knowledge.tools.summary.v1",
+        ],
+        ("knowledge", "records"): [
+            "knowledge.records.summary.v1",
+            "knowledge.overview.summary.v1",
+            "knowledge.tools.summary.v1",
+        ],
+        ("knowledge", "artifacts"): [
+            "knowledge.artifacts.summary.v1",
+            "knowledge.overview.summary.v1",
+            "knowledge.tools.summary.v1",
+        ],
+        ("knowledge", "jobs"): [
+            "knowledge.jobs.recent.v1",
+            "knowledge.tools.summary.v1",
+        ],
+        ("knowledge", "api"): [
+            "knowledge.api.browser.v1",
+            "knowledge.tools.summary.v1",
+        ],
+        ("infooutput", "infosite-dashboard"): [
+            "infooutput.infosite.stats.v1",
+            "infooutput.infosite.projects.v1",
+            "infooutput.infosite.workflow.import.v1",
+            "infooutput.infosite.workflow.refine.v1",
+        ],
+        ("infooutput", "quiz"): [
+            "infooutput.quiz.overview.v1",
+            "infooutput.quiz.status.v1",
+        ],
+        ("datasources", "sources"): [
+            "datasources.sources.filter.v1",
+            "datasources.sources.list.v1",
+            "datasources.sources.unimported.v1",
+        ],
+        ("datasources", "workspace"): [
+            "datasources.domain.switcher.v1",
+            "datasources.markdown.files.v1",
+            "datasources.mix.overview.v1",
+        ],
+        ("datasources", "pdf"): [
+            "datasources.jobs.recent.v1",
+            "datasources.import.quick.v1",
+        ],
+        ("settings", "config"): [
+            "settings.config.summary.v1",
+            "settings.layout.preview.v1",
+        ],
+        ("settings", "shells"): [
+            "settings.layout.preview.v1",
+            "settings.layout.registry.v1",
+        ],
+    }
+    if subpage_key:
+        resolved = subpage_defaults.get((area_key, subpage_key))
+        if resolved is not None:
+            return list(resolved)
     return list(defaults.get(area_key, defaults["dashboard"]))
 
 

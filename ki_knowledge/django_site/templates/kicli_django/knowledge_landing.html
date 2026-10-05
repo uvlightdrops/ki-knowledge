@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load widgetkit_django %}
 {% block title %}Internal Knowledge · KICLI{% endblock %}
 {% block content %}
   <h1>🧠 Internal Knowledge</h1>
     <p class="muted">Verarbeitung von Rohdaten zu Wissen: Semantic-Analyse, KI-Extraktions-Pipeline, Records/Artifacts und Chat.</p>
-    <p class="muted"><a href="{% url 'settings-layout-builder' %}?area=knowledge">→ Bereichs-Layout für Knowledge bearbeiten</a></p>
+    <p class="muted"><a href="{% layout_builder_url 'knowledge' 'overview' %}">→ Bereichs-Layout für Knowledge bearbeiten</a></p>
 
   {% if widget_cards %}
   <div class="widget-grid section">

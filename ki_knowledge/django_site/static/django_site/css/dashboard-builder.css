@@ -46,6 +46,16 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.db-builder-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.db-builder-meta p {
+  margin: 0;
+  line-height: 1.25;
+}
 .db-inspector {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);

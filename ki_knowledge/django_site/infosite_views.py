@@ -12,7 +12,10 @@ from django.db.models import Count, Q
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.data_layout import MARKDOWN, DataLayout
 
+from .dashboard_registry import default_widget_ids_for_area
 from .infosite_models import InfoSiteMappingRule, InfoSiteProject, SourceDocument
+from .page_widgets import build_output_widget_cards
+from .views_common import _active_semantic_domain, _load_dashboard_widget_ids, _load_dashboard_widget_widths
 from ki_knowledge.infosite import InfoSiteConfig, InfoSiteGenerator
 from ki_knowledge.infosite.importer import DocumentImporterRegistry
 
@@ -151,10 +154,30 @@ def infosite_dashboard(request: HttpRequest):
         "total_documents": SourceDocument.objects.count(),
         "imported_documents": SourceDocument.objects.filter(imported=True).count(),
     }
+    active_domain = _active_semantic_domain(request)
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="infooutput",
+        fallback=default_widget_ids_for_area("infooutput", "infosite-dashboard"),
+        subpage_key="infosite-dashboard",
+    )
+    widget_widths = _load_dashboard_widget_widths(request, area_key="infooutput", subpage_key="infosite-dashboard")
+    widget_cards = build_output_widget_cards(
+        active_domain=active_domain,
+        domain_stats=[],
+        domain_documents=[],
+        recent_projects=[],
+        formats=[],
+        widget_ids=widget_ids,
+        widget_widths=widget_widths,
+        infosite_projects=list(projects),
+        infosite_stats=stats,
+    )
 
     context = {
         "projects": projects,
         "stats": stats,
+        "widget_cards": widget_cards,
     }
     return render(request, "infosite/dashboard.html", context)
 

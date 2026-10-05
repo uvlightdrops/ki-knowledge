@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load widgetkit_django %}
 {% block title %}System Status · KICLI{% endblock %}
 {% block content %}
 <h1>📊 System Status</h1>
@@ -8,88 +9,25 @@
   <p><a href="/admin-overview/">Admin Overview</a> · <a href="/admin-overview/domains/">Domain Management</a> · <a href="/admin-overview/sync/">Distributed Sync</a></p>
 </div>
 
-<div class="grid section">
-  <div class="card">
-    {{ status_html|safe }}
+{% if widget_cards %}
+  <div class="grid">
+    {% for card in widget_cards %}
+      <section class="card" style="grid-column: span {{ card.width|default:6 }};">
+        <h3>{{ card.label }}</h3>
+        {{ card.body|safe }}
+      </section>
+    {% endfor %}
   </div>
-  <div class="card">
-    <h3>Konfiguration</h3>
-    <p><a href="/settings/config/">Konfigurationswerte anzeigen</a></p>
-    <p><a href="/settings/layout/builder/?area=admin">Admin-Layout anpassen</a></p>
+{% else %}
+  <div class="grid section">
+    <div class="card">
+      {{ status_html|safe }}
+    </div>
+    <div class="card">
+      <h3>Konfiguration</h3>
+      <p><a href="/settings/config/">Konfigurationswerte anzeigen</a></p>
+      <p><a href="{% layout_builder_url 'admin' 'status' %}">Admin-Layout anpassen</a></p>
+    </div>
   </div>
-</div>
-
-<div class="card">
-  <h3>Domain-Status (Detail)</h3>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>Domain</th><th>Markdown-Dir</th><th>Jira-Dir</th><th>OWL-Dir</th><th>PDF-Dir</th><th>Mix-Dir</th><th>Cache DB</th><th>Graph DB</th></tr>
-      </thead>
-      <tbody>
-        {% for state in domain_states %}
-          <tr>
-            <td><strong>{{ state.domain_label }}</strong>{% if state.domain == active_domain %} <span class="chip">active</span>{% endif %}</td>
-            <td class="mono">{{ state.markdown_dir }}</td>
-            <td class="mono">{{ state.jira_dir }}</td>
-            <td class="mono">{{ state.ontology_dir }}</td>
-            <td class="mono">{{ state.pdf_dir }}</td>
-            <td class="mono">{{ state.mix_dir }}{% if state.mix_files %} ({{ state.mix_files }}){% endif %}</td>
-            <td>{% if state.cache_exists %}✅{% else %}—{% endif %}</td>
-            <td>{% if state.graph_exists %}✅{% else %}—{% endif %}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="8">Noch keine Domains registriert.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h3>Sync-Historie</h3>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Richtung</th><th>Status</th><th>Domain</th><th>Node</th><th>Quelle</th><th>Start</th><th>Ende</th></tr></thead>
-      <tbody>
-        {% for run in sync_runs %}
-          <tr>
-            <td>{{ run.direction }}</td>
-            <td>{{ run.status }}</td>
-            <td>{{ run.domain.slug|default:"-" }}</td>
-            <td>{{ run.node.node_id|default:"-" }}</td>
-            <td class="mono">{{ run.source_url|default:"-" }}</td>
-            <td>{{ run.started_at }}</td>
-            <td>{{ run.completed_at|default:"-" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="7">Noch keine Sync-Läufe vorhanden.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h3>Distributed Sync Jobs</h3>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Job</th><th>Typ</th><th>Status</th><th>Domain</th><th>Start</th><th>Ende</th></tr></thead>
-      <tbody>
-        {% for job in sync_jobs %}
-          <tr>
-            <td class="mono">{{ job.job_id }}</td>
-            <td>{{ job.job_type }}</td>
-            <td>{{ job.status }}</td>
-            <td>{{ job.domain }}</td>
-            <td>{{ job.started_at|default:job.created_at }}</td>
-            <td>{{ job.completed_at|default:"-" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="6">Noch keine Distributed-Sync-Jobs vorhanden.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+{% endif %}
 {% endblock %}

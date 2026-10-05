@@ -1,0 +1,78 @@
+<div id="dashboard-builder-shell" class="dashboard-builder-shell" data-dashboard-builder>
+  <aside class="db-panel">
+    <h3>Available</h3>
+    <div id="unused-stash" class="db-unused-list">
+      {% if unused_widgets %}
+        {% for spec in unused_widgets %}
+          <div class="db-unused-item" draggable="true" data-widget-id="{{ spec.widget_id }}">
+            <div>
+              <strong>{{ spec.label }}</strong><br>
+              <span class="muted" style="font-size:0.76rem;">{{ spec.area }}/{{ spec.category }}</span>
+            </div>
+            <form method="post" action="{% url 'settings-layout-builder' %}" class="db-widget-action-form" style="margin:0;"
+                  hx-post="{% url 'settings-layout-builder' %}"
+                  hx-target="#dashboard-builder-shell"
+                  hx-swap="outerHTML">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="add">
+              <input type="hidden" name="widget_id" value="{{ spec.widget_id }}">
+              <input type="hidden" name="area" value="{{ area_key }}">
+              <input type="hidden" name="subpage" value="{{ subpage_key }}">
+              <button type="submit" class="db-add-button" data-widget-id="{{ spec.widget_id }}">Add</button>
+            </form>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="muted">No widgets left unused.</div>
+      {% endif %}
+    </div>
+  </aside>
+
+  <section class="db-panel">
+    <h3>Grid layout</h3>
+    <div id="layout-grid" class="db-layout-grid" data-area="{{ area_key }}">
+      {% if selected_widgets %}
+        {% for item in selected_widgets %}
+          {% with spec=item.spec width=item.width min_width=item.min_width resizable=item.resizable %}
+            <article class="db-widget-card" draggable="true" data-widget-id="{{ spec.widget_id }}" data-min-width="{{ min_width }}" data-resizable="{% if resizable %}true{% else %}false{% endif %}" style="--w: {{ width }}; --h: {{ spec.default_h }};">
+              <div class="db-widget-header">
+                <span class="db-widget-title">{{ spec.label }}</span>
+                <form method="post" action="{% url 'settings-layout-builder' %}" class="db-widget-action-form" style="margin:0;"
+                      hx-post="{% url 'settings-layout-builder' %}"
+                      hx-target="#dashboard-builder-shell"
+                      hx-swap="outerHTML">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="widget_id" value="{{ spec.widget_id }}">
+                  <input type="hidden" name="area" value="{{ area_key }}">
+                  <input type="hidden" name="subpage" value="{{ subpage_key }}">
+                  <button type="submit" class="db-remove-button" data-widget-id="{{ spec.widget_id }}">Remove</button>
+                </form>
+              </div>
+              <div class="db-widget-body">{{ spec.description }}</div>
+              <div class="db-widget-footer">
+                <span class="chip">{{ spec.default_size }}</span>
+                <label class="db-size-control">
+                  <span>Width</span>
+                  {% if resizable %}
+                    <select class="db-width-select" data-widget-id="{{ spec.widget_id }}">
+                      {% for option in widget_width_options %}
+                        {% if option >= min_width %}
+                          <option value="{{ option }}" {% if width == option %}selected{% endif %}>{{ option }}</option>
+                        {% endif %}
+                      {% endfor %}
+                    </select>
+                  {% else %}
+                    <span class="chip">fixed {{ width }}</span>
+                  {% endif %}
+                </label>
+              </div>
+            </article>
+          {% endwith %}
+        {% endfor %}
+      {% else %}
+        <div class="muted db-layout-empty-state" style="grid-column: 1 / -1; padding: 18px; border: 1px dashed rgba(148,163,184,0.4); border-radius: 12px;">No widgets selected for this area yet. Drag widgets from the unused pile into the grid.</div>
+      {% endif %}
+    </div>
+  </section>
+</div>

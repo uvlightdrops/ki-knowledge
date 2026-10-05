@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load ui_extras %}
+{% load widgetkit_django %}
 {% block title %}Data Sources · KICLI{% endblock %}
 {% block content %}
 <h1>Data Sources</h1>
 <p class="muted">Source hub für die aktiven Quellen der Domain: Markdown, PDF, OWL und strukturierte CSV-/Issue-Daten.</p>
 <p><a class="chip" href="{% url 'sources' %}">🔎 Quellen & Records durchstöbern →</a></p>
-<p class="muted"><a href="{% url 'settings-layout-builder' %}?area=datasources">→ Bereichs-Layout für Data Sources bearbeiten</a></p>
+<p class="muted"><a href="{% layout_builder_url 'datasources' 'overview' %}">→ Bereichs-Layout für Data Sources bearbeiten</a></p>
 
 {% if widget_cards %}
 <div class="widget-grid section">

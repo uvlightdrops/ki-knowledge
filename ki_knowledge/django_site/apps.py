@@ -9,3 +9,4 @@ class DjangoSiteConfig(AppConfig):
     def ready(self) -> None:
         """Import admin configuration when app is ready."""
         from . import infosite_admin  # noqa: F401
+        from . import distributed_runtime  # noqa: F401

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load widgetkit_django %}
 {% block title %}Sources · KICLI{% endblock %}
 {% block content %}
 <h1>Quellen <span class="muted">· {{ active_domain }} · {{ source_count }}</span></h1>
 <p class="muted">Öffne einen Quelleneintrag, um die Records im Dokumentzusammenhang und die daraus erzeugten Artefakte zu durchsuchen.</p>
-<p class="muted"><a href="{% url 'settings-layout-builder' %}?area=sources">→ Layout dieser Seite bearbeiten</a></p>
+<p class="muted"><a href="{% layout_builder_url 'datasources' 'sources' %}">→ Layout dieser Seite bearbeiten</a></p>
 
 <div class="widget-grid section">
   {% for card in widget_cards %}

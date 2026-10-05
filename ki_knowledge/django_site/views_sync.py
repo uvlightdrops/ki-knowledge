@@ -7,12 +7,14 @@ from django.views.decorators.http import require_GET, require_POST
 
 from ki_knowledge.app_config import AppConfig as Config
 
-from .distributed_sync import (
-    apply_remote_domain_payload,
-    apply_remote_node_heartbeat,
-    ensure_local_node_config,
-    local_sync_payload,
-    pull_from_master,
+from .distributed_api import (
+    ensure_local_node,
+    export_knowledge_sync_payload,
+    export_local_sync_payload,
+    get_sync_secret,
+    import_remote_domain_sync,
+    import_remote_heartbeat,
+    pull_domains_from_master,
 )
 
 
@@ -29,8 +31,7 @@ def _json_body(request: HttpRequest) -> dict:
 
 
 def _configured_sync_secret() -> str:
-    config = Config.from_env()
-    return (config.distributed_sync_shared_secret or "").strip()
+    return get_sync_secret()
 
 
 def _require_sync_secret(request: HttpRequest):
@@ -49,8 +50,8 @@ def _require_sync_secret(request: HttpRequest):
 
 @require_GET
 def sync_status_view(request: HttpRequest):
-    node = ensure_local_node_config()
-    payload = local_sync_payload()
+    node = ensure_local_node()
+    payload = export_local_sync_payload()
     return JsonResponse(
         {
             "status": "ok",
@@ -70,7 +71,7 @@ def sync_heartbeat_view(request: HttpRequest):
         return denied
     try:
         payload = _json_body(request)
-        node = apply_remote_node_heartbeat(payload)
+        node = import_remote_heartbeat(payload)
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     return JsonResponse(
@@ -91,7 +92,7 @@ def sync_export_view(request: HttpRequest):
     include_projects = request.GET.get("include_projects", "1").strip() != "0"
     include_documents = request.GET.get("include_documents", "1").strip() != "0"
     include_knowledge = request.GET.get("include_knowledge", "1").strip() != "0"
-    payload = local_sync_payload(domains or None)
+    payload = export_local_sync_payload(domains or None)
     if not include_projects:
         for domain in payload["domains"]:
             domain["projects"] = []
@@ -100,9 +101,7 @@ def sync_export_view(request: HttpRequest):
             for project in domain["projects"]:
                 project["documents"] = []
     if include_knowledge:
-        from .distributed_sync import knowledge_sync_payload
-
-        knowledge_payload = knowledge_sync_payload(domains or None)
+        knowledge_payload = export_knowledge_sync_payload(domains or None)
         by_slug = {entry["slug"]: entry for entry in knowledge_payload["domains"]}
         for domain in payload["domains"]:
             knowledge_entry = by_slug.get(domain["slug"], {})
@@ -126,7 +125,7 @@ def sync_push_view(request: HttpRequest):
         return denied
     try:
         payload = _json_body(request)
-        result = apply_remote_domain_payload(payload)
+        result = import_remote_domain_sync(payload)
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     return JsonResponse({"status": "ok", **result})
@@ -139,7 +138,7 @@ def sync_pull_view(request: HttpRequest):
         return denied
     domains = [item.strip() for item in request.POST.getlist("domain") if item.strip()]
     try:
-        result = pull_from_master(domains=domains or None)
+        result = pull_domains_from_master(domains=domains or None)
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     except Exception as exc:

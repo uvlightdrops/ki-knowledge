@@ -1,0 +1,23 @@
+{% if runtime_node.role != "master" %}
+  <p>Die Host-Registry ist nur auf dem Master relevant.</p>
+{% else %}
+  <p><strong>Bekannte Hosts:</strong> {{ known_hosts|length }}</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Node</th><th>Role</th><th>Base URL</th><th>Last Seen</th></tr></thead>
+      <tbody>
+        {% for host in known_hosts|slice:":6" %}
+          <tr>
+            <td><strong>{{ host.display_name|default:host.node_id }}</strong><br><span class="mono">{{ host.node_id }}</span></td>
+            <td>{{ host.role }}</td>
+            <td class="mono">{{ host.base_url|default:"-" }}</td>
+            <td>{{ host.last_seen_at|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">Noch keine bekannten Hosts vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p><a href="{{ sync_admin_url }}">Komplette Host-Registry öffnen</a></p>
+{% endif %}

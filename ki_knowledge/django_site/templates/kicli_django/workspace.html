@@ -1,9 +1,23 @@
 {% extends "base.html" %}
+{% load widgetkit_django %}
 {% block title %}Workspace · KICLI{% endblock %}
 {% block content %}
 <h1>Workspace</h1>
 <p class="muted">Vorbereitungsbereich für Quellen vor dem Import. Das ist die pre-import stage; das Ausgabe-Workflow bleibt separat.</p>
 <p class="muted">Data dir: {{ data_dir }}</p>
+<p class="muted"><a href="{% layout_builder_url 'datasources' 'workspace' %}">→ Layout dieser Seite bearbeiten</a></p>
+
+{% if widget_cards %}
+<div class="widget-grid section">
+  {% for card in widget_cards %}
+    <div class="card" style="grid-column: span {{ card.width|default:6 }};">
+      <h3>{{ card.label }}</h3>
+      {% if card.description %}<p class="muted">{{ card.description }}</p>{% endif %}
+      {{ card.body|safe }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 <div class="card" style="margin-bottom: 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
   <div class="muted">Ansicht</div>

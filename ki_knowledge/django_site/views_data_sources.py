@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from .dashboard_registry import default_widget_ids_for_area
-from .page_widgets import build_data_sources_widget_cards
+from .page_widgets import build_data_sources_widget_cards, build_workspace_widget_cards
 from .services import (
     artifact_content_preview,
     create_pdf_import_job,
@@ -191,6 +191,8 @@ def workspace(request: HttpRequest):
     selected = _selected_markdown(request)
     query = request.GET.get("q", "")
     display_mode = _display_mode(request, default="cards")
+    all_domains = semantic_domain_states()
+    active_state = next((item for item in all_domains if item.get("domain") == active_domain), {"domain": active_domain})
     tree = root_markdown_tree(query=query, domain=active_domain)
     markdown_files = workspace_markdown_files(query=query, domain=active_domain)
     source_preview = None
@@ -202,6 +204,22 @@ def workspace(request: HttpRequest):
         except OSError:
             source_preview = None
             source_preview_html = None
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="datasources",
+        fallback=default_widget_ids_for_area("datasources", "workspace"),
+        subpage_key="workspace",
+    )
+    widget_cards = build_workspace_widget_cards(
+        request=request,
+        active_domain=active_domain,
+        all_domains=all_domains,
+        active_domain_state=active_state,
+        markdown_count=len(markdown_files),
+        sources=[],
+        widget_ids=widget_ids,
+        widget_widths=_load_dashboard_widget_widths(request, area_key="datasources", subpage_key="workspace"),
+    )
     return render(
         request,
         "kicli_django/workspace.html",
@@ -217,6 +235,7 @@ def workspace(request: HttpRequest):
             "display_mode": display_mode,
             "workspace_toggle_cards_url": f"{reverse('workspace')}?{urlencode({'q': query, 'display': 'cards'})}",
             "workspace_toggle_table_url": f"{reverse('workspace')}?{urlencode({'q': query, 'display': 'table'})}",
+            "widget_cards": widget_cards,
         },
     )
 
@@ -299,12 +318,17 @@ def sources(request: HttpRequest):
         "generate_url": reverse("generate-action"),
         "filter_params": filters,
     }
-    widget_ids = _load_dashboard_widget_ids(request, area_key="sources", fallback=default_widget_ids_for_area("sources"))
+    widget_ids = _load_dashboard_widget_ids(
+        request,
+        area_key="datasources",
+        fallback=default_widget_ids_for_area("datasources", "sources"),
+        subpage_key="sources",
+    )
     widget_cards = build_sources_widget_cards(
         request=request,
         ctx=ctx,
         widget_ids=widget_ids,
-        widget_widths=_load_dashboard_widget_widths(request, area_key="sources"),
+        widget_widths=_load_dashboard_widget_widths(request, area_key="datasources", subpage_key="sources"),
     )
     return render(
         request,

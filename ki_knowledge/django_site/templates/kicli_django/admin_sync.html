@@ -8,6 +8,13 @@
   <div class="card">
     <h3>Node Configuration</h3>
     {% include "kicli_django/admin_sync_node_form.html" %}
+    {% if runtime_node.role == "host" %}
+    <form method="post" style="margin-top:12px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="send_heartbeat">
+      <button class="button" type="submit">Heartbeat an Master senden</button>
+    </form>
+    {% endif %}
   </div>
   <div class="card">
     <h3>Node Overview</h3>
@@ -26,6 +33,45 @@
   <h3>Master Domain Catalog</h3>
   {% include "kicli_django/admin_sync_catalog.html" %}
 </div>
+
+{% if runtime_node.role == "master" %}
+<div class="card" style="margin-top:16px;">
+  <h3>Known Hosts</h3>
+  <p class="muted">Hosts, die sich bereits gemeldet haben oder im Registry-Modell bekannt sind. Von hier aus kann der Master einen Pull auf dem Host anstoßen.</p>
+  {% include "kicli_django/admin_sync_hosts.html" %}
+  <div class="table-wrap" style="margin-top:12px;">
+    <table>
+      <thead><tr><th>Node</th><th>Role</th><th>Base URL</th><th>Enabled</th><th>Last Seen</th><th>Aktion</th></tr></thead>
+      <tbody>
+        {% for host in known_hosts %}
+          <tr>
+            <td><strong>{{ host.display_name|default:host.node_id }}</strong><br><span class="mono">{{ host.node_id }}</span></td>
+            <td>{{ host.role }}</td>
+            <td class="mono">{{ host.base_url|default:"-" }}</td>
+            <td>{% if host.is_enabled %}yes{% else %}no{% endif %}</td>
+            <td>{{ host.last_seen_at|default:"-" }}</td>
+            <td>
+              {% if host.role == "host" and host.base_url %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="trigger_host_pull">
+                  <input type="hidden" name="host_node_id" value="{{ host.node_id }}">
+                  <input type="hidden" name="domain" value="{{ active_domain }}">
+                  <button class="button" type="submit">Aktive Domain zustellen</button>
+                </form>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">Noch keine bekannten Hosts vorhanden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="card" style="margin-top:16px;">
   <h3>Letzte Sync-Läufe</h3>
@@ -56,7 +102,7 @@
   <h3>Distributed Sync Jobs</h3>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Job</th><th>Typ</th><th>Status</th><th>Domain</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
+      <thead><tr><th>Job</th><th>Typ</th><th>Status</th><th>Domain</th><th>Start</th><th>Ende</th><th>Fehler</th><th>Aktion</th></tr></thead>
       <tbody>
         {% for job in sync_jobs %}
           <tr>
@@ -67,9 +113,21 @@
             <td>{{ job.started_at|default:job.created_at }}</td>
             <td>{{ job.completed_at|default:"-" }}</td>
             <td>{{ job.error_message|default:"-" }}</td>
+            <td>
+              {% if job.status == "pending" %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="run_sync_job">
+                  <input type="hidden" name="job_id" value="{{ job.job_id }}">
+                  <button class="button" type="submit">Jetzt starten</button>
+                </form>
+              {% else %}
+                -
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
-          <tr><td colspan="7">Noch keine Distributed-Sync-Jobs vorhanden.</td></tr>
+          <tr><td colspan="8">Noch keine Distributed-Sync-Jobs vorhanden.</td></tr>
         {% endfor %}
       </tbody>
     </table>
