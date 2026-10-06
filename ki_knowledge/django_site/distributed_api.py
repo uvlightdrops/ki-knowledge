@@ -27,6 +27,10 @@ from .distributed_sync import (
 )
 
 
+def _is_connection_error(exc: Exception) -> bool:
+    return isinstance(exc, requests.exceptions.RequestException | ConnectionError)
+
+
 def get_local_node_snapshot() -> LocalNodeSnapshot:
     return local_node_snapshot()
 
@@ -219,3 +223,21 @@ def send_master_heartbeat(*, include_status: bool = True) -> dict[str, Any]:
     if not isinstance(result, dict):
         raise ValueError("heartbeat response must be an object")
     return {"heartbeat_url": heartbeat_url, **result}
+
+
+def safe_send_master_heartbeat(*, include_status: bool = True) -> dict[str, Any]:
+    try:
+        return send_master_heartbeat(include_status=include_status)
+    except Exception as exc:
+        if _is_connection_error(exc):
+            return {"status": "unreachable", "reason": str(exc)}
+        raise
+
+
+def safe_fetch_master_domain_catalog(*, master_url: str | None = None) -> tuple[dict[str, Any] | None, str]:
+    try:
+        return fetch_master_domain_catalog(master_url=master_url), ""
+    except Exception as exc:
+        if _is_connection_error(exc):
+            return None, str(exc)
+        raise

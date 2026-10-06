@@ -68,10 +68,10 @@ from .views_common import (
 )
 from .layout_store import DjangoDashboardLayoutStore
 from .distributed_api import (
-    fetch_master_domain_catalog,
     get_runtime_node_settings,
     list_known_hosts,
     persist_local_node_settings,
+    safe_fetch_master_domain_catalog,
     send_host_pull_command,
     send_master_heartbeat,
 )
@@ -425,10 +425,7 @@ def admin_overview_view(request: HttpRequest):
     master_domain_catalog = None
     master_domain_catalog_error = ""
     if runtime_node.role == "host" and runtime_node.distributed_enabled:
-        try:
-            master_domain_catalog = fetch_master_domain_catalog()
-        except Exception as exc:
-            master_domain_catalog_error = str(exc)
+        master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
     layout = {
         "data_root": display_data_path(layout_raw.get("data_root", "")),
         "active_markdown_dir": display_data_path(layout_raw.get("active_markdown_dir", "")),
@@ -600,10 +597,7 @@ def admin_domain_management_view(request: HttpRequest):
     master_domain_catalog = None
     master_domain_catalog_error = ""
     if runtime_node.role == "host" and runtime_node.distributed_enabled:
-        try:
-            master_domain_catalog = fetch_master_domain_catalog()
-        except Exception as exc:
-            master_domain_catalog_error = str(exc)
+        master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
     csrf_token = get_token(request)
     domain_management_url = reverse("admin-domains")
     create_html = render_fragment(
@@ -759,10 +753,7 @@ def admin_sync_view(request: HttpRequest):
     master_domain_catalog = None
     master_domain_catalog_error = ""
     if runtime_node.role == "host" and runtime_node.distributed_enabled:
-        try:
-            master_domain_catalog = fetch_master_domain_catalog()
-        except Exception as exc:
-            master_domain_catalog_error = str(exc)
+        master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
     known_hosts = list_known_hosts() if runtime_node.role == "master" else []
     return render(
         request,

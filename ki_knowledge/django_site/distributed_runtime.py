@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.core.cache import cache
 
-from .distributed_api import get_runtime_node_settings, send_master_heartbeat
+from .distributed_api import get_runtime_node_settings, safe_send_master_heartbeat
 
 _HEARTBEAT_CACHE_KEY = "distributed-heartbeat:last-success"
 
@@ -16,6 +16,9 @@ def maybe_send_automatic_heartbeat() -> dict[str, str]:
     if cache.get(cache_key):
         return {"status": "throttled"}
 
-    send_master_heartbeat()
+    result = safe_send_master_heartbeat()
+    if result.get("status") == "unreachable":
+        cache.set(cache_key, "0", timeout=15)
+        return {"status": "unreachable", "reason": str(result.get("reason", ""))}
     cache.set(cache_key, "1", timeout=60)
     return {"status": "sent"}
