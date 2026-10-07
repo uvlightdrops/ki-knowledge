@@ -52,7 +52,11 @@
   </div>
 </div>
 
-<div class="shell-builder" data-widget-shell-builder>
+<div class="shell-builder" data-widget-shell-builder
+     data-preset-json-url-template="{% url 'settings-layout-shell-builder-json' 'PRESET_ID' %}"
+     data-active-preset-id="{{ active_widget_id|default:'' }}"
+     data-builder-url="{% url 'settings-layout-shell-builder' %}"
+     data-save-url="{% url 'settings-layout-shells-save' %}">
   <aside class="shell-panel">
     <h3>Presets</h3>
     <div class="shell-help">Available groups: {% for area in builtins %}<span class="chip">{{ area }}</span> {% endfor %}</div>
@@ -139,15 +143,5 @@
 </div>
 
 {{ active_preset_json|default:None|json_script:"widget-shell-active-preset" }}
-<script>
-  const activePresetNode = document.getElementById('widget-shell-active-preset');
-  window.widgetShellBuilderConfig = {
-    presetJsonUrlTemplate: "{% url 'settings-layout-shell-builder-json' 'PRESET_ID' %}",
-    activePresetId: "{{ active_widget_id|default:''|escapejs }}",
-    builderUrl: "{% url 'settings-layout-shell-builder' %}",
-    saveUrl: "{% url 'settings-layout-shells-save' %}",
-    activePreset: activePresetNode ? JSON.parse(activePresetNode.textContent) : null
-  };
-</script>
-<script src="{% static 'django_site/js/widget-shell-builder.js' %}?v=20260912b"></script>
+<script src="{% static 'django_site/js/widget-shell-builder.js' %}?v=20261007"></script>
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui_extras %}
+{% load ui_extras static %}
 
 {% block title %}PDF Import Jobs - KICLI Knowledge{% endblock %}
 
@@ -256,29 +256,9 @@
   </p>
 </div>
 
-<script>
-(() => {
-  const endpoint = "{% url 'pdf-import-jobs-json' %}";
-  const domain = "{{ active_domain|escapejs }}";
-  const status = "{{ status_filter|escapejs }}";
-  let current = "{{ summary.pending }}:{{ summary.processing }}:{{ summary.done }}:{{ summary.failed }}:{{ worker_run.token|default:''|escapejs }}:{{ worker_run.status|default:''|escapejs }}";
-  window.setInterval(async () => {
-    try {
-      const response = await fetch(`${endpoint}?domain=${encodeURIComponent(domain)}&status=${encodeURIComponent(status)}`, {
-        headers: { Accept: "application/json" }
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      const worker = data.worker || {};
-      const next = `${data.summary.pending}:${data.summary.processing}:${data.summary.done}:${data.summary.failed}:${worker.token || ""}:${worker.status || ""}`;
-      if (next !== current || data.summary.processing > 0 || ["starting", "running"].includes(worker.status)) {
-        current = next;
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error("Failed to refresh PDF job status", error);
-    }
-  }, 10000);
-})();
-</script>
+<div id="pdf-job-refresh-config" hidden
+     data-endpoint="{% url 'pdf-import-jobs-json' %}"
+     data-domain="{{ active_domain }}" data-status="{{ status_filter }}"
+     data-current="{{ summary.pending }}:{{ summary.processing }}:{{ summary.done }}:{{ summary.failed }}:{{ worker_run.token|default:'' }}:{{ worker_run.status|default:'' }}"></div>
+<script src="{% static 'django_site/js/pdf-import-jobs.js' %}"></script>
 {% endblock %}

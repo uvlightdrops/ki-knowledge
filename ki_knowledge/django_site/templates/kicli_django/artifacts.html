@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui_extras %}
+{% load ui_extras static %}
 {% block title %}Artifacts · KICLI{% endblock %}
 {% block content %}
 <h1>Artifacts</h1>
@@ -71,22 +71,5 @@
   {% endif %}
   {% endif %}
 </form>
-<script>
-document.addEventListener("change", function (event) {
-  const target = event.target;
-  if (!(target instanceof HTMLInputElement) || !target.matches("[data-select-all]")) {
-    return;
-  }
-  const form = target.closest("form");
-  if (!form) {
-    return;
-  }
-  const fieldName = target.dataset.selectAll;
-  form.querySelectorAll(`input[name="${fieldName}"]`).forEach((checkbox) => {
-    if (checkbox !== target) {
-      checkbox.checked = target.checked;
-    }
-  });
-});
-</script>
+<script src="{% static 'django_site/js/bulk-selection.js' %}"></script>
 {% endblock %}

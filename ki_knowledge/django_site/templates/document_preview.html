@@ -45,7 +45,7 @@
           </div>
           {% endfor %}
         {% else %}
-          <div style="padding: 40px 16px; text-align: center; color: var(--kicli-text-soft);">
+          <div class="document-list-empty">
             No documents available. Import some documents first.
           </div>
         {% endif %}
@@ -56,14 +56,14 @@
     <div class="preview-panel">
       <div class="preview-header">
         <div class="preview-title" id="previewTitle">👈 Click a document to preview</div>
-        <button style="display:none; padding: 6px 12px; border: 1px solid var(--kicli-border); background: var(--kicli-panel-alt); color: var(--kicli-text); border-radius: 4px; cursor: pointer;" id="downloadMainBtn">⬇️ Download</button>
+        <button class="document-download-main" hidden id="downloadMainBtn">⬇️ Download</button>
       </div>
 
       <div class="preview-content" id="previewContent">
         <div class="preview-empty">
           <div class="icon">📖</div>
           <p>Click on a document in the list above to preview it here</p>
-          <p style="font-size: 0.9rem; color: var(--kicli-text-soft);">Supported: Markdown, Text files</p>
+          <p class="document-preview-support">Supported: Markdown, Text files</p>
         </div>
       </div>
     </div>
@@ -75,161 +75,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
 
-<script>
-class DocumentBrowser {
-  constructor(documents) {
-    this.documents = documents;
-    this.currentDoc = null;
-    this.cache = {};
-    this.filteredDocs = documents;
-    
-    this.init();
-  }
-
-  init() {
-    this.setupEventListeners();
-  }
-
-  setupEventListeners() {
-    const listEl = document.getElementById('documentList');
-    const searchEl = document.getElementById('searchInput');
-    
-    // Click on document row
-    listEl.addEventListener('click', (e) => {
-      const row = e.target.closest('.doc-row');
-      if (row && !e.target.classList.contains('action-btn')) {
-        const docId = row.dataset.docId;
-        this.selectDocument(docId);
-      }
-    });
-
-    // Search
-    searchEl.addEventListener('input', (e) => {
-      this.filterDocuments(e.target.value.toLowerCase());
-    });
-
-    // Action buttons
-    listEl.addEventListener('click', (e) => {
-      if (e.target.classList.contains('download-btn')) {
-        e.stopPropagation();
-        const docId = e.target.dataset.docId;
-        const doc = this.documents.find(d => d.id === docId);
-        if (doc) this.downloadDocument(doc);
-      }
-      if (e.target.classList.contains('view-btn')) {
-        e.stopPropagation();
-        const docId = e.target.dataset.docId;
-        const doc = this.documents.find(d => d.id === docId);
-        if (doc) window.open(doc.url, '_blank');
-      }
-    });
-  }
-
-  filterDocuments(term) {
-    this.filteredDocs = this.documents.filter(d =>
-      d.name.toLowerCase().includes(term)
-    );
-    this.render();
-  }
-
-  render() {
-    const listEl = document.getElementById('documentList');
-    if (this.filteredDocs.length === 0) {
-      listEl.innerHTML = '<div style="padding: 40px 16px; text-align: center; color: var(--kicli-text-soft);">No matching documents</div>';
-      return;
-    }
-
-    listEl.innerHTML = this.filteredDocs.map(doc => `
-      <div class="doc-row" data-doc-id="${doc.id}" data-doc-type="${doc.type}" data-doc-path="${doc.path}">
-        <div class="doc-icon">${doc.type === 'pdf' ? '📕' : '📝'}</div>
-        <div class="doc-name" title="${doc.name}">${doc.name}</div>
-        <div class="doc-size">${doc.size_display}</div>
-        <div class="doc-actions">
-          <button class="action-btn download-btn" data-doc-id="${doc.id}" title="Download">⬇️</button>
-          <button class="action-btn view-btn" data-doc-id="${doc.id}" title="View fullscreen">🔗</button>
-        </div>
-      </div>
-    `).join('');
-
-    // Re-attach listeners
-    this.setupEventListeners();
-  }
-
-  selectDocument(docId) {
-    const doc = this.documents.find(d => d.id === docId);
-    if (!doc) return;
-
-    this.currentDoc = doc;
-
-    // Update active state
-    document.querySelectorAll('.doc-row').forEach(row => {
-      row.classList.remove('active');
-    });
-    document.querySelector(`[data-doc-id="${docId}"]`)?.classList.add('active');
-
-    // Load content
-    this.loadContent(doc);
-  }
-
-  loadContent(doc) {
-    const contentEl = document.getElementById('previewContent');
-    const titleEl = document.getElementById('previewTitle');
-
-    titleEl.textContent = doc.name;
-    document.getElementById('downloadMainBtn').style.display = 'block';
-    document.getElementById('downloadMainBtn').onclick = () => this.downloadDocument(doc);
-
-    if (this.cache[doc.id]) {
-      this.displayContent(doc, this.cache[doc.id]);
-      return;
-    }
-
-    contentEl.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Loading...</p></div>';
-
-    // Fetch from API
-    fetch(doc.url)
-      .then(r => r.json())
-      .then(data => {
-        this.cache[doc.id] = data;
-        this.displayContent(doc, data);
-      })
-      .catch(e => {
-        contentEl.innerHTML = `<div class="preview-empty"><div class="icon">❌</div><p>Failed to load: ${e.message}</p></div>`;
-      });
-  }
-
-  displayContent(doc, data) {
-    const contentEl = document.getElementById('previewContent');
-
-    if (doc.type === 'pdf') {
-      contentEl.innerHTML = '<div class="preview-empty"><div class="icon">📕</div><p>PDF preview not yet supported</p><p style="color: #60a5fa;">Use the download button to open</p></div>';
-    } else if (data.content) {
-      const html = marked.parse(data.content);
-      contentEl.innerHTML = `<div class="preview-markdown">${html}</div>`;
-      
-      // Syntax highlighting
-      contentEl.querySelectorAll('pre code').forEach(el => {
-        hljs.highlightElement(el);
-      });
-    } else {
-      contentEl.innerHTML = '<div class="preview-empty"><p>No content available</p></div>';
-    }
-  }
-
-  downloadDocument(doc) {
-    const a = document.createElement('a');
-    a.href = doc.url;
-    a.download = doc.name;
-    a.click();
-  }
-}
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-  const docs = {{ documents_json|safe }};
-  if (docs.length > 0) {
-    new DocumentBrowser(docs);
-  }
-});
-</script>
+{{ documents|json_script:"document-preview-data" }}
+<script src="{% static 'django_site/js/document-preview.js' %}"></script>
 {% endblock %}

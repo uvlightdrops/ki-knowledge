@@ -89,11 +89,14 @@
   {% endif %}
 
   <!-- Actions -->
-  <div class="actions">
-    <button class="btn btn-primary" onclick="publishBlocks()">
+  <div class="actions" id="knowledge-block-actions"
+       data-publish-url="{% url 'infosite:publish_blocks' project.id %}"
+       data-project-title="{{ project.title }}" data-domain="{{ project.domain }}"
+       data-working-title="{{ project.working_title }}" data-project-id="{{ project.id }}">
+    <button type="button" class="btn btn-primary" data-publish-blocks>
       📤 Publish to Knowledge Store
     </button>
-    <button class="btn" onclick="exportJSON()">
+    <button type="button" class="btn" data-export-blocks>
       💾 Export as JSON
     </button>
     <a href="{% url 'infosite:project_detail' project.id %}" class="btn">
@@ -105,78 +108,7 @@
   </div>
 </div>
 
-<script>
-const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-                  document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
-
-async function publishBlocks() {
-  if (confirm('Publish all extracted blocks to the Knowledge Store?')) {
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = '⏳ Publishing...';
-    
-    try {
-      const response = await fetch('{% url "infosite:publish_blocks" project.id %}', {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': csrftoken,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert(`✅ Published ${data.blocks_stored} blocks from ${data.files_processed} files!\n\nSource: ${data.source_id}`);
-        // Refresh page after 1 second
-        setTimeout(() => location.reload(), 1000);
-      } else {
-        alert(`❌ Error: ${data.error}`);
-      }
-    } catch (error) {
-      alert(`❌ Failed to publish: ${error.message}`);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
-  }
-}
-
-function exportJSON() {
-  const data = {
-    project: "{{ project.title }}",
-    domain: "{{ project.domain }}",
-    working_title: "{{ project.working_title }}",
-    stats: {{ stats|safe }},
-    exported_at: new Date().toISOString(),
-  };
-  
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `knowledge-blocks-{{ project.id }}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  document.querySelectorAll('[data-file-section]').forEach(function (section) {
-    const blocks = section.querySelectorAll('.block-item');
-    section.querySelector('[data-expand-blocks]')?.addEventListener('click', function (event) {
-      event.preventDefault();
-      blocks.forEach(function (block) {
-        block.open = true;
-      });
-    });
-    section.querySelector('[data-collapse-blocks]')?.addEventListener('click', function (event) {
-      event.preventDefault();
-      blocks.forEach(function (block) {
-        block.open = false;
-      });
-    });
-  });
-});
-</script>
+{{ stats|json_script:"knowledge-block-stats" }}
+{% csrf_token %}
+<script src="{% static 'infosite/js/knowledge-blocks.js' %}"></script>
 {% endblock %}

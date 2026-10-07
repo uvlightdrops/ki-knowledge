@@ -124,20 +124,5 @@
     </div>
 </div>
 
-<script>
-document.getElementById("select-all").addEventListener("change", function(e) {
-    const checkboxes = document.querySelectorAll(".file-checkbox");
-    checkboxes.forEach(cb => cb.checked = e.target.checked);
-    updateSelectedCount();
-});
-
-document.querySelectorAll(".file-checkbox").forEach(cb => {
-    cb.addEventListener("change", updateSelectedCount);
-});
-
-function updateSelectedCount() {
-    const count = document.querySelectorAll(".file-checkbox:checked").length;
-    document.getElementById("selected-count").textContent = `${count} file(s) selected`;
-}
-</script>
+<script src="{% static 'infosite/js/ai-refine.js' %}"></script>
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui_extras %}
+{% load ui_extras static %}
 {% block title %}Jobs · KICLI{% endblock %}
 {% block content %}
 <h1>Jobs</h1>
@@ -97,18 +97,5 @@
   {% endif %}
 </div>
 {% endif %}
-<script>
-document.addEventListener("change", function (event) {
-  const target = event.target;
-  if (!(target instanceof HTMLInputElement) || !target.matches("[data-select-all]")) {
-    return;
-  }
-  const fieldName = target.dataset.selectAll;
-  document.querySelectorAll(`input[name="${fieldName}"]`).forEach((checkbox) => {
-    if (checkbox !== target) {
-      checkbox.checked = target.checked;
-    }
-  });
-});
-</script>
+<script src="{% static 'django_site/js/bulk-selection.js' %}"></script>
 {% endblock %}

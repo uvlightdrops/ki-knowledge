@@ -38,6 +38,6 @@
   </section>
 </div>
 
-{{ widget_preview_payload_json|json_script:"widget-preview-payload" }}
+{{ widget_preview_payload|json_script:"widget-preview-payload" }}
 <script src="{% static 'django_site/js/widget-catalog.js' %}"></script>
 {% endblock %}

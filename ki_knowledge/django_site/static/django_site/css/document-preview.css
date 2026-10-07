@@ -1,3 +1,24 @@
+  .document-list-empty {
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--kicli-text-soft);
+  }
+  .document-download-main {
+    padding: 6px 12px;
+    border: 1px solid var(--kicli-border);
+    background: var(--kicli-panel-alt);
+    color: var(--kicli-text);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .document-preview-support {
+    font-size: 0.9rem;
+    color: var(--kicli-text-soft);
+  }
+  .document-preview-download-hint {
+    color: #60a5fa;
+  }
+
   /* Main Layout */
   .preview-wrapper {
     display: grid;

@@ -295,6 +295,8 @@ def infosite_project_detail(request: HttpRequest, project_id: int):
         },
         'generated_document_count': generated_count,
         'used_source_count': len(used_source_ids),
+        'source_tree': source_tree,
+        'initial_site_structure': default_site_structure,
         'source_tree_json': json.dumps(source_tree, ensure_ascii=False),
         'site_structure_json': json.dumps(default_site_structure, ensure_ascii=False),
     }

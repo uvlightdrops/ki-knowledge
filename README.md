@@ -47,6 +47,12 @@ Documentation:
 - packaging roadmap: `docs/widgetkit-django-packaging-roadmap.md`
 - package README: `ki_knowledge/widgetkit_django/README.md`
 
+## Frontend assets
+
+See [frontend asset rules](docs/frontend-assets.md) for static CSS/JavaScript
+organization, safe template-to-script data handoffs, the inline-block cleanup
+inventory, and database-free validation commands.
+
 ## Dependencies
 
 - `ki-core` as local base library (`/home/flow/dev_flow/ki-core`)

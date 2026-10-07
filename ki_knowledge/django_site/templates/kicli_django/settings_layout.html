@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load widgetkit_django %}
+{% load widgetkit_django static %}
 {% block title %}Layout settings · KICLI{% endblock %}
 {% block content %}
   <h1>Layout settings</h1>
@@ -71,33 +71,5 @@
     </div>
   </div>
 
-  <script>
-    (() => {
-      const layoutSizeMap = { compact: 'compact', balanced: 'balanced', wide: 'wide', full: 'full' };
-      const boxMap = {
-        'domain-management': 'domain-management',
-        'knowledge-summary': 'knowledge-summary',
-        'semantic-quick': 'semantic-quick',
-        'semantic-monitor': 'semantic-monitor',
-        'recent-jobs': 'recent-jobs',
-        'kb-management': 'kb-management',
-        'status': 'status',
-        'quick-import': 'quick-import',
-      };
-
-      document.querySelectorAll('[data-layout-control]').forEach((select) => {
-        const box = select.dataset.layoutControl;
-        const storageKey = `kicli-layout-box-${box}`;
-        const restore = localStorage.getItem(storageKey) || select.value || 'balanced';
-        const safe = layoutSizeMap[restore] || 'balanced';
-        select.value = safe;
-        localStorage.setItem(storageKey, safe);
-        select.addEventListener('change', (event) => {
-          const value = layoutSizeMap[event.target.value] || 'balanced';
-          localStorage.setItem(storageKey, value);
-          event.target.value = value;
-        });
-      });
-    })();
-  </script>
+  <script src="{% static 'django_site/js/settings-layout.js' %}"></script>
 {% endblock %}

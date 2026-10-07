@@ -20,7 +20,14 @@ document.addEventListener('DOMContentLoaded', () => {
     description: document.getElementById('shell-live-preview-description'),
   };
   let presetState = {};
-  const config = window.widgetShellBuilderConfig || {};
+  const activePresetNode = document.getElementById('widget-shell-active-preset');
+  const config = {
+    presetJsonUrlTemplate: root.dataset.presetJsonUrlTemplate,
+    activePresetId: root.dataset.activePresetId,
+    builderUrl: root.dataset.builderUrl,
+    saveUrl: root.dataset.saveUrl,
+    activePreset: activePresetNode ? JSON.parse(activePresetNode.textContent) : null,
+  };
   let activeWidgetId = new URLSearchParams(window.location.search).get('widget_id') || config.activePresetId || '';
   const savedFlag = new URLSearchParams(window.location.search).get('saved');
 
