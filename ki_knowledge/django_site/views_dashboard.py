@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from urllib.parse import urlencode
 
+from requests.exceptions import RequestException
+
 from django.contrib import messages
 from django.conf import settings
 from django.db.models import Count, Q
@@ -715,6 +717,28 @@ def admin_sync_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
     if request.method == "POST":
         action = request.POST.get("action", "").strip()
+        if action == "save_node_config":
+            persist_local_node_settings(
+                display_name=request.POST.get("display_name", "").strip(),
+                role=request.POST.get("role", "").strip() or None,
+                base_url=request.POST.get("base_url", "").strip(),
+                sync_on_connect=request.POST.get("sync_on_connect", "").strip().lower() in {"1", "true", "yes", "on"},
+                is_enabled=request.POST.get("is_enabled", "").strip().lower() in {"1", "true", "yes", "on"},
+                sync_shared_secret=request.POST.get("sync_shared_secret", "").strip(),
+            )
+            messages.success(request, "Lokale Node-Konfiguration gespeichert und als aktive Runtime-Konfiguration übernommen.")
+            return HttpResponseRedirect(reverse("admin-sync"))
+        if action == "send_heartbeat":
+            try:
+                result = send_master_heartbeat()
+            except (RequestException, ConnectionError, ValueError) as exc:
+                messages.error(request, f"Heartbeat fehlgeschlagen: {exc}")
+            else:
+                if result.get("status") == "skipped":
+                    messages.warning(request, "Heartbeat nicht gesendet: Master-Verbindung ist nicht konfiguriert.")
+                else:
+                    messages.success(request, f"Heartbeat gesendet. {_format_task_message(result)}")
+            return HttpResponseRedirect(reverse("admin-sync"))
         if action == "run_sync_job":
             job_id = request.POST.get("job_id", "").strip()
             if not job_id:

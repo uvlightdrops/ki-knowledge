@@ -7,7 +7,8 @@
 <div class="grid section">
   <div class="card">
     <h3>Node Configuration</h3>
-    {% include "kicli_django/admin_sync_node_form.html" %}
+    {% url 'admin-sync' as node_config_url %}
+    {% include "kicli_django/admin_sync_node_form.html" with node_config_url=node_config_url %}
     {% if runtime_node.role == "host" %}
     <form method="post" style="margin-top:12px;">
       {% csrf_token %}

@@ -2,7 +2,7 @@
 {% block title %}Quiz (geplant) · Info Output · KICLI{% endblock %}
 {% block content %}
   <h1>📝 Quiz <span class="chip">geplant</span></h1>
-  <div class="grid">
+  <div class="widget-grid">
     {% for card in widget_cards %}
       <section class="card" style="grid-column: span {{ card.width|default:6 }};">
         <h3>{{ card.label }}</h3>

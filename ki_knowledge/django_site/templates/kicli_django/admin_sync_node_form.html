@@ -1,5 +1,6 @@
 <p class="muted">Für Hosts ist die <strong>Master Base URL</strong> sinnvoller als eine nackte IP, weil der Sync über HTTP-Endpunkte mit Schema und Port läuft. Beispiel: <code>http://master-host:8000</code>.</p>
-<form method="post" action="/admin-overview/domains/" class="stack">
+{% url 'admin-domains' as default_node_config_url %}
+<form method="post" action="{{ node_config_url|default:default_node_config_url }}" class="stack">
   {% csrf_token %}
   <input type="hidden" name="action" value="save_node_config">
   <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">

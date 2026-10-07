@@ -79,6 +79,21 @@ pip install -e /home/flow/dev_flow/ki-core
 pip install -e .
 ```
 
+## Chrome DevTools workspace
+
+When running Django locally with `DEBUG=True`, the endpoint
+`/.well-known/appspecific/com.chrome.devtools.json` advertises the repository
+root and a stable workspace UUID. Open the site via `http://localhost:8000`
+or `http://127.0.0.1:8000`, then open Chrome DevTools and approve the workspace
+connection when prompted (supported Chrome versions).
+
+The endpoint returns 404 outside debug mode or for non-loopback clients.
+No forwarded headers are trusted; a local reverse proxy must restrict access
+itself. Chrome and Django must run on the same machine for the advertised
+filesystem path to be usable. Connecting the workspace does not automatically
+map generated Django HTML back to templates. Review file changes in Git after
+editing through DevTools.
+
 ## License
 
 MIT

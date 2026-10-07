@@ -6,6 +6,7 @@ from wagtail import urls as wagtail_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
 from . import views
+from .views_devtools import chrome_devtools_workspace
 
 # URL layout follows the navigation IA documented in
 # docs/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
@@ -15,6 +16,7 @@ from . import views
 # their new area prefix. This is a single-user development project with no
 # external bookmarks, so old paths are cut over directly (no redirects).
 urlpatterns = [
+    path(".well-known/appspecific/com.chrome.devtools.json", chrome_devtools_workspace, name="chrome-devtools-workspace"),
     path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
     path("dashboard/monitoring.json", views.dashboard_monitoring, name="dashboard-monitoring"),
