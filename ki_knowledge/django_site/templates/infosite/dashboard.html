@@ -10,9 +10,9 @@
 {% block content %}
 <div class="section">
   <h1>📚 Knowledge Presentation (Infosite)</h1>
-  <div class="widget-grid">
+  <div class="widgetkit-grid--12">
     {% for card in widget_cards %}
-      <section class="card" style="grid-column: span {{ card.width|default:6 }};">
+      <section class="card widgetkit-grid__item" style="--widgetkit-width: {{ card.width|default:6 }};">
         <h3>{{ card.label }}</h3>
         {{ card.body|safe }}
       </section>

@@ -232,7 +232,7 @@ def resolve_ui_action(
     from widgetkit_django.builder_actions import resolve_builder_action
 
     if request is None:
-        return []
+        raise ValueError("A request is required to mutate a dashboard layout")
 
     active_domain = request.session.get("semantic_active_domain", "")
     if active_domain:
@@ -244,7 +244,7 @@ def resolve_ui_action(
 
     domain_obj = ensure_domain_registered(domain)
     if domain_obj is None:
-        return []
+        raise ValueError(f"Unknown layout domain: {domain}")
 
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
     subpage_key = request.POST.get("subpage", request.GET.get("subpage", "overview")).strip().lower() or "overview"

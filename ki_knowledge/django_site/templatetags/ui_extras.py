@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from django import template
-from widgetkit_django.layout_targets import layout_builder_url as build_layout_builder_url
+from ki_knowledge.django_site.layout_targets import layout_builder_url as build_layout_builder_url
 
 register = template.Library()
 

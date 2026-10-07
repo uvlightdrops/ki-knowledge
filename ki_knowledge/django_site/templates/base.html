@@ -5,9 +5,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Ki-Knowledge{% endblock %}</title>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {% block htmx_script %}<script src="https://unpkg.com/htmx.org@1.9.12"></script>{% endblock %}
   <link rel="icon" type="image/x-icon" href="{% static 'django_site/favicon.ico' %}">
   <link rel="stylesheet" href="{% static 'django_site/css/base-theme.css' %}">
+  <link rel="stylesheet" href="{% static 'widgetkit_django/css/layout-grid.css' %}?v=20261007a">
   {% block extra_css %}{% endblock %}
   <script src="{% static 'django_site/js/quick-import.js' %}" defer></script>
 </head>

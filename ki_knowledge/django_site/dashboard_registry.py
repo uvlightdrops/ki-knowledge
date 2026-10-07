@@ -20,6 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Tuple
 
+from widgetkit_django.layout import layout_positions_for_widgets as _widgetkit_layout_positions
+
 
 @dataclass(frozen=True)
 class WidgetSpec:
@@ -91,29 +93,6 @@ def widget_adapter_key(widget_id: str) -> str:
 # Canonical registry: business-function based, not page-based. The legacy
 # dashboard page is intentionally not a widget area in this registry.
 _REGISTRY: Dict[str, WidgetSpec] = {
-    "datasources.domain.overview.v1": _widget(
-        widget_id="datasources.domain.overview.v1",
-        area="datasources",
-        category="overview",
-        label="Domains",
-        description="Overview of the configured domains and their active source footprint.",
-        default_size="wide",
-        default_w=8,
-        min_w=6,
-        default_h=1,
-        data_adapter="datasources.domain_overview",
-    ),
-    "datasources.domain.switcher.v1": _widget(
-        widget_id="datasources.domain.switcher.v1",
-        area="datasources",
-        category="overview",
-        label="Domain switcher",
-        description="Switch active domain for current session.",
-        default_size="balanced",
-        default_w=4,
-        default_h=1,
-        data_adapter="shared.domain_switcher",
-    ),
     "datasources.overview.summary.v1": _widget(
         widget_id="datasources.overview.summary.v1",
         area="datasources",
@@ -491,7 +470,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_w=8,
         min_w=8,
         default_h=1,
-        legacy_aliases=("domain-management",),
+        legacy_aliases=("domain-management", "datasources.domain.overview.v1"),
     ),
     "admin.domain.create.v1": _widget(
         widget_id="admin.domain.create.v1",
@@ -513,6 +492,7 @@ _REGISTRY: Dict[str, WidgetSpec] = {
         default_w=4,
         default_h=1,
         data_adapter="shared.domain_switcher",
+        legacy_aliases=("datasources.domain.switcher.v1",),
     ),
     "admin.domain.db.overview.v1": _widget(
         widget_id="admin.domain.db.overview.v1",
@@ -691,32 +671,15 @@ def builtin_areas() -> List[str]:
     return ["dashboard", "datasources", "knowledge", "infooutput", "admin", "settings"]
 
 
-def layout_positions_for_widgets(widget_ids: Iterable[str], *, columns: int = 12) -> Dict[str, Dict[str, int]]:
-    """Return a simple row-major grid layout for widget ids.
-
-    The algorithm keeps the default widths and heights from the widget registry,
-    wraps onto a new row when a widget would exceed the available grid width, and
-    produces deterministic x/y coordinates suitable for persistence and later
-    rendering.
-    """
-    positions: Dict[str, Dict[str, int]] = {}
-    current_x = 0
-    current_y = 0
-
-    for widget_id in widget_ids:
-        spec = widget_by_id(widget_id)
-        width = min(max(spec.default_w if spec is not None else 6, 1), columns)
-        height = max(spec.default_h if spec is not None else 1, 1)
-        if current_x + width > columns:
-            current_x = 0
-            current_y += 1
-        positions[widget_id] = {"x": current_x, "y": current_y, "w": width, "h": height}
-        current_x += width
-        if current_x >= columns:
-            current_x = 0
-            current_y += 1
-
-    return positions
+def layout_positions_for_widgets(
+    widget_ids: Iterable[str],
+    *,
+    columns: int = 12,
+    widths: dict[str, int] | None = None,
+) -> Dict[str, Dict[str, int]]:
+    return _widgetkit_layout_positions(
+        widget_ids, widget_by_id=widget_by_id, columns=columns, widths=widths,
+    )
 
 
 def default_widget_ids_for_area(area: str | None = None, subpage: str | None = None) -> List[str]:
@@ -731,8 +694,6 @@ def default_widget_ids_for_area(area: str | None = None, subpage: str | None = N
     defaults: Dict[str, List[str]] = {
         "dashboard": frontpage_aggregate_widgets(),
         "datasources": [
-            "datasources.domain.overview.v1",
-            "datasources.domain.switcher.v1",
             "datasources.overview.summary.v1",
             "datasources.import.quick.v1",
             "datasources.sources.discovery.v1",
@@ -837,7 +798,6 @@ def default_widget_ids_for_area(area: str | None = None, subpage: str | None = N
             "datasources.sources.unimported.v1",
         ],
         ("datasources", "workspace"): [
-            "datasources.domain.switcher.v1",
             "datasources.markdown.files.v1",
             "datasources.mix.overview.v1",
         ],

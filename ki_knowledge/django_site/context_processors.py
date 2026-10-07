@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from widgetkit_django.layout_targets import nav_areas_config
+from .layout_targets import nav_areas_config
 from .services import default_semantic_domain, normalize_semantic_domain
 
 
 def active_domain(request):
-    raw = request.session.get("semantic_active_domain", "")
+    raw = getattr(request, "_widget_catalog_domain", None)
+    if raw is None:
+        raw = request.session.get("semantic_active_domain", "")
     if raw:
         resolved = normalize_semantic_domain(str(raw))
     else:

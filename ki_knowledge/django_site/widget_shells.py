@@ -8,7 +8,7 @@ from django.http import HttpRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 
 from .dashboard_registry import builtin_areas, widget_by_id, widget_ids
-from .page_widgets import preview_payload_for_widget
+from .page_widgets import render_widget_data
 from .widget_shell_models import WidgetShellDefinition
 from .views_common import _active_semantic_domain, _load_shell_builder_state, _save_shell_builder_state
 
@@ -130,7 +130,7 @@ def widget_shell_builder_preset_json_view(request: HttpRequest, preset_id: str):
         payload = saved
     else:
         if preset is not None:
-            live_payload = preview_payload_for_widget(preset_id)
+            live_payload = render_widget_data(preset_id)
             payload = {
                 "widget_id": live_payload.get("widget_id", preset["widget_id"]),
                 "label": live_payload.get("label", preset.get("label", "")),
@@ -246,7 +246,7 @@ def widget_shell_builder_edit_view(request: HttpRequest, preset_id: str, create_
         active_preset["links"] = table_payload.get("links", [])
         active_preset["rows"] = table_payload.get("rows", [])
     elif saved and saved.get("stats") == [] and saved.get("links") == [] and saved.get("rows") == []:
-        active_preset = base_preset or preview_payload_for_widget(preset_id) or saved
+        active_preset = base_preset or render_widget_data(preset_id) or saved
     if create_mode and base_preset and not saved:
         active_preset = base_preset
     return render(

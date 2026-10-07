@@ -17,6 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "ki_knowledge/django_site/templates"
 STATIC = ROOT / "ki_knowledge/django_site/static"
+WIDGETKIT_STATIC = ROOT.parent / "widgetkit-django/widgetkit_django/static"
 PROJECT = SimpleNamespace(
     id=7, title='Quotes " & </script> ü', domain='a"&b',
     working_title="notes", enabled=True, source_directory="", output_dir="",
@@ -93,7 +94,7 @@ def test_all_repository_templates_have_no_executable_or_stylesheet_blocks():
     ("kicli_django/pdf_import_jobs.html", "django_site/js/pdf-import-jobs.js"),
     ("kicli_django/graph_3d.html", "django_site/js/graph-3d.js"),
     ("kicli_django/widget_shell_builder.html", "django_site/js/widget-shell-builder.js"),
-    ("kicli_django/widget_catalog.html", "django_site/js/widget-catalog.js"),
+    ("kicli_django/widget_catalog.html", "widgetkit_django/js/widget-catalog.js"),
 ])
 def test_pages_render_with_existing_static_assets(template, asset):
     html = render_to_string(template, {
@@ -105,10 +106,13 @@ def test_pages_render_with_existing_static_assets(template, asset):
         "active_preset_json": None, "widget_preview_payload": [],
     })
     assert asset in html
-    assert (STATIC / asset).is_file()
-    assert not re.search(r"\{\{|\{%|\{#", (STATIC / asset).read_text())
+    asset_root = WIDGETKIT_STATIC if asset.startswith("widgetkit_django/") else STATIC
+    asset_path = asset_root / asset
+    assert asset_path.is_file()
+    assert not re.search(r"\{\{|\{%|\{#", asset_path.read_text())
     for reference in re.findall(r'{% static [\'"]([^\'"]+)[\'"] %}', (TEMPLATES / template).read_text()):
-        assert (STATIC / reference).is_file()
+        reference_root = WIDGETKIT_STATIC if reference.startswith("widgetkit_django/") else STATIC
+        assert (reference_root / reference).is_file()
 
 
 def test_catalog_payload_is_a_list_not_a_json_string():
@@ -116,14 +120,14 @@ def test_catalog_payload_is_a_list_not_a_json_string():
                 "rows": [], "stats": [], "links": []}]
     html = render_to_string("kicli_django/widget_catalog.html", {
         "widget_preview_payload": payload,
-        "widget_preview_payload_json": json.dumps(payload),
         "widget_catalog": [{"widget_id": "demo", "label": "Demo"}],
+        "area_tabs": [],
     })
     page = PageData(html)
     assert page.payload("widget-preview-payload") == payload
     assert "\\u003C/script\\u003E" in page.scripts["widget-preview-payload"]
-    css = (STATIC / "django_site/css/widget-catalog.css").read_text()
-    for selector in (".widget-preview-table", ".widget-preview-stats", ".widget-preview-links"):
+    css = (WIDGETKIT_STATIC / "widgetkit_django/css/widget-catalog.css").read_text()
+    for selector in (".wk-catalog-shell", ".wk-catalog-preview", ".wk-catalog-size"):
         assert selector in css
 
 
@@ -213,30 +217,59 @@ assert.equal(own.checked, false);
 """)
 
 
-def test_catalog_loader_renders_stats_rows_links():
-    source = (STATIC / "django_site/js/widget-catalog.js").read_text()
+def test_catalog_loader_renders_real_readonly_body_and_escaped_metadata():
+    source = (WIDGETKIT_STATIC / "widgetkit_django/js/widget-catalog.js").read_text()
     run_node("""
 const assert = require('node:assert/strict');
-const preview = { innerHTML: '' };
-const payload = [{ widget_id: 'demo', description: 'Description',
-  rows: [{ label: 'Row', value: 'Value' }],
-  stats: [{ label: 'Count', value: 3 }],
-  links: [{ label: 'Open', url: '/demo' }] }];
+class Element {
+  constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.innerHTML = ''; }
+  append(...nodes) { this.children.push(...nodes); }
+  replaceChildren(...nodes) { this.children = nodes; }
+  setAttribute(name, value) { this.attrs[name] = value; }
+}
+const preview = new Element('div');
+const payload = [
+  { widget_id: 'demo', label: '<img src=x onerror=bad()>', description: '<script>bad()</script>',
+    active_domain: 'research<&', status: 'sample', note: '',
+    body_html: '<table><tbody><tr><td>Real row</td></tr></tbody></table>' },
+  { widget_id: 'second', label: 'Second', description: 'Planned feature',
+    active_domain: 'research<&', status: 'planned', note: 'Not implemented',
+    body_html: '<p>Planned quiz</p>' },
+];
 let active = false;
+let selectSecond;
 const button = { dataset: { widgetId: 'demo' },
   classList: { toggle: (name, value) => { active = value; } },
+  setAttribute(name, value) { this[name] = value; },
   addEventListener() {} };
+const secondButton = { dataset: { widgetId: 'second' },
+  classList: { toggle() {} }, setAttribute() {},
+  addEventListener(name, callback) { selectSecond = callback; } };
 global.document = {
   getElementById: (id) => id === 'widget-preview' ? preview : { textContent: JSON.stringify(payload) },
-  querySelectorAll: () => [button],
-  querySelector: () => ({ textContent: 'Demo' })
+  querySelectorAll: () => [button, secondButton],
+  createElement: (tag) => new Element(tag),
 };
 """ + source + """
 assert.equal(active, true);
-assert.match(preview.innerHTML, /widget-preview-table/);
-assert.match(preview.innerHTML, /Count/);
-assert.match(preview.innerHTML, /Value/);
-assert.match(preview.innerHTML, /href="\\/demo"/);
+assert.equal(button['aria-pressed'], 'true');
+let card = preview.children[0];
+const head = card.children[0];
+assert.equal(head.children[0].textContent, payload[0].label);
+assert.equal(head.children[0].innerHTML, '');
+assert.equal(card.children.length, 2);
+let body = card.children[1];
+assert.equal(body.attrs.inert, '');
+assert.equal(body.innerHTML, payload[0].body_html);
+assert.equal(preview.children[1].textContent, payload[0].description);
+let code = preview.children[2].children[1];
+assert.equal(code.textContent, payload[0].body_html);
+assert.equal(code.innerHTML, '');
+selectSecond();
+assert.equal(active, false);
+card = preview.children[0];
+assert.equal(card.children[2].innerHTML, payload[1].body_html);
+assert.equal(card.children[1].textContent, 'Not implemented');
 """)
 
 

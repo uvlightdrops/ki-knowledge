@@ -8,7 +8,7 @@ from django.template.loader import render_to_string
 from .dashboard_registry import widget_adapter_key, widget_by_id
 from .infosite_models import GeneratedDocument
 from .infosite_models import NodeConfig, SyncRun, current_node_id
-from widgetkit_django.layout_targets import layout_builder_url
+from .layout_targets import layout_builder_url
 from .services import domain_knowledge_summary, domain_registry_overview
 from ..widgetkit_core import DataSourceSpec, TableDataSourceAdapter, empty_payload
 from ..widgetkit_renderer import render_fragment, render_card
@@ -35,18 +35,23 @@ def _widget_preview_from_spec(spec: Any) -> dict[str, Any]:
     return payload
 
 
-def preview_payload_for_widget(widget_id: str) -> dict[str, Any]:
+def preview_payload_for_widget(
+    widget_id: str, *, active_domain: str, preview_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Offline catalog preview; runtime adapters remain in ``render_widget_data``."""
     spec = widget_by_id(widget_id)
     if spec is None:
-        return {"widget_id": widget_id, "label": widget_id, "description": "", "stats": [], "rows": [], "links": []}
-    payload = build_widget_preview_payload(widget_ids=[widget_id])
-    if payload:
-        return payload[0]
-    return _widget_preview_from_spec(spec)
+        raise ValueError(f"Unknown catalog widget: {widget_id}")
+    from .widget_catalog_preview import build_catalog_preview_context, render_catalog_widget
+
+    context = preview_context if preview_context is not None else build_catalog_preview_context(active_domain)
+    if context["active_domain"] != active_domain:
+        raise ValueError("Catalog preview context belongs to a different domain")
+    return render_catalog_widget(spec, context).to_payload()
 
 
-def render_widget_preview(spec: Any) -> dict[str, Any]:
-    return resolve_adapter(widget_adapter_key(spec.widget_id), _widget_preview_from_spec)(spec)
+def render_widget_preview(spec: Any, *, active_domain: str) -> dict[str, Any]:
+    return preview_payload_for_widget(spec.widget_id, active_domain=active_domain)
 
 
 def _card(widget_id: str, *, label: str, description: str, body: str, width: int = 6) -> dict[str, Any]:
@@ -223,10 +228,22 @@ def _sync_widget_context(ctx: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _render_domain_management(ctx: dict[str, Any]) -> str:
+    domain_states = ctx.get("domain_states")
+    if domain_states is None:
+        from .services import semantic_domain_states
+
+        domain_states = semantic_domain_states()
+    return render_fragment("admin_domain_management", {
+        "domain_states": domain_states,
+        "active_domain": ctx["active_domain"],
+        "csrf_token": ctx["csrf_token"],
+        "domain_management_url": ctx.get("domain_management_url", "/admin-overview/domains/"),
+    })
+
+
 def _widget_fragment_handlers() -> dict[str, Any]:
     return {
-        "datasources.domain.overview.v1": lambda ctx: render_fragment("datasources_domain_overview", {"all_domains": ctx["all_domains"]}),
-        "datasources.domain.switcher.v1": lambda ctx: render_fragment("domain_switcher", {"all_domains": ctx["all_domains"]}),
         "datasources.overview.summary.v1": lambda ctx: render_fragment("datasources_overview_summary", {"sources": ctx["sources"], "markdown_count": ctx["markdown_count"], "owl_sources": ctx["owl_sources"]}),
         "datasources.import.quick.v1": _render_quick_import,
         "datasources.sources.discovery.v1": lambda ctx: render_fragment("datasources_sources_discovery", {"markdown_count": ctx["markdown_count"], "sources": ctx["sources"]}),
@@ -243,13 +260,8 @@ def _widget_fragment_handlers() -> dict[str, Any]:
         "knowledge.graph.overview.v1": lambda ctx: render_fragment("knowledge_graph_overview", {"active_domain": ctx["active_domain"], "scoped_knowledge": ctx["scoped_knowledge"]}),
         "knowledge.tools.summary.v1": lambda ctx: render_fragment("knowledge_tools_summary", {"quick_links": ctx["quick_links"]}),
         "admin.domain.db.overview.v1": lambda ctx: render_fragment("admin_domain_db_overview", {"domain_rows": ctx["domain_rows"]}),
-        "admin.domain.switcher.v1": lambda ctx: render_fragment("domain_switcher", {"all_domains": ctx["domain_rows"]}),
-        "admin.domain.management.v1": lambda ctx: render_fragment("admin_domain_management", {
-            "domain_states": ctx["domain_states"],
-            "active_domain": ctx["active_domain"],
-            "csrf_token": ctx["csrf_token"],
-            "domain_management_url": ctx["domain_management_url"],
-        }),
+        "admin.domain.switcher.v1": lambda ctx: render_fragment("domain_switcher", {"all_domains": ctx.get("domain_rows", ctx.get("all_domains", []))}),
+        "admin.domain.management.v1": _render_domain_management,
         "admin.domain.create.v1": lambda ctx: render_fragment("admin_domain_create", {
             "csrf_token": ctx["csrf_token"],
             "domain_management_url": ctx["domain_management_url"],
@@ -276,7 +288,10 @@ def _widget_fragment_handlers() -> dict[str, Any]:
         "infooutput.infosite.workflow.refine.v1": _render_infosite_refine_workflow,
         "infooutput.quiz.overview.v1": _render_infooutput_quiz_overview,
         "infooutput.quiz.status.v1": _render_infooutput_quiz_status,
-        "settings.layout.registry.v1": lambda ctx: f"<p><strong>Active area:</strong> {ctx['config_summary'].get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"{layout_builder_url('settings', 'overview')}\">Open layout builder</a></p>",
+        "settings.layout.registry.v1": lambda ctx: render_fragment("settings_layout_registry", {
+            "active_area": ctx["config_summary"].get("active_area", "settings"),
+            "builder_url": layout_builder_url("settings", "overview"),
+        }),
         "settings.config.summary.v1": lambda ctx: render_fragment("settings_config_summary", {"config_summary": ctx["config_summary"]}),
         "settings.layout.preview.v1": lambda ctx: render_fragment("settings_layout_preview", {"active_domain": ctx["active_domain"]}),
     }
@@ -457,15 +472,14 @@ def render_widget_stats(widget_id: str) -> str:
     return render_fragment("stats", {"widget": render_widget_data(widget_id)})
 
 
-def build_widget_preview_payload(*, widget_ids: list[str]) -> list[dict[str, Any]]:
-    payload: list[dict[str, Any]] = []
-    for widget_id in widget_ids:
-        spec = widget_by_id(widget_id)
-        if spec is None:
-            continue
+def build_widget_preview_payload(*, widget_ids: list[str], active_domain: str) -> list[dict[str, Any]]:
+    from .widget_catalog_preview import build_catalog_preview_context
 
-        payload.append(render_widget_data(widget_id))
-    return payload
+    context = build_catalog_preview_context(active_domain)
+    return [
+        preview_payload_for_widget(widget_id, active_domain=active_domain, preview_context=context)
+        for widget_id in widget_ids if widget_by_id(widget_id) is not None
+    ]
 
 
 def build_data_sources_widget_cards(
@@ -496,7 +510,7 @@ def build_data_sources_widget_cards(
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        handler = handlers.get(widget_id)
+        handler = handlers.get(spec.widget_id)
         body = handler({"active_domain": active_domain, "active_domain_state": active_domain_state, "all_domains": all_domains, "sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources, "csrf_token": csrf_token, "pdf_jobs": pdf_jobs, "jira_issues": jira_issues}) if handler else f"<p>{spec.description}</p>"
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
@@ -553,7 +567,7 @@ def build_workspace_widget_cards(
         spec = widget_by_id(widget_id)
         if spec is None:
             continue
-        handler = handlers.get(widget_id)
+        handler = handlers.get(spec.widget_id)
         body = handler({
             "active_domain": active_domain,
             "active_domain_state": active_domain_state,
@@ -694,7 +708,9 @@ def build_admin_widget_cards(
                 "domain_management_url": domain_management_url,
             })
         elif widget_id == "admin.workspace.config.v1":
-            body = f"<p><strong>Knowledge DB:</strong> /data/knowledge</p><p><strong>Active domain:</strong> {active_domain}</p><p><a href=\"/settings/config/\">Open config summary</a></p>"
+            body = render_fragment("admin_workspace_config", {
+                "active_domain": active_domain, "knowledge_root": "/data/knowledge",
+            })
         elif handler:
             body = handler({"domain_rows": domain_rows})
         else:
@@ -718,7 +734,7 @@ def build_settings_widget_cards(
             continue
         handler = handlers.get(widget_id)
         if widget_id == "settings.layout.registry.v1":
-            body = f"<p><strong>Active area:</strong> {config_summary.get('active_area', 'settings')}</p><p><strong>Areas:</strong> dashboard, datasources, knowledge, infooutput, admin, settings</p><p><a href=\"{layout_builder_url('settings', 'overview')}\">Open layout builder</a></p>"
+            body = handler({"config_summary": config_summary, "active_domain": active_domain})
         elif handler:
             body = handler({"config_summary": config_summary, "active_domain": active_domain})
         else:

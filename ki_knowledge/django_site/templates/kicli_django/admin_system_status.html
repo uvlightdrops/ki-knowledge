@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load widgetkit_django %}
+{% load ui_extras %}
 {% block title %}System Status · KICLI{% endblock %}
 {% block content %}
 <h1>📊 System Status</h1>
@@ -10,9 +10,9 @@
 </div>
 
 {% if widget_cards %}
-  <div class="widget-grid">
+  <div class="widgetkit-grid--12">
     {% for card in widget_cards %}
-      <section class="card" style="grid-column: span {{ card.width|default:6 }};">
+      <section class="card widgetkit-grid__item" style="--widgetkit-width: {{ card.width|default:6 }};">
         <h3>{{ card.label }}</h3>
         {{ card.body|safe }}
       </section>

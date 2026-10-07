@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% load widgetkit_django %}
+{% load ui_extras %}
 {% block title %}Sources · KICLI{% endblock %}
 {% block content %}
 <h1>Quellen <span class="muted">· {{ active_domain }} · {{ source_count }}</span></h1>
 <p class="muted">Öffne einen Quelleneintrag, um die Records im Dokumentzusammenhang und die daraus erzeugten Artefakte zu durchsuchen.</p>
 <p class="muted"><a href="{% layout_builder_url 'datasources' 'sources' %}">→ Layout dieser Seite bearbeiten</a></p>
 
-<div class="widget-grid section">
+<div class="widgetkit-grid--12 section">
   {% for card in widget_cards %}
-    <div class="card" style="grid-column: span {{ card.width|default:12 }};">
+    <div class="card widgetkit-grid__item" style="--widgetkit-width: {{ card.width|default:12 }};">
       <h3>{{ card.label }}</h3>
       {% if card.description %}<p class="muted">{{ card.description }}</p>{% endif %}
       {{ card.body|safe }}

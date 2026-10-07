@@ -1,43 +1,8 @@
 {% extends "base.html" %}
-{% load static %}
 {% block title %}Widget catalog · KICLI{% endblock %}
-{% block extra_css %}
-  <link rel="stylesheet" href="{% static 'django_site/css/widget-catalog.css' %}">
-{% endblock %}
+{% block htmx_script %}{% endblock %}
 {% block content %}
 <h1>Widget catalog</h1>
-<p class="muted">Preview of every registered widget and its rendered HTML snippet.</p>
-<nav class="catalog-area-tabs" aria-label="Widget catalog areas">
-  {% for tab in area_tabs %}
-    <a class="catalog-area-tab{% if area_filter == tab.key %} is-active{% endif %}" href="{% url 'settings-layout-widgets' %}?area={{ tab.key }}">{{ tab.label }}</a>
-  {% endfor %}
-</nav>
-<div class="widget-catalog-shell">
-  <aside class="widget-catalog-panel">
-    <h3>Widget metadata</h3>
-    <div class="widget-list">
-      {% for spec in widget_catalog %}
-        <button type="button" class="widget-list-item{% if forloop.first %} is-active{% endif %}" data-widget-id="{{ spec.widget_id }}">
-          <div class="widget-list-head">
-            <strong>{{ spec.label }}</strong>
-            <span class="chip">{{ spec.area }}</span>
-          </div>
-          <div class="widget-list-copy">{{ spec.description }}</div>
-          <div class="db-widget-footer">
-            <span>{{ spec.category }}</span>
-            <span>{{ spec.default_w }}×{{ spec.default_h }}</span>
-          </div>
-        </button>
-      {% endfor %}
-    </div>
-  </aside>
-
-  <section class="widget-catalog-panel">
-    <h3>Widget preview</h3>
-    <div id="widget-preview" class="widget-preview-surface" aria-live="polite"></div>
-  </section>
-</div>
-
-{{ widget_preview_payload|json_script:"widget-preview-payload" }}
-<script src="{% static 'django_site/js/widget-catalog.js' %}"></script>
+<p>Selected domain: <strong>{{ active_domain }}</strong></p>
+{% include "widgetkit_django/widget_catalog_content.html" %}
 {% endblock %}

@@ -5,9 +5,9 @@
 <p class="muted">Domains anlegen, bestehende Datenverzeichnisse (md · jira · owl · pdf) scannen und Domains ohne verbleibende Dateien entfernen. Aktive Domain: <span class="chip">{{ active_domain }}</span></p>
 
 {% if widget_cards %}
-  <div class="widget-grid">
+  <div class="widgetkit-grid--12">
     {% for card in widget_cards %}
-      <section class="card" style="grid-column: span {{ card.width|default:6 }};">
+      <section class="card widgetkit-grid__item" style="--widgetkit-width: {{ card.width|default:6 }};">
         <h3>{{ card.label }}</h3>
         {{ card.body|safe }}
       </section>

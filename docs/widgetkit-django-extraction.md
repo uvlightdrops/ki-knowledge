@@ -222,35 +222,35 @@ The current split is:
 ### Owned by `widgetkit_django`
 
 - builder templates and static assets
-- area/subpage metadata
-- builder URL helpers and template tag
+- generic page-target and preview contracts
+- generic builder URL query helper and template tag (host supplies base URL)
 - layout store protocol
-- placement dataclass
+- placement and missing-vs-empty layout state dataclasses
 - registry contract
 - generic builder actions
 - generic builder context assembly
 - generic builder controller
+- read-only preview sanitizer and reusable catalog UI
+- shared twelve-column layout algorithm and stylesheet
 - fallback base template
 
 ### Owned by `django_site`
 
 - concrete widget registry content
 - concrete Django persistence backend
+- concrete page-target/navigation definitions and route reversal
 - active-domain/session semantics
-- app-specific widgets and data providers
+- app-specific widgets, preview samples and renderers
 - host route wiring
 - host chrome (`base.html`)
+- authorization policy
 
 ## What “extracted” means right now
 
-`widgetkit_django` is now an internal package with a real public boundary, not just moved files.
-
-It is ready for the next step:
-
-1. copy into its own repository
-2. add its own packaging metadata
-3. publish/install it as an external dependency
-4. leave only the host adapters in `ki-knowledge`
+`widgetkit_django` now builds as a standalone wheel. Setuptools discovers its
+template-tag subpackage and the wheel includes templates/static assets. The
+host integration guide documents the adapters and mutation semantics; public
+release automation/versioning remains future release work.
 
 ## Files added during extraction
 

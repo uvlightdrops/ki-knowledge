@@ -25,7 +25,7 @@ from .dashboard_registry import (
 )
 from .infosite_models import Domain, GeneratedDocument, InfoSiteProject
 from .infosite_models import NodeConfig, SyncRun, current_node_id
-from widgetkit_django.layout_targets import layout_builder_url
+from .layout_targets import layout_builder_url, layout_targets_for_area
 from widgetkit_django.registry import CallbackWidgetRegistry
 from widgetkit_django.views import BuilderViewConfig, dashboard_builder_view as widgetkit_dashboard_builder_view
 from .page_widgets import (
@@ -34,7 +34,6 @@ from .page_widgets import (
     build_output_widget_cards,
     build_settings_widget_cards,
     build_widget_preview_payload,
-    preview_payload_for_widget,
     render_widget_data,
 )
 from .widget_shells import widget_shell_builder_save_view, widget_shell_builder_view
@@ -964,8 +963,9 @@ def dashboard_builder_view(request: HttpRequest):
             active_domain_getter=_active_semantic_domain,
             selection_loader=_selection_loader,
             selection_syncer=_selection_syncer,
-            builder_url_name="settings-layout-builder",
             base_template_name="base.html",
+            builder_url=lambda area, subpage: layout_builder_url(area, subpage),
+            page_targets_for_area=layout_targets_for_area,
             page_title="Dashboard Builder",
         ),
     )
@@ -975,15 +975,34 @@ def dashboard_builder_view(request: HttpRequest):
 
 def widget_catalog_view(request: HttpRequest):
     """A dedicated preview page for the canonical widget catalog and HTML output."""
-    active_domain = _active_semantic_domain(request)
+    from .widget_catalog_preview import catalog_active_domain
+
+    active_domain = catalog_active_domain(request)
+    request._widget_catalog_domain = active_domain
     area_filter = (request.GET.get("area", "all") or "all").strip().lower()
-    catalog = [
-        widget_by_id(widget_id)
-        for widget_id in widget_ids()
-        if widget_by_id(widget_id) is not None and (area_filter == "all" or widget_by_id(widget_id).area == area_filter)
+    all_specs = [spec for widget_id in widget_ids() if (spec := widget_by_id(widget_id)) is not None]
+    catalog = [spec for spec in all_specs if area_filter == "all" or spec.area == area_filter]
+    widget_payload = build_widget_preview_payload(
+        widget_ids=[spec.widget_id for spec in catalog], active_domain=active_domain,
+    )
+    catalog_url = reverse("settings-layout-widgets")
+    area_tabs = [
+        {
+            "key": "all",
+            "label": "All",
+            "count": len(all_specs),
+            "url": f"{catalog_url}?{urlencode({'area': 'all', 'domain': active_domain})}",
+        }
     ]
-    widget_payload = [preview_payload_for_widget(spec.widget_id) for spec in catalog]
-    payload_by_id = {item["widget_id"]: item for item in widget_payload}
+    area_tabs.extend(
+        {
+            "key": area,
+            "label": area.replace("_", " ").title(),
+            "count": sum(spec.area == area for spec in all_specs),
+            "url": f"{catalog_url}?{urlencode({'area': area, 'domain': active_domain})}",
+        }
+        for area in builtin_areas()
+    )
     return render(
         request,
         "kicli_django/widget_catalog.html",
@@ -991,11 +1010,7 @@ def widget_catalog_view(request: HttpRequest):
             "active_domain": active_domain,
             "widget_catalog": catalog,
             "widget_preview_payload": widget_payload,
-            "widget_preview_payload_json": json.dumps(widget_payload, ensure_ascii=False),
-            "payload_by_id": payload_by_id,
             "area_filter": area_filter,
-            "area_tabs": [{"key": "all", "label": "All"}] + [
-                {"key": area, "label": area.replace("_", " ").title()} for area in builtin_areas()
-            ],
+            "area_tabs": area_tabs,
         },
     )

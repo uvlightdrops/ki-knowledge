@@ -14,9 +14,9 @@
 {% endif %}
 
 
-<div class="section dashboard-shell dashboard-shell--wide">
+<div class="section widgetkit-grid--12">
 {% for widget in dashboard_widgets %}
-  <div class="card layout-box" data-layout-box="{{ widget.widget_id }}" data-size="{{ widget.default_size }}" style="grid-column: span {{ widget.width|default:6 }};">
+  <div class="card layout-box widgetkit-grid__item" data-layout-box="{{ widget.widget_id }}" data-size="{{ widget.default_size }}" style="--widgetkit-width: {{ widget.width|default:6 }};">
     <h3>{{ widget.label }}</h3>
     {{ widget.body|safe }}
   </div>

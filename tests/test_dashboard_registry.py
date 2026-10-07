@@ -82,9 +82,9 @@ def test_layout_positions_for_widgets_assigns_a_simple_grid():
         "infooutput.overview.summary.v1",
     ])
 
-    assert positions["datasources.overview.summary.v1"] == {"x": 0, "y": 0, "w": 12, "h": 1}
+    assert positions["datasources.overview.summary.v1"] == {"x": 0, "y": 0, "w": 8, "h": 1}
     assert positions["knowledge.semantic.monitor.v1"] == {"x": 0, "y": 1, "w": 6, "h": 1}
-    assert positions["infooutput.overview.summary.v1"] == {"x": 0, "y": 2, "w": 12, "h": 1}
+    assert positions["infooutput.overview.summary.v1"] == {"x": 0, "y": 2, "w": 8, "h": 1}
 
 
 def test_widget_lookup_resolves_legacy_aliases():
@@ -116,7 +116,6 @@ def test_sources_widgets_are_part_of_datasources_taxonomy():
 
 def test_default_widget_ids_can_resolve_subpage_specific_defaults():
     assert default_widget_ids_for_area("datasources", "workspace") == [
-        "datasources.domain.switcher.v1",
         "datasources.markdown.files.v1",
         "datasources.mix.overview.v1",
     ]
@@ -220,7 +219,7 @@ def test_save_order_seeds_subpage_defaults_before_persisting_widths():
 
     ordered = [
         "datasources.mix.overview.v1",
-        "datasources.domain.switcher.v1",
+        "admin.domain.switcher.v1",
         "datasources.markdown.files.v1",
     ]
     selected = resolve_ui_action(
@@ -245,7 +244,7 @@ def test_save_order_seeds_subpage_defaults_before_persisting_widths():
     )
     assert placements == [
         ("datasources.mix.overview.v1", 4),
-        ("datasources.domain.switcher.v1", 4),
+        ("admin.domain.switcher.v1", 4),
         ("datasources.markdown.files.v1", 8),
     ]
 

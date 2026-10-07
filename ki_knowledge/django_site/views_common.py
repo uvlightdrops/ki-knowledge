@@ -122,20 +122,24 @@ def _load_dashboard_widget_ids(
         return list(fallback)
 
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
-    placements = _LAYOUT_STORE.load_placements(
+    layout = _LAYOUT_STORE.load_layout(
         area_key=area_key,
         subpage_key=resolved_subpage_key,
         active_domain=active_domain,
         owner=owner,
     )
-    if not placements:
-        placements = _LAYOUT_STORE.load_shared_placements(
+    if layout.exists:
+        placements = layout.placements
+    else:
+        shared = _LAYOUT_STORE.load_shared_layout(
             area_key=area_key,
             subpage_key=resolved_subpage_key,
             active_domain=active_domain,
         )
-    if not placements:
-        return list(fallback)
+        if shared.exists:
+            placements = shared.placements
+        else:
+            return list(fallback)
 
     selected = [canonical_widget_id(item.widget_id) for item in placements]
     if not selected:
@@ -165,18 +169,21 @@ def _load_dashboard_widget_widths(
 
     widths: dict[str, int] = {}
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
-    placements = _LAYOUT_STORE.load_placements(
+    layout = _LAYOUT_STORE.load_layout(
         area_key=area_key,
         subpage_key=resolved_subpage_key,
         active_domain=active_domain,
         owner=owner,
     )
-    if not placements:
-        placements = _LAYOUT_STORE.load_shared_placements(
+    if layout.exists:
+        placements = layout.placements
+    else:
+        shared = _LAYOUT_STORE.load_shared_layout(
             area_key=area_key,
             subpage_key=resolved_subpage_key,
             active_domain=active_domain,
         )
+        placements = shared.placements if shared.exists else ()
     for placement in placements:
         try:
             width = int(placement.w or 6)
@@ -198,26 +205,28 @@ def _sync_dashboard_selection(request: HttpRequest, *, area_key: str = "settings
     if raw_order:
         try:
             loaded = json.loads(raw_order)
-        except ValueError:
-            loaded = []
-        if isinstance(loaded, list):
-            widget_order = [canonical_widget_id(str(item)) for item in loaded if str(item).strip()]
+        except ValueError as exc:
+            raise ValueError("widget_order must contain valid JSON") from exc
+        if not isinstance(loaded, list) or any(not isinstance(item, str) for item in loaded):
+            raise ValueError("widget_order must be a JSON array of widget IDs")
+        widget_order = [canonical_widget_id(item.strip()) for item in loaded]
     if raw_sizes:
         try:
             loaded = json.loads(raw_sizes)
-        except ValueError:
-            loaded = {}
-        if isinstance(loaded, dict):
-            cleaned: dict[str, int] = {}
-            for key, value in loaded.items():
-                try:
-                    width = int(value)
-                except (TypeError, ValueError):
-                    continue
-                if 3 <= width <= 12:
-                    cleaned[canonical_widget_id(str(key))] = width
-            if cleaned:
-                widget_sizes = cleaned
+        except ValueError as exc:
+            raise ValueError("widget_sizes must contain valid JSON") from exc
+        if not isinstance(loaded, dict):
+            raise ValueError("widget_sizes must be a JSON object")
+        cleaned: dict[str, int] = {}
+        for key, value in loaded.items():
+            try:
+                width = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid width for widget {key}") from exc
+            if not 1 <= width <= 12:
+                raise ValueError(f"Width for widget {key} must be between 1 and 12")
+            cleaned[canonical_widget_id(str(key))] = width
+        widget_sizes = cleaned
 
     selections = resolve_ui_action(
         action,

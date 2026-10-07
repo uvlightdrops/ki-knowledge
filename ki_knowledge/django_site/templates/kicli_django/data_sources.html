@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load widgetkit_django %}
+{% load ui_extras %}
 {% block title %}Data Sources · KICLI{% endblock %}
 {% block content %}
 <h1>Data Sources</h1>
@@ -8,9 +8,9 @@
 <p class="muted"><a href="{% layout_builder_url 'datasources' 'overview' %}">→ Bereichs-Layout für Data Sources bearbeiten</a></p>
 
 {% if widget_cards %}
-<div class="widget-grid section">
+<div class="widgetkit-grid--12 section">
   {% for card in widget_cards %}
-    <div class="card" style="grid-column: span {{ card.width|default:6 }};">
+    <div class="card widgetkit-grid__item" style="--widgetkit-width: {{ card.width|default:6 }};">
       <h3>{{ card.label }}</h3>
       {% if card.description %}<p class="muted">{{ card.description }}</p>{% endif %}
       {{ card.body|safe }}
