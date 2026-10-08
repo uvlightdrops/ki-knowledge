@@ -39,7 +39,8 @@ class InfoSiteSourceAdapter:
     def resolve_output_root(domain: str, working_title: str) -> Path:
         """Resolve the canonical generated-output directory for a domain/working_title pair.
 
-        Mirrors DataLayout.output_dir (`data_out/<domain>/<wt>` in v1, `domains/<domain>/output/<wt>` in v2),
+        Mirrors DataLayout.output_dir (v1 `data_out/<domain>/<wt>`, v2
+        `domains/<domain>/output/<wt>`, v3 `<domain>/output/<wt>`),
         used by GeneratedDocument.display_path so output tables can show the
         part of the path specific to the file instead of the shared prefix.
         """
@@ -50,7 +51,7 @@ class InfoSiteSourceAdapter:
         """Return `file_path` relative to the domain output data root.
 
         The UI should display paths as `anthro/sstk/section/file.md` instead of
-        absolute `/home/.../data_out/anthro/sstk/...` paths, which are mostly the
+        absolute data-root output paths, which are mostly the
         same prefix for every project.
         """
         if not file_path:

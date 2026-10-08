@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
+
+from ki_knowledge.integrations.sql_backend import StoreTarget, connect, ilike_operator, json_text, vector_literal
 
 from ki_knowledge.integrations.markdown_blocks import KnowledgeBlock, MarkdownBlockParser
 from ki_knowledge.knowledge.adapters import MarkdownKnowledgeAdapter
@@ -29,22 +30,32 @@ def _chunked(items: list, size: int) -> "list[list]":
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+def _json_loads(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return value
+    return json.loads(value)
+
+
 class KnowledgeStore:
     """Persistent store for shared knowledge-core entities."""
 
-    def __init__(self, db_path: str | Path):
-        self.db_path = str(db_path)
+    def __init__(self, db_path: str | Path | StoreTarget):
+        self.target = db_path if isinstance(db_path, StoreTarget) else StoreTarget.parse(db_path, schema="knowledge")
+        self.db_path = str(self.target.sqlite_path) if self.target.is_sqlite else self.target.safe_label()
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return connect(self.target)
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
+            metadata_type = "jsonb" if conn.dialect == "postgres" else "TEXT"
+            metadata_default = "'{}'::jsonb" if conn.dialect == "postgres" else "'{}'"
+            embedding_type = "vector" if conn.dialect == "postgres" else "TEXT"
+            if conn.dialect == "postgres":
+                conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS knowledge_blocks (
                     id TEXT PRIMARY KEY,
                     source_type TEXT NOT NULL,
@@ -54,57 +65,57 @@ class KnowledgeStore:
                     heading_path TEXT NOT NULL,
                     content TEXT NOT NULL,
                     order_index INTEGER NOT NULL,
-                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    metadata_json {metadata_type} NOT NULL DEFAULT {metadata_default},
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS knowledge_relations (
                     id TEXT PRIMARY KEY,
                     source_block_id TEXT NOT NULL,
                     target_block_id TEXT NOT NULL,
                     relation TEXT NOT NULL,
                     weight REAL NOT NULL DEFAULT 1.0,
-                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    metadata_json {metadata_type} NOT NULL DEFAULT {metadata_default},
                     created_at TEXT NOT NULL
                 )
                 """
             )
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS knowledge_embeddings (
                     block_id TEXT PRIMARY KEY,
                     model TEXT NOT NULL,
-                    vector_json TEXT NOT NULL,
+                    vector_json {embedding_type} NOT NULL,
                     created_at TEXT NOT NULL
                 )
                 """
             )
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS knowledge_sources (
                     source_id TEXT PRIMARY KEY,
                     source_type TEXT NOT NULL,
                     title TEXT NOT NULL,
                     location TEXT NOT NULL,
-                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    metadata_json {metadata_type} NOT NULL DEFAULT {metadata_default},
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS knowledge_artifacts (
                     artifact_id TEXT PRIMARY KEY,
                     artifact_type TEXT NOT NULL,
                     source_id TEXT NOT NULL,
-                    source_block_ids_json TEXT NOT NULL,
+                    source_block_ids_json {metadata_type} NOT NULL,
                     content TEXT NOT NULL,
-                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    metadata_json {metadata_type} NOT NULL DEFAULT {metadata_default},
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -125,6 +136,16 @@ class KnowledgeStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_knowledge_artifacts_type ON knowledge_artifacts(artifact_type)"
             )
+            if conn.dialect == "postgres":
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_knowledge_blocks_source_id_json "
+                    "ON knowledge_blocks ((metadata_json ->> 'source_id'))"
+                )
+            else:
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_knowledge_blocks_source_id_json "
+                    "ON knowledge_blocks(json_extract(metadata_json, '$.source_id'))"
+                )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS knowledge_store_migrations (
@@ -145,15 +166,26 @@ class KnowledgeStore:
                     f"DELETE FROM knowledge_relations WHERE source_block_id IN ({heading_ids}) "
                     f"OR target_block_id IN ({heading_ids})"
                 )
-                conn.execute(
-                    f"""
-                    DELETE FROM knowledge_artifacts
-                    WHERE EXISTS (
-                        SELECT 1 FROM json_each(knowledge_artifacts.source_block_ids_json)
-                        WHERE value IN ({heading_ids})
+                if conn.dialect == "postgres":
+                    conn.execute(
+                        f"""
+                        DELETE FROM knowledge_artifacts
+                        WHERE EXISTS (
+                            SELECT 1 FROM jsonb_array_elements_text(source_block_ids_json) AS value
+                            WHERE value IN ({heading_ids})
+                        )
+                        """
                     )
-                    """
-                )
+                else:
+                    conn.execute(
+                        f"""
+                        DELETE FROM knowledge_artifacts
+                        WHERE EXISTS (
+                            SELECT 1 FROM json_each(knowledge_artifacts.source_block_ids_json)
+                            WHERE value IN ({heading_ids})
+                        )
+                        """
+                    )
                 conn.execute(f"DELETE FROM knowledge_blocks WHERE id IN ({heading_ids})")
                 conn.execute(
                     "INSERT INTO knowledge_store_migrations (name, applied_at) VALUES (?, ?)",
@@ -330,10 +362,11 @@ class KnowledgeStore:
             return 0
         placeholders = ",".join("?" for _ in block_types)
         with self._connect() as conn:
+            source_expr = json_text("metadata_json", "source_id", conn.dialect)
             rows = conn.execute(
                 f"""
                 SELECT id FROM knowledge_blocks
-                WHERE json_extract(metadata_json, '$.source_id') = ?
+                WHERE {source_expr} = ?
                   AND block_type IN ({placeholders})
                 """,
                 [source_id, *sorted(block_types)],
@@ -341,20 +374,36 @@ class KnowledgeStore:
             ids = [row["id"] for row in rows]
             if not ids:
                 return 0
-            conn.execute(
-                f"""
-                DELETE FROM knowledge_artifacts
-                WHERE EXISTS (
-                    SELECT 1 FROM json_each(knowledge_artifacts.source_block_ids_json)
-                    WHERE value IN (
-                        SELECT id FROM knowledge_blocks
-                        WHERE json_extract(metadata_json, '$.source_id') = ?
-                          AND block_type IN ({placeholders})
+            if conn.dialect == "postgres":
+                conn.execute(
+                    f"""
+                    DELETE FROM knowledge_artifacts
+                    WHERE EXISTS (
+                        SELECT 1 FROM jsonb_array_elements_text(source_block_ids_json) AS value
+                        WHERE value IN (
+                            SELECT id FROM knowledge_blocks
+                            WHERE {source_expr} = ?
+                              AND block_type IN ({placeholders})
+                        )
                     )
+                    """,
+                    [source_id, *sorted(block_types)],
                 )
-                """,
-                [source_id, *sorted(block_types)],
-            )
+            else:
+                conn.execute(
+                    f"""
+                    DELETE FROM knowledge_artifacts
+                    WHERE EXISTS (
+                        SELECT 1 FROM json_each(knowledge_artifacts.source_block_ids_json)
+                        WHERE value IN (
+                            SELECT id FROM knowledge_blocks
+                            WHERE {source_expr} = ?
+                              AND block_type IN ({placeholders})
+                        )
+                    )
+                    """,
+                    [source_id, *sorted(block_types)],
+                )
             for batch in _chunked(ids, _SQLITE_MAX_VARIABLES // 2):
                 placeholders = ",".join("?" for _ in batch)
                 conn.execute(f"DELETE FROM knowledge_embeddings WHERE block_id IN ({placeholders})", batch)
@@ -372,24 +421,55 @@ class KnowledgeStore:
         block_type: Optional[str] = None,
         limit: int | None = None,
     ) -> list[KnowledgeBlockRecord]:
-        query = "SELECT * FROM knowledge_blocks"
-        params: list = []
-        clauses: list[str] = []
-        if source_id is not None:
-            clauses.append("json_extract(metadata_json, '$.source_id') = ?")
-            params.append(source_id)
-        if block_type is not None:
-            clauses.append("block_type = ?")
-            params.append(block_type)
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY order_index, created_at"
-        if limit is not None:
-            query += " LIMIT ?"
-            params.append(limit)
         with self._connect() as conn:
+            query = "SELECT * FROM knowledge_blocks"
+            params: list = []
+            clauses: list[str] = []
+            if source_id is not None:
+                clauses.append(f"{json_text('metadata_json', 'source_id', conn.dialect)} = ?")
+                params.append(source_id)
+            if block_type is not None:
+                clauses.append("block_type = ?")
+                params.append(block_type)
+            if clauses:
+                query += " WHERE " + " AND ".join(clauses)
+            query += " ORDER BY order_index, created_at"
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_record(row) for row in rows]
+
+    def query_records(
+        self,
+        source_ids: Iterable[str],
+        *,
+        block_type: Optional[str] = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> tuple[list[KnowledgeBlockRecord], int]:
+        """Records of the given sources (domain scope) with total count, paged in SQL."""
+        ids = sorted({str(item) for item in source_ids if item})
+        if not ids:
+            return [], 0
+        with self._connect() as conn:
+            placeholders = ",".join("?" for _ in ids)
+            clauses = [f"{json_text('metadata_json', 'source_id', conn.dialect)} IN ({placeholders})"]
+            params: list[Any] = list(ids)
+            if block_type is not None:
+                clauses.append("block_type = ?")
+                params.append(block_type)
+            where = " AND ".join(clauses)
+            total = int(
+                conn.execute(f"SELECT COUNT(*) FROM knowledge_blocks WHERE {where}", params).fetchone()[0]
+            )
+            query = f"SELECT * FROM knowledge_blocks WHERE {where} ORDER BY order_index, created_at, id"
+            page_params = list(params)
+            if limit is not None:
+                query += " LIMIT ? OFFSET ?"
+                page_params.extend((limit, max(0, offset)))
+            rows = conn.execute(query, page_params).fetchall()
+        return [self._row_to_record(row) for row in rows], total
 
     def browse_records(
         self,
@@ -400,17 +480,18 @@ class KnowledgeStore:
         offset: int = 0,
     ) -> tuple[list[KnowledgeBlockRecord], int]:
         """Return one source's records and total count for a paged content browser."""
-        clauses = ["json_extract(metadata_json, '$.source_id') = ?"]
-        params: list[Any] = [source_id]
-        needle = query_text.strip()
-        if needle:
-            pattern = f"%{needle}%"
-            clauses.append(
-                "(content LIKE ? OR heading_path LIKE ? OR json_extract(metadata_json, '$.title') LIKE ?)"
-            )
-            params.extend((pattern, pattern, pattern))
-        where = " AND ".join(clauses)
         with self._connect() as conn:
+            op = ilike_operator(conn.dialect)
+            clauses = [f"{json_text('metadata_json', 'source_id', conn.dialect)} = ?"]
+            params: list[Any] = [source_id]
+            needle = query_text.strip()
+            if needle:
+                pattern = f"%{needle}%"
+                clauses.append(
+                    f"(content {op} ? OR heading_path {op} ? OR {json_text('metadata_json', 'title', conn.dialect)} {op} ?)"
+                )
+                params.extend((pattern, pattern, pattern))
+            where = " AND ".join(clauses)
             total = int(
                 conn.execute(f"SELECT COUNT(*) FROM knowledge_blocks WHERE {where}", params).fetchone()[0]
             )
@@ -647,7 +728,7 @@ class KnowledgeStore:
                     "target_block_id": row["target_block_id"],
                     "relation": row["relation"],
                     "weight": float(row["weight"]),
-                    "metadata": json.loads(row["metadata_json"]),
+                    "metadata": _json_loads(row["metadata_json"]),
                 }
             )
         return result
@@ -680,7 +761,7 @@ class KnowledgeStore:
                             "target_block_id": row["target_block_id"],
                             "relation": row["relation"],
                             "weight": float(row["weight"]),
-                            "metadata": json.loads(row["metadata_json"]),
+                            "metadata": _json_loads(row["metadata_json"]),
                             "_created_at": row["created_at"],
                         }
                     )
@@ -689,27 +770,33 @@ class KnowledgeStore:
 
     def add_embedding(self, block_id: str, model: str, vector: list[float]) -> None:
         with self._connect() as conn:
+            value = vector_literal(vector) if conn.dialect == "postgres" else json.dumps(vector)
+            placeholder = "?::vector" if conn.dialect == "postgres" else "?"
             conn.execute(
-                """
+                f"""
                 INSERT INTO knowledge_embeddings (block_id, model, vector_json, created_at)
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, {placeholder}, ?)
                 ON CONFLICT(block_id) DO UPDATE SET
                     model = excluded.model,
                     vector_json = excluded.vector_json,
                     created_at = excluded.created_at
                 """,
-                (block_id, model, json.dumps(vector), self._now()),
+                (block_id, model, value, self._now()),
             )
 
     def get_embedding(self, block_id: str) -> Optional[list[float]]:
         with self._connect() as conn:
+            vector_expr = "vector_json::text AS vector_json" if conn.dialect == "postgres" else "vector_json"
             row = conn.execute(
-                "SELECT vector_json FROM knowledge_embeddings WHERE block_id = ?",
+                f"SELECT {vector_expr} FROM knowledge_embeddings WHERE block_id = ?",
                 (block_id,),
             ).fetchone()
         if row is None:
             return None
-        return json.loads(row["vector_json"])
+        value = row["vector_json"]
+        if isinstance(value, list):
+            return [float(item) for item in value]
+        return [float(item) for item in json.loads(str(value))]
 
     def source_stats(self) -> dict[str, dict[str, Any]]:
         """Per source id: record and artifact counts plus timestamps (one query per table)."""
@@ -724,8 +811,8 @@ class KnowledgeStore:
                 item["created_at"] = row["created_at"]
                 item["updated_at"] = row["updated_at"]
             for row in conn.execute(
-                "SELECT json_extract(metadata_json, '$.source_id') AS source_id, COUNT(*) AS n "
-                "FROM knowledge_blocks GROUP BY json_extract(metadata_json, '$.source_id')"
+                f"SELECT {json_text('metadata_json', 'source_id', conn.dialect)} AS source_id, COUNT(*) AS n "
+                f"FROM knowledge_blocks GROUP BY {json_text('metadata_json', 'source_id', conn.dialect)}"
             ):
                 if row["source_id"]:
                     entry(row["source_id"])["records"] = int(row["n"])
@@ -739,7 +826,7 @@ class KnowledgeStore:
             block_ids = [
                 row["id"]
                 for row in conn.execute(
-                    "SELECT id FROM knowledge_blocks WHERE json_extract(metadata_json, '$.source_id') = ?",
+                    f"SELECT id FROM knowledge_blocks WHERE {json_text('metadata_json', 'source_id', conn.dialect)} = ?",
                     (source_id,),
                 )
             ]
@@ -749,17 +836,17 @@ class KnowledgeStore:
             sources = conn.execute("DELETE FROM knowledge_sources WHERE source_id = ?", (source_id,)).rowcount
         return {"sources": sources, "records": records, "artifacts": artifacts}
 
-    def _row_to_source(self, row: sqlite3.Row) -> KnowledgeSource:
+    def _row_to_source(self, row) -> KnowledgeSource:
         return KnowledgeSource(
             source_id=row["source_id"],
             source_type=row["source_type"],
             title=row["title"],
             location=row["location"],
-            metadata=json.loads(row["metadata_json"]),
+            metadata=_json_loads(row["metadata_json"]),
         )
 
-    def _row_to_record(self, row: sqlite3.Row) -> KnowledgeBlockRecord:
-        metadata = json.loads(row["metadata_json"])
+    def _row_to_record(self, row) -> KnowledgeBlockRecord:
+        metadata = _json_loads(row["metadata_json"])
         object_type = metadata.pop("object_type", "")
         return KnowledgeBlockRecord(
             block_id=row["id"],
@@ -779,17 +866,17 @@ class KnowledgeStore:
             },
         )
 
-    def _row_to_artifact(self, row: sqlite3.Row) -> KnowledgeArtifact:
+    def _row_to_artifact(self, row) -> KnowledgeArtifact:
         return KnowledgeArtifact(
             artifact_id=row["artifact_id"],
             artifact_type=row["artifact_type"],
             source_id=row["source_id"],
-            source_block_ids=json.loads(row["source_block_ids_json"]),
+            source_block_ids=_json_loads(row["source_block_ids_json"]),
             content=row["content"],
-            metadata=json.loads(row["metadata_json"]),
+            metadata=_json_loads(row["metadata_json"]),
         )
 
-    def _row_to_block(self, row: sqlite3.Row) -> KnowledgeBlock:
+    def _row_to_block(self, row) -> KnowledgeBlock:
         return KnowledgeBlock(
             id=row["id"],
             source_type=row["source_type"],
@@ -799,7 +886,7 @@ class KnowledgeStore:
             heading_path=row["heading_path"],
             content=row["content"],
             order_index=int(row["order_index"]),
-            metadata=json.loads(row["metadata_json"]),
+            metadata=_json_loads(row["metadata_json"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

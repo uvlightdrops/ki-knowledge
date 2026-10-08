@@ -43,7 +43,7 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 ### 4.2 Default-Ausgabepfad
 
 ```
-<data_root>/data_out/<domain>/<working_title>
+<data_root>/<domain>/output/<working_title>
 ```
 
 **Komponenten:**
@@ -114,7 +114,7 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 ## 9. Architektur-Skizze
 
 ```
-<data_out>/<domain>/<working_title>/
+<domain>/output/<working_title>/
 ├── index.md                    # Startseite
 ├── overview.md                 # Übersichtsseite
 ├── topics/

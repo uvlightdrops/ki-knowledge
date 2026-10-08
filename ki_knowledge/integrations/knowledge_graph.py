@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import dataclass
 from typing import Optional, Iterable
+from pathlib import Path
+
+from ki_knowledge.integrations.sql_backend import StoreTarget, connect
 
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 
@@ -45,14 +47,13 @@ class KnowledgeGraphEdge:
 class KnowledgeGraph:
     """Build and query a lightweight knowledge graph over knowledge blocks."""
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_path: str | Path | StoreTarget):
+        self.target = db_path if isinstance(db_path, StoreTarget) else StoreTarget.parse(db_path, schema="knowledge")
+        self.db_path = str(self.target.sqlite_path) if self.target.is_sqlite else self.target.safe_label()
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return connect(self.target)
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
@@ -242,7 +243,7 @@ class KnowledgeGraph:
             ],
         }
 
-    def _upsert_node(self, conn: sqlite3.Connection, node_id: str, node_type: str, label: str) -> None:
+    def _upsert_node(self, conn, node_id: str, node_type: str, label: str) -> None:
         conn.execute(
             """
             INSERT INTO knowledge_graph_nodes (node_id, node_type, label, props_json)
@@ -257,7 +258,7 @@ class KnowledgeGraph:
 
     def _upsert_edge(
         self,
-        conn: sqlite3.Connection,
+        conn,
         src_id: str,
         dst_id: Optional[str],
         relation: str,

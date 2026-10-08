@@ -28,6 +28,7 @@ from ki_knowledge.integrations.jira_csv import JiraCSVImporter
 from ki_knowledge.integrations.jira_graph import JiraKnowledgeGraph
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
+from ki_knowledge.integrations.sql_backend import connect, json_text
 from ki_knowledge.integrations.semantic_terms import SemanticEnrichmentService, SemanticTermStore
 from ki_knowledge.knowledge.generate import KnowledgeArtifactGenerator
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf as pdf_extract_text
@@ -853,10 +854,10 @@ def semantic_domain_states() -> list[dict[str, Any]]:
                 issue_count = JiraIssueCache(str(cache_path)).issue_count()
             except sqlite3.Error:
                 issue_count = 0
-            try:
-                totals = SemanticTermStore(str(cache_path)).monitoring_snapshot(recent_limit=1).get("totals", totals)
-            except sqlite3.Error:
-                totals = totals
+        try:
+            totals = SemanticTermStore(semantic_target(domain)).monitoring_snapshot(recent_limit=1).get("totals", totals)
+        except Exception:
+            totals = totals
         states.append(
             {
                 "domain": domain,
@@ -1000,8 +1001,7 @@ def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
         result = {"sources": 0, "records": 0, "artifacts": 0, "recent_sources": [], "recent_artifacts": []}
         _cached_set(cache_key, result)
         return result
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         source_placeholders = ",".join("?" for _ in source_ids)
         record_count = conn.execute(
             f"""
@@ -1088,7 +1088,7 @@ def knowledge_base_clear_domain_artifacts(domain: str | None = None) -> dict[str
     invalidate_domain_summary_cache(normalized_domain)
     if not source_ids:
         return {"domain": normalized_domain, "deleted_artifacts": 0}
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         placeholders = ",".join("?" for _ in source_ids)
         row = conn.execute(
             f"SELECT COUNT(*) FROM knowledge_artifacts WHERE source_id IN ({placeholders})",
@@ -1117,7 +1117,8 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
             "deleted_artifacts": 0,
             "deleted_sources": 0,
         }
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
+        source_expr = json_text("metadata_json", "source_id", conn.dialect)
         block_ids: list[str] = []
         queries: list[tuple[str, list[str]]] = []
         if source_locations:
@@ -1127,7 +1128,7 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
             placeholders = ",".join("?" for _ in source_ids)
             queries.append(
                 (
-                    f"SELECT id FROM knowledge_blocks WHERE json_extract(metadata_json, '$.source_id') IN ({placeholders})",
+                    f"SELECT id FROM knowledge_blocks WHERE {source_expr} IN ({placeholders})",
                     source_ids,
                 )
             )
@@ -1202,7 +1203,7 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
 def knowledge_base_reset_all() -> dict[str, Any]:
     for domain in (default_semantic_domain(), "default"):
         invalidate_domain_summary_cache(domain)
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         counts = {}
         for table in (
             "knowledge_relations",
@@ -1222,7 +1223,7 @@ def knowledge_base_reset_all() -> dict[str, Any]:
 
 
 def store() -> KnowledgeStore:
-    return KnowledgeStore(settings.KNOWLEDGE_DB_PATH)
+    return KnowledgeStore(settings.KNOWLEDGE_STORE_TARGET)
 
 
 def root_markdown_tree(query: str = "", domain: str | None = None):
@@ -1241,7 +1242,7 @@ def generate_all_artifacts(source_id: str, max_items: int = 8) -> list[dict[str,
 
 
 def graph_payload(source_id: str, limit: int = 400) -> dict[str, Any]:
-    graph = KnowledgeGraph(settings.KNOWLEDGE_DB_PATH)
+    graph = KnowledgeGraph(settings.KNOWLEDGE_STORE_TARGET)
     return graph.source_graph_payload(store(), source_id=source_id, limit=limit)
 
 
@@ -1320,6 +1321,14 @@ def jira_cache_db_path(domain: str | None = None) -> str:
     if legacy:
         return str(Path(legacy).expanduser())
     return str(domain_db_paths(resolved)["cache_db"])
+
+
+def semantic_target(domain: str | None = None):
+    """Semantic store target for a domain, resolved like the domain's cache path."""
+    from ki_knowledge.config_runtime import semantic_store_target
+
+    resolved = normalize_semantic_domain(domain or default_semantic_domain())
+    return semantic_store_target(resolved, sqlite_path=jira_cache_db_path(domain))
 
 
 def jira_issue_count(domain: str | None = None) -> int:
@@ -1450,7 +1459,7 @@ def jira_reimport_data(domain: str | None = None) -> dict[str, Any]:
 
     graph = JiraKnowledgeGraph(graph_db)
     graph_stats = graph.rebuild_from_cache(cache)
-    semantic_store_obj = SemanticTermStore(cache_db)
+    semantic_store_obj = SemanticTermStore(semantic_target(domain))
     candidates = cache.extract_domain_terms(limit=300, min_count=2)
     created_candidates = semantic_store_obj.store_domain_candidates(candidates)
     promoted_terms = semantic_store_obj.promote_candidates(limit=300)
@@ -1894,7 +1903,7 @@ def jira_forget_jira_term(term: str, kind: str = "exception", domain: str | None
 
 
 def semantic_store(domain: str | None = None) -> SemanticTermStore:
-    return SemanticTermStore(jira_cache_db_path(domain))
+    return SemanticTermStore(semantic_target(domain))
 
 
 def semantic_terms(status: str | None = None, limit: int = 300, domain: str | None = None):
@@ -1938,7 +1947,7 @@ def semantic_job_detail(job_id: str, domain: str | None = None) -> dict[str, Any
         store=store_obj,
         backend=assistant.backend,
         model_id=_semantic_model_id(assistant),
-        knowledge_db_path=str(settings.KNOWLEDGE_DB_PATH),
+        knowledge_db_path=settings.KNOWLEDGE_STORE_TARGET,
     )
     return {
         "job": job,
@@ -2071,7 +2080,7 @@ def run_dashboard_task(task_name: str, *, domain: str | None = None, target_doma
             store=store_obj,
             backend=assistant.backend,
             model_id=_semantic_model_id(assistant),
-            knowledge_db_path=str(settings.KNOWLEDGE_DB_PATH),
+            knowledge_db_path=settings.KNOWLEDGE_STORE_TARGET,
         )
         result = service.run_batch(batch_size=30, job_types=("record_terms",))
         return {"task": task_name, "domain": resolved_domain, **result}

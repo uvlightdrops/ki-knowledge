@@ -19,6 +19,7 @@ from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFE
 from ki_knowledge.integrations.jira_cache import DomainTerm, JiraIssueCache
 from ki_knowledge.integrations.jira_csv import JiraCSVImporter
 from ki_knowledge.integrations.jira_graph import JiraKnowledgeGraph
+from ki_knowledge.config_runtime import semantic_store_target
 from ki_knowledge.integrations.semantic_terms import SemanticTermStore
 from ki_knowledge.django_site.domain_paths import (
     default_semantic_domain,
@@ -204,7 +205,7 @@ def jira_reimport_data(domain: str | None = None) -> dict[str, Any]:
 
     graph = JiraKnowledgeGraph(graph_db)
     graph_stats = graph.rebuild_from_cache(cache)
-    semantic_store_obj = SemanticTermStore(cache_db)
+    semantic_store_obj = SemanticTermStore(semantic_store_target(normalize_semantic_domain(domain or default_semantic_domain()), sqlite_path=jira_cache_db_path(domain)))
     candidates = cache.extract_domain_terms(limit=300, min_count=2)
     created_candidates = semantic_store_obj.store_domain_candidates(candidates)
     promoted_terms = semantic_store_obj.promote_candidates(limit=300)

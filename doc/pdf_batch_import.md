@@ -1,5 +1,9 @@
 # PDF Batch Import System
 
+> Leading UI/workflow document:
+> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+> PDF-specific inventory and jobs are views/stages of the shared source workflow.
+
 ## Quick Start
 
 ```bash
@@ -61,6 +65,22 @@ python examples/batch_import_pdfs.py ~/dev_data/ki-knowledge/pdf/my-domain "my-d
 2. View all PDF import jobs with status and progress
 3. Auto-refreshes every 3 seconds while jobs are processing
 4. Filter by domain and status
+
+### PDF Inventory (read-only, active domain)
+
+Before importing, `/data-sources/pdf/inventory/` lists every `*.pdf` (case-insensitive,
+recursive, following symlinked directories with a cycle guard) in the active domain's
+source and output directories. Source-root overrides are respected; other domains
+and files outside domain directories are not scanned.
+Scanning starts only via the explicit "scan" button and never imports, OCRs or writes.
+
+- Title comes from PDF metadata (`metadata`); otherwise the file name is shown as a labeled
+  `filename` fallback. Scanned books usually have no metadata title, so their real title
+  needs OCR/manual review.
+- Optional: first text line of page 1 as an unverified hint (only if a text layer exists).
+- Encrypted/corrupt/unreadable files, unreadable directories, symlink cycles and
+  duplicate physical files are listed explicitly.
+- Backend: `ki_knowledge/integrations/pdf_inventory.py` (`scan_configured_pdf_inventory`).
 
 ### API Usage (FastAPI)
 

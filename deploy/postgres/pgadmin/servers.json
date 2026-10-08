@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "ki-knowledge",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "ki_knowledge",
+      "Username": "ki_knowledge",
+      "PassFile": "/var/lib/pgadmin/pgpass",
+      "SSLMode": "prefer"
+    }
+  }
+}

@@ -13,16 +13,6 @@ from widgetkit_django.preview import PreviewResult, readonly_preview_html
 from ..widgetkit_renderer import render_fragment
 
 
-# These registrations currently render only their descriptions on real pages.
-# Do not disguise a related widget's renderer as their implementation.
-UNIMPLEMENTED_WIDGETS = frozenset({
-    "datasources.source.list.v1",
-    "datasources.ai.summary.v1",
-    "datasources.markdown.files.v1",
-    "datasources.ontology.overview.v1",
-})
-
-
 def catalog_active_domain(request: Any) -> str:
     """Resolve selection without the normal helper's automatic heartbeat."""
     from .services import normalize_semantic_domain
@@ -93,7 +83,15 @@ def build_catalog_preview_context(active_domain: str) -> dict[str, Any]:
         "active_domain": active_domain,
         "all_domains": [domain], "domain_rows": [domain],
         "domain_states": [state], "active_domain_state": state,
-        "sources": rows, "markdown_count": 3, "owl_sources": 1,
+        "sources": rows, "markdown_count": 3,
+        "markdown_files": [{
+            "name": "sample-guide.md",
+            "path": f"/sample/data/md/{active_domain}/sample-guide.md",
+        }],
+        "ontology_count": 1,
+        "ontology_dir": f"/sample/data/owl/{active_domain}",
+        "pdf_count": 2,
+        "owl_sources": 1,
         "pdf_jobs": {"pending": 1, "processing": 1, "done": 2, "failed": 0, "total": 4},
         "jira_issues": 5, "csrf_token": "",
         "scoped_knowledge": {"sources": 2, "records": 12, "artifacts": 3},
@@ -138,6 +136,7 @@ def build_catalog_preview_context(active_domain: str) -> dict[str, Any]:
         },
         "master_domain_catalog_error": "", "known_hosts": [node],
         "rows": rows, "hidden": "", "base_url": "/data-sources/sources/",
+        "toolbar_html": '<div class="widgetkit-table-toolbar"><nav class="widgetkit-table-toolbar__presets"><a class="widgetkit-table-toolbar__preset widgetkit-table-toolbar__preset--active" href="/data-sources/sources/">Alle</a><a class="widgetkit-table-toolbar__preset" href="/data-sources/sources/?status=new">Neu</a><a class="widgetkit-table-toolbar__preset" href="/data-sources/sources/?kind=pdf">PDFs</a></nav></div>',
         "action_url": "/data-sources/sources/action/",
         "generate_url": "/knowledge/artifacts/generate/",
         "kind": "", "display": "table", "query": "", "sort": "title",
@@ -148,6 +147,8 @@ def build_catalog_preview_context(active_domain: str) -> dict[str, Any]:
             {"key": "image", "label": "Images", "icon": "🖼️", "count": 1, "href": "?kind=image"},
         ],
         "display_table_href": "?display=table", "display_cards_href": "?display=cards",
+        "header_links": {"title": "?sort=title", "path": "?sort=path", "records": "?sort=records", "status": "?sort=status"},
+        "folder": "", "path": "", "status": "",
         "total_all": 2, "total": 2, "first_index": 1, "last_index": 2,
         "prev_href": "", "next_href": "", "unimported_new": 1,
         "pending": {
@@ -171,13 +172,7 @@ def render_catalog_widget(spec: Any, context: dict[str, Any]) -> PreviewResult:
     handlers = _widget_fragment_handlers()
     status = "sample"
     note = ""
-    if widget_id in UNIMPLEMENTED_WIDGETS:
-        status = "unimplemented"
-        note = "No dedicated renderer implemented."
-        body = render_to_string("kicli_django/widgets/catalog_unimplemented.html", {
-            "description": spec.description,
-        })
-    elif widget_id == "datasources.import.quick.v1":
+    if widget_id == "datasources.import.quick.v1":
         # The normal handler discovers real domain folders. Render its exact
         # template with bounded examples instead; do not resolve any paths.
         body = render_fragment("datasources_import_quick", {
@@ -206,11 +201,9 @@ def render_catalog_widget(spec: Any, context: dict[str, Any]) -> PreviewResult:
             "csrf_token": "",
         })
     elif widget_id in {
-        "datasources.sources.filter.v1", "datasources.sources.list.v1",
-        "datasources.sources.unimported.v1",
+        "datasources.sources.list.v1", "datasources.sources.unimported.v1",
     }:
         body = render_fragment({
-            "datasources.sources.filter.v1": "sources_filter",
             "datasources.sources.list.v1": "sources_list",
             "datasources.sources.unimported.v1": "sources_unimported",
         }[widget_id], context)

@@ -105,13 +105,13 @@ def test_builtin_areas_are_functional_only():
 
 
 def test_sources_widgets_are_part_of_datasources_taxonomy():
-    assert widget_by_id("datasources.sources.filter.v1").area == "datasources"
+    assert widget_by_id("datasources.sources.filter.v1").widget_id == "datasources.sources.list.v1"
     assert widget_by_id("datasources.sources.list.v1").area == "datasources"
     assert widget_by_id("datasources.sources.unimported.v1").area == "datasources"
-    assert widget_by_id("sources.filter.v1").widget_id == "datasources.sources.filter.v1"
+    assert widget_by_id("sources.filter.v1").widget_id == "datasources.sources.list.v1"
     assert widget_by_id("sources.list.v1").widget_id == "datasources.sources.list.v1"
     assert widget_by_id("sources.unimported.v1").widget_id == "datasources.sources.unimported.v1"
-    assert canonical_widget_id("sources.filter.v1") == "datasources.sources.filter.v1"
+    assert canonical_widget_id("sources.filter.v1") == "datasources.sources.list.v1"
 
 
 def test_default_widget_ids_can_resolve_subpage_specific_defaults():

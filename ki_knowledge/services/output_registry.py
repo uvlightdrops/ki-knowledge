@@ -2,7 +2,7 @@
 editable GeneratedDocument snippet layer.
 
 The generator/refinement code only knows about the filesystem (it writes
-markdown files under data_out/); this module is the single place that turns
+markdown files under the configured domain output directory); this module is the single place that turns
 "a file was written" into "Wagtail/the editorial layer knows about it",
 without every pipeline call site needing to know about Django models
 directly.

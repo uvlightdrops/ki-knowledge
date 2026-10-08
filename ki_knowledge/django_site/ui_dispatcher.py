@@ -24,6 +24,7 @@ from ki_knowledge.django_site.knowledge_summary import (
 )
 from ki_knowledge.django_site.distributed_sync import export_sync_summary, pull_from_master
 from ki_knowledge.django_site.jira_workflow import domain_db_paths
+from ki_knowledge.integrations.embeddings import TFIDFEmbeddingProvider
 from ki_knowledge.integrations.semantic_terms import SemanticEnrichmentService
 
 
@@ -187,7 +188,7 @@ def run_dashboard_task(task_name: str, *, domain: str | None = None, target_doma
             store=store_obj,
             backend=assistant.backend,
             model_id=_semantic_model_id(assistant),
-            knowledge_db_path=str(settings.KNOWLEDGE_DB_PATH),
+            knowledge_db_path=settings.KNOWLEDGE_STORE_TARGET,
         )
         result = service.run_batch(batch_size=30, job_types=("record_terms",))
         return {"task": task_name, "domain": resolved_domain, **result}
@@ -196,14 +197,26 @@ def run_dashboard_task(task_name: str, *, domain: str | None = None, target_doma
 
 
 def _field_embedding_backend(cache: Any, assistant: Any):
+    def tfidf_backend():
+        provider = TFIDFEmbeddingProvider()
+        texts: list[str] = []
+        if cache is not None:
+            for issue in cache.list_issues(limit=5000):
+                for _field_name, _field_kind, text in cache._iter_semantic_fields(issue):
+                    cleaned = (text or "").strip()
+                    if len(cleaned) >= 40:
+                        texts.append(cleaned)
+        provider.fit(texts or ["empty corpus"])
+        return provider, "tfidf-fields"
+
     if assistant is None:
-        return None, ""
+        return tfidf_backend()
     backend = getattr(assistant, "embedding_backend", None)
     if backend is not None:
         return backend, getattr(assistant, "embedding_model", "")
     if cache is not None:
-        return None, ""
-    return None, ""
+        return tfidf_backend()
+    return tfidf_backend()
 
 
 def resolve_ui_action(

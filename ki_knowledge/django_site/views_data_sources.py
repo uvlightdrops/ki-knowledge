@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
+from markupsafe import Markup
+
 from django.contrib import messages
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
+
+from widgetkit_django.table import (
+    ChoiceFilter, SortOption, TablePreset, TableSpec, TextFilter,
+    facet_options, paginate, parse_table_query, preset_links, sort_links,
+)
 
 from .dashboard_registry import default_widget_ids_for_area
 from .page_widgets import build_data_sources_widget_cards, build_workspace_widget_cards
@@ -21,7 +30,6 @@ from .services import (
     display_data_path,
     display_source_ref,
     discover_pdf_files,
-    domain_knowledge_summary,
     domain_pdf_dir,
     domain_registry_overview,
     domain_source_ids,
@@ -79,6 +87,7 @@ from .services import (
     workspace_markdown_files,
     workspace_ontology_files,
 )
+from ki_knowledge.integrations.pdf_inventory import scan_configured_pdf_inventory
 from ki_knowledge.integrations.mixed_ingest import IMAGE_KIND, TABLE_KIND, classify_file, discover_mixed_files
 
 from .views_common import (
@@ -107,18 +116,16 @@ def data_sources_view(request: HttpRequest):
     all_domains = domain_registry_overview(active_domain)
     markdown_files = workspace_markdown_files(domain=active_domain)
     ontology_files = workspace_ontology_files(domain=active_domain)
+    jira_issues = jira_issue_count(active_domain)
     domain_states = semantic_domain_states()
     active_state = next((item for item in domain_states if item.get("domain") == active_domain), {"domain": active_domain})
-    owl_sources = [
-        source
-        for source in store_obj.list_sources(source_type="owl")
-        if source_in_domain(source, domain=active_domain)
-    ]
+    all_sources = store_obj.list_sources()
     sources_list = [
         source
-        for source in store_obj.list_sources()
+        for source in all_sources
         if source_in_domain(source, domain=active_domain)
     ]
+    owl_sources = [source for source in sources_list if source.source_type == "owl"]
     pdf_dir = domain_pdf_dir(active_domain)
     pdf_jobs = active_state.get("pdf_jobs") or {"pending": 0, "processing": 0, "done": 0, "failed": 0, "total": 0}
     configured_widget_ids = _load_dashboard_widget_ids(
@@ -133,8 +140,10 @@ def data_sources_view(request: HttpRequest):
         all_domains=all_domains,
         active_domain_state=active_state,
         markdown_count=len(markdown_files),
+        markdown_files=markdown_files,
+        display_mode=display_mode,
         data_dir=display_data_path(data_dir(active_domain)),
-        jira_issues=jira_issue_count(active_domain),
+        jira_issues=jira_issues,
         jira_csv_path=display_data_path(jira_csv_path(active_domain)),
         jira_cache_db=display_data_path(jira_cache_db_path(active_domain)),
         pdf_count=int(active_state.get("pdf_files", 0) or 0),
@@ -159,7 +168,7 @@ def data_sources_view(request: HttpRequest):
 
             "data_sources_toggle_cards_url": f"{reverse('data-sources')}?display=cards",
             "data_sources_toggle_table_url": f"{reverse('data-sources')}?display=table",
-            "jira_issues": jira_issue_count(active_domain),
+            "jira_issues": jira_issues,
             "jira_csv_path": display_data_path(jira_csv_path(active_domain)),
             "jira_cache_db": display_data_path(jira_cache_db_path(active_domain)),
             "data_dir": display_data_path(data_dir(active_domain)),
@@ -216,6 +225,9 @@ def workspace(request: HttpRequest):
         all_domains=all_domains,
         active_domain_state=active_state,
         markdown_count=len(markdown_files),
+        markdown_files=markdown_files,
+        display_mode=display_mode,
+        query=query,
         sources=[],
         widget_ids=widget_ids,
         widget_widths=_load_dashboard_widget_widths(request, area_key="datasources", subpage_key="workspace"),
@@ -233,36 +245,67 @@ def workspace(request: HttpRequest):
             "source_preview_html": source_preview_html,
             "query": query,
             "display_mode": display_mode,
-            "workspace_toggle_cards_url": f"{reverse('workspace')}?{urlencode({'q': query, 'display': 'cards'})}",
-            "workspace_toggle_table_url": f"{reverse('workspace')}?{urlencode({'q': query, 'display': 'table'})}",
+            "workspace_toggle_cards_url": f"{reverse('workspace')}?{urlencode({'domain': active_domain, 'q': query, 'display': 'cards'})}",
+            "workspace_toggle_table_url": f"{reverse('workspace')}?{urlencode({'domain': active_domain, 'q': query, 'display': 'table'})}",
             "widget_cards": widget_cards,
         },
     )
 
 
-_SOURCES_SORT_OPTIONS = (("updated", "Zuletzt aktualisiert"), ("title", "Titel"), ("records", "Meiste Einträge"), ("kind", "Typ"))
+_SOURCES_SORT_OPTIONS = (
+    ("updated", "Zuletzt aktualisiert"), ("title", "Titel"), ("records", "Meiste Einträge"),
+    ("kind", "Typ"), ("path", "Pfad"), ("status", "Status"),
+)
+_SOURCES_STATUS_OPTIONS = (
+    ("imported", "Importiert"), ("new", "Neu"), ("queued", "Warteschlange"),
+    ("failed", "Fehlgeschlagen"), ("unsupported", "Nicht unterstützt"),
+)
+_SOURCES_PRESETS = (
+    TablePreset("all", "Alle", {}),
+    TablePreset("new", "Neu", {"status": "new"}),
+    TablePreset("failed", "Fehlgeschlagen", {"status": "failed"}),
+    TablePreset("pdf", "PDFs", {"kind": "pdf"}),
+    TablePreset("markdown", "Markdown", {"kind": "markdown"}),
+    TablePreset("owl", "Ontologien", {"kind": "owl"}),
+)
+
+
+def _sources_table_spec() -> TableSpec:
+    from .sources_browser import FOLDER_KEYS, KIND_KEYS, STATUS_KEYS, SORT_KEYS
+
+    kind_labels = {"markdown": "Markdown", "pdf": "PDF", "owl": "Ontologie", "table": "Tabelle", "image": "Bild", "other": "Sonstige"}
+    folder_labels = {key: f"{key}/" for key in (*FOLDER_KEYS, "jira")}
+    return TableSpec(
+        filters=(
+            ChoiceFilter("kind", "Typ", tuple((key, kind_labels.get(key, key)) for key in KIND_KEYS)),
+            ChoiceFilter("status", "Status", tuple((key, label) for key, label in _SOURCES_STATUS_OPTIONS if key in STATUS_KEYS)),
+            ChoiceFilter("folder", "Herkunft", tuple((key, folder_labels[key]) for key in (*FOLDER_KEYS, "jira"))),
+            TextFilter("path", "Pfad", max_length=200, placeholder="Unterordner/Pfadpräfix"),
+            TextFilter("q", "Suche", max_length=200, placeholder="Titel oder Pfad suchen …"),
+        ),
+        sorts=tuple(SortOption(key, label) for key, label in _SOURCES_SORT_OPTIONS if key in SORT_KEYS),
+        default_sort="updated",
+        choice_params=(ChoiceFilter("display", "Darstellung", (("table", "Tabelle"), ("cards", "Karten"))),),
+    )
+
+
+def _sources_query(params: Any):
+    raw = params.copy() if hasattr(params, "copy") else dict(params)
+    if not raw.get("kind") and raw.get("type"):
+        raw["kind"] = raw.get("type")
+    return parse_table_query(_sources_table_spec(), raw)
 
 
 def _sources_filters(params: Any) -> dict[str, str]:
-    from .sources_browser import KIND_KEYS, SORT_KEYS
-
-    kind = str(params.get("kind", "") or params.get("type", "") or "").strip()
-    sort = str(params.get("sort", "") or "").strip()
-    display = str(params.get("display", "") or "").strip()
-    page = str(params.get("page", "") or "").strip()
-    return {
-        "kind": kind if kind in KIND_KEYS else "",
-        "q": str(params.get("q", "") or "").strip()[:200],
-        "sort": sort if sort in SORT_KEYS else "updated",
-        "display": display if display in {"table", "cards"} else "table",
-        "page": page if page.isdigit() and int(page) > 1 else "",
-    }
+    query = _sources_query(params)
+    return {**dict(query.values), "page": str(query.page) if query.page > 1 else ""}
 
 
 def _sources_url(filters: dict[str, str], **overrides: str) -> str:
-    params = {**filters, **overrides}
-    query = urlencode({key: value for key, value in params.items() if value and not (key == "sort" and value == "updated") and not (key == "display" and value == "table")})
-    return f"{reverse('sources')}?{query}" if query else reverse("sources")
+    spec = _sources_table_spec()
+    page = filters.get("page", "")
+    query = parse_table_query(spec, {**filters, "page": page})
+    return query.url(reverse("sources"), **overrides)
 
 
 @require_GET
@@ -270,46 +313,91 @@ def _sources_url(filters: dict[str, str], **overrides: str) -> str:
 def sources(request: HttpRequest):
     from .knowledge_summary import _domain_scoped_sources
     from .page_widgets import build_sources_widget_cards
-    from .sources_browser import PAGE_SIZE, domain_folders, filter_rows, kind_counts, source_rows, unimported_files
+    from .sources_browser import (
+        PAGE_SIZE, domain_folders, filter_rows, folder_counts, kind_counts, source_inventory, status_counts,
+    )
     from ki_knowledge.integrations.mixed_ingest import tesseract_binary
 
     active_domain = _active_semantic_domain(request)
+    table_query = _sources_query(request.GET)
     filters = _sources_filters(request.GET)
     store_obj = store()
     domain_sources = _domain_scoped_sources(active_domain)
     folders = domain_folders(active_domain)
-    all_rows = source_rows(active_domain, domain_sources, store_obj.source_stats(), folders)
-    selected = filter_rows(all_rows, kind=filters["kind"], query=filters["q"], sort=filters["sort"])
-    page = int(filters["page"] or 1)
-    page_rows, total, has_more = _paginate_items(selected, page=page, page_size=PAGE_SIZE)
+    inventory = source_inventory(active_domain, domain_sources, store_obj.source_stats(), folders)
+    all_rows = inventory["rows"]
+    selected = filter_rows(
+        all_rows, kind=filters["kind"], status=filters["status"], folder=filters["folder"],
+        path=filters["path"], query=filters["q"], sort=filters["sort"],
+    )
+    page_data = paginate(selected, table_query, PAGE_SIZE, reverse("sources"))
+    page_rows = list(page_data.items)
     for row in page_rows:
-        row["detail_url"] = reverse("source-detail", args=[row["source_id"]])
-    chips = [
-        {**chip, "active": chip["key"] == filters["kind"], "href": _sources_url(filters, kind=chip["key"], page="")}
-        for chip in kind_counts(all_rows)
+        row["detail_url"] = reverse("source-detail", args=[row["source_id"]]) if row["imported"] else ""
+        if row.get("workflow") == "jira":
+            row["workflow_url"] = reverse("data-sources")
+        row["item_value"] = f"{row.get('folder', '')}:{row.get('relative', '')}"
+        row["folder_href"] = table_query.url(reverse("sources"), folder=row.get("folder", ""), path="", page=1) if row.get("folder") else ""
+        parts = [part for part in str(row.get("relative", "")).split("/")[:-1] if part]
+        prefix = ""
+        links = []
+        for part in parts:
+            prefix = f"{prefix}/{part}".strip("/")
+            links.append({"label": part, "href": table_query.url(reverse("sources"), folder=row.get("folder", ""), path=prefix, page=1)})
+        row["path_links"] = links
+    kind_map = {chip["key"]: chip["count"] for chip in kind_counts(all_rows) if chip["key"]}
+    spec = _sources_table_spec()
+    facets = [
+        {"label": "Typ", "options": facet_options(spec, table_query, "kind", kind_map, reverse("sources"))},
+        {"label": "Status", "options": facet_options(spec, table_query, "status", status_counts(all_rows), reverse("sources"))},
+        {"label": "Herkunft", "options": facet_options(spec, table_query, "folder", folder_counts(all_rows), reverse("sources"))},
     ]
-    pending = unimported_files(active_domain, domain_sources, folders)
-    first_index = (page - 1) * PAGE_SIZE + 1
+    toolbar_context = {
+        "base_url": reverse("sources"),
+        "presets": preset_links(spec, table_query, _SOURCES_PRESETS, reverse("sources")),
+        "facets": facets,
+        "text_filters": [
+            {"key": "path", "label": "Pfad", "value": filters["path"], "max_length": 200, "placeholder": "Unterordner/Pfadpräfix"},
+            {"key": "q", "label": "Suche", "value": filters["q"], "max_length": 200, "placeholder": "Titel oder Pfad suchen …"},
+        ],
+        "hidden_items": [(k, v) for k, v in table_query.hidden_items() if k in {"kind", "status", "folder"}],
+        "sort_options": sort_links(spec, table_query, reverse("sources")),
+        "choice_params": [{
+            "key": "display", "label": "Darstellung",
+            "options": [
+                {"value": value, "label": label, "active": filters["display"] == value}
+                for value, label in (("table", "Tabelle"), ("cards", "Karten"))
+            ],
+        }],
+        "reset_url": reverse("sources"),
+    }
+    pending = inventory["pending"]
     ctx = {
         "active_domain": active_domain,
-        "chips": chips,
+        "sources": domain_sources,
+        "toolbar_html": Markup(render_to_string("widgetkit_django/table_toolbar.html", toolbar_context)),
         "kind": filters["kind"],
+        "status": filters["status"],
+        "folder": filters["folder"],
+        "path": filters["path"],
         "query": filters["q"],
         "sort": filters["sort"],
         "display": filters["display"],
         "sort_options": _SOURCES_SORT_OPTIONS,
         "base_url": reverse("sources"),
-        "display_table_href": _sources_url(filters, display="table"),
-        "display_cards_href": _sources_url(filters, display="cards"),
+        "header_links": {key: table_query.url(reverse("sources"), sort=key, page=1) for key, _label in _SOURCES_SORT_OPTIONS},
+        "display_table_href": table_query.url(reverse("sources"), display="table", page=1),
+        "display_cards_href": table_query.url(reverse("sources"), display="cards", page=1),
         "rows": page_rows,
-        "total": total,
+        "total": page_data.total,
         "total_all": len(all_rows),
-        "first_index": first_index,
-        "last_index": first_index + len(page_rows) - 1,
-        "prev_href": _sources_url(filters, page=str(page - 1) if page > 2 else "") if page > 1 else "",
-        "next_href": _sources_url(filters, page=str(page + 1)) if has_more else "",
+        "first_index": page_data.first_index,
+        "last_index": page_data.last_index,
+        "prev_href": page_data.prev_href,
+        "next_href": page_data.next_href,
         "pending": pending,
         "unimported_new": pending["new"],
+        "current_folder_new": next((group["new"] for group in pending["folders"] if group["key"] == filters["folder"]), 0),
         "max_files": 200,
         "ocr_missing": tesseract_binary() is None and any(
             item["kind"] == "image" for group in pending["folders"] for item in group["files"]
@@ -342,7 +430,7 @@ def sources(request: HttpRequest):
 def sources_action(request: HttpRequest):
     """Per-source (reimport/delete) and per-file (import) actions of the sources browser."""
     from .knowledge_summary import _domain_scoped_sources
-    from .sources_browser import FOLDER_KEYS, delete_source, import_all_unimported, import_folder_file, reimport_source
+    from .sources_browser import FOLDER_KEYS, delete_source, import_all_unimported, import_folder_file, reimport_source, resolve_folder_file
 
     active_domain = _active_semantic_domain(request)
     filters = _sources_filters(request.POST)
@@ -364,13 +452,38 @@ def sources_action(request: HttpRequest):
         (messages.success if result["ok"] else messages.error)(request, result["message"])
         return redirect
     if action == "import_file":
+        folder = request.POST.get("folder", "").strip()
+        if folder not in FOLDER_KEYS:
+            return HttpResponseBadRequest("unknown folder")
         result = import_folder_file(
             active_domain,
-            request.POST.get("folder", "").strip(),
+            folder,
             request.POST.get("file", "").strip(),
             image_processing=image_processing,
         )
         (messages.success if result["ok"] else messages.error)(request, result["message"])
+        return redirect
+    if action == "import_selected":
+        items = request.POST.getlist("item")[:100]
+        if not items:
+            messages.info(request, "Keine Dateien ausgewählt.")
+            return redirect
+        selected = []
+        for item in items:
+            folder, separator, relative = item.partition(":")
+            folder = folder.strip()
+            relative = relative.strip()
+            if not separator or folder not in FOLDER_KEYS or resolve_folder_file(active_domain, folder, relative) is None:
+                return HttpResponseBadRequest("invalid selected file")
+            selected.append((folder, relative))
+        results = [
+            import_folder_file(active_domain, folder, relative, image_processing=image_processing)
+            for folder, relative in selected
+        ]
+        ok = sum(1 for item in results if item["ok"])
+        messages.success(request, f"{ok} von {len(results)} ausgewählten Datei(en) importiert bzw. eingereiht.")
+        for item in [item for item in results if not item["ok"]][:10]:
+            messages.warning(request, item["message"])
         return redirect
     if action == "import_all":
         folder = request.POST.get("folder", "").strip()
@@ -668,6 +781,23 @@ def artifacts(request: HttpRequest):
     )
 
 
+_PREVIEW_WORDS = 32
+_PREVIEW_CHARS = 260
+
+
+def _record_preview(content: str | None) -> dict[str, str]:
+    """Opening words of a record (markdown markers stripped) plus a longer tooltip text."""
+    text = " ".join(re.sub(r"^\s*(?:#+|[-*+>]|\d+[.)])\s+", "", line) for line in str(content or "").splitlines())
+    text = " ".join(text.split())
+    words = text.split(" ")
+    preview = " ".join(words[:_PREVIEW_WORDS])
+    if len(preview) > _PREVIEW_CHARS:
+        preview = preview[:_PREVIEW_CHARS].rsplit(" ", 1)[0]
+    if preview != text:
+        preview += " …"
+    return {"preview": preview, "preview_full": text[:400]}
+
+
 @require_http_methods(["GET", "POST"])
 
 def records(request: HttpRequest):
@@ -689,12 +819,9 @@ def records(request: HttpRequest):
                 ["source_id", "block_type", "limit", "display"],
             )
         if action == "delete_all":
-            query_source = source_id if source_id else None
-            items = [
-                item
-                for item in store_obj.list_records(source_id=query_source, block_type=block_type)
-                if item.source_id in allowed_sources
-            ]
+            scope = [source_id] if source_id else allowed_sources
+            scope = [item for item in scope if item in allowed_sources]
+            items, _total = store_obj.query_records(scope, block_type=block_type)
             if not items:
                 return _redirect_with_filters(reverse("records"), request, ["source_id", "block_type", "limit", "display"])
             store_obj.delete_records([item.block_id for item in items])
@@ -711,24 +838,21 @@ def records(request: HttpRequest):
     page = max(1, _int_param(request, "page", default=1, minimum=1, maximum=100000))
     display_mode = _display_mode(request, default="table")
     allowed_sources = domain_source_ids(active_domain)
-    scoped_knowledge = domain_knowledge_summary(active_domain)
-    total_record_count = int(scoped_knowledge["records"])
-    if source_id and source_id not in allowed_sources:
-        raw_records = []
-    else:
-        query_source = source_id if source_id else None
-        raw_records = [
-            item
-            for item in store_obj.list_records(source_id=query_source, block_type=block_type)
-            if item.source_id in allowed_sources
-        ]
-        total_record_count = len(raw_records)
-    records_list, total_record_count, has_more = _paginate_items(raw_records, page=page, page_size=page_size)
+    scope = [source_id] if source_id else allowed_sources
+    scope = [item for item in scope if item in allowed_sources]
+    records_list, total_record_count = store_obj.query_records(
+        scope,
+        block_type=block_type,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
+    has_more = (page - 1) * page_size + len(records_list) < total_record_count
     display_records = [
         {
             **record.__dict__,
             "display_source_id": display_source_ref(record.source_id),
             "display_path": display_source_ref(record.path),
+            **_record_preview(record.content),
         }
         for record in records_list
     ]
@@ -751,7 +875,7 @@ def records(request: HttpRequest):
         request,
         "kicli_django/records.html",
         {
-            "records": records_list,
+            "records": display_records,
             "total_record_count": total_record_count,
             "display_records": display_records,
             "source_id": source_id or "(all)",
@@ -1761,5 +1885,38 @@ def pdf_import_report_view(request: HttpRequest):
         {
             "active_domain": domain,
             "report": report,
+        },
+    )
+
+
+@require_GET
+
+def pdf_inventory_view(request: HttpRequest):
+    """Read-only list of PDFs belonging to the active domain.
+
+    Scanning only happens on an explicit ``?scan=1`` request; nothing is imported.
+    """
+    from .widget_catalog_preview import catalog_active_domain
+
+    active_domain = catalog_active_domain(request)
+    request._widget_catalog_domain = active_domain
+    scan_requested = request.GET.get("scan", "").strip() == "1"
+    include_text = request.GET.get("text", "").strip() == "1"
+    sort = _choice_param(request, "sort", "title", {"title", "path"})
+    inventory = None
+    if scan_requested:
+        inventory = scan_configured_pdf_inventory(domain=active_domain, include_first_page_text=include_text)
+        if sort == "path":
+            inventory.entries.sort(key=lambda entry: entry.relative_path)
+    return render(
+        request,
+        "kicli_django/pdf_inventory.html",
+        {
+            "active_domain": active_domain,
+            "scan_requested": scan_requested,
+            "include_text": include_text,
+            "sort": sort,
+            "inventory": inventory,
+            "summary": inventory.summary if inventory else None,
         },
     )

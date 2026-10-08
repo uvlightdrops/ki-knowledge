@@ -1,5 +1,23 @@
 {% macro actions(row) %}
   <span class="sb-actions">
+    {% if not row.imported|default(true) %}
+    {% if row.workflow == 'jira' %}
+    <a href="{{ row.workflow_url }}">Jira-Workflow öffnen</a>
+    {% else %}
+    <form method="post" action="{{ action_url }}">
+      {{ hidden|safe }}
+      <input type="hidden" name="folder" value="{{ row.folder }}">
+      <input type="hidden" name="file" value="{{ row.relative }}">
+      {% if row.kind == 'image' %}
+      <select name="image_processing" aria-label="Bildverarbeitung beim Import">
+        <option value="ocr" selected>Bild + OCR</option>
+        <option value="asset">Nur Bild</option>
+      </select>
+      {% else %}<input type="hidden" name="image_processing" value="asset">{% endif %}
+      <button type="submit" name="action" value="import_file"{% if not row.can_import %} disabled{% endif %}>{% if row.status == 'failed' %}Erneut importieren{% else %}Importieren{% endif %}</button>
+    </form>
+    {% endif %}
+    {% else %}
     <form method="post" action="{{ action_url }}">
       {{ hidden|safe }}
       <input type="hidden" name="source_id" value="{{ row.source_id }}">
@@ -21,35 +39,77 @@
       <input type="hidden" name="source_id" value="{{ row.source_id }}">
       <button type="submit" name="action" value="delete" class="sb-danger" title="Aus dem Store entfernen">🗑</button>
     </form>
+    {% endif %}
   </span>
 {% endmacro %}
 
+{% macro state(row) %}
+  {% if row.imported|default(true) %}<span class="badge">importiert</span>
+  {% elif row.status == 'queued' %}<span class="badge badge-warning">in Warteschlange</span>
+  {% elif row.status == 'failed' %}<span class="badge badge-danger">fehlgeschlagen</span>
+  {% elif row.status == 'unsupported' %}<span class="badge badge-warning">Format nicht unterstützt</span>
+  {% else %}<span class="badge">neu · noch nicht importiert</span>{% endif %}
+  {% if row.workflow == 'jira' %}<span class="badge">separater Jira-Workflow</span>{% endif %}
+  {% if row.error %}<span class="badge badge-danger">{{ row.error }}</span>{% endif %}
+{% endmacro %}
+
+{% macro title(row) %}
+  {% if row.imported|default(true) %}<a href="{{ row.detail_url }}">{{ row.title }} · Records ansehen</a>
+  {% else %}{{ row.title }}{% endif %}
+{% endmacro %}
+
+{% macro origin(row) %}
+  {% if row.folder %}{% if row.linked %}🔗 {% endif %}<a href="{{ row.folder_href }}">{{ row.folder }}/</a>{% endif %}
+  {% if row.path_links %}{% for link in row.path_links %}<a href="{{ link.href }}">{{ link.label }}</a>/{% endfor %}{% endif %}{{ row.relative.split('/')[-1] if row.relative else '' }}{% if row.missing %} <span class="badge badge-danger">Datei fehlt</span>{% endif %}
+{% endmacro %}
+
+{{ toolbar_html|default("")|safe }}
+<p class="muted sb-hint">Dateien der aktiven Domain werden bei jedem Öffnen angezeigt; Import, Reimport und Löschen laufen nur per POST.</p>
+
+<form id="sources-bulk-import" method="post" action="{{ action_url }}">
+  {{ hidden|safe }}
+  <input type="hidden" name="image_processing" value="ocr">
+</form>
+{% if rows %}
+<div class="sb-bulk-actions">
+  <button form="sources-bulk-import" type="submit" name="action" value="import_selected">Ausgewählte importieren</button>
+  {% if folder and current_folder_new|default(0) %}
+  <button form="sources-bulk-import" type="submit" name="action" value="import_all">Alle {{ current_folder_new }} neuen in {{ folder }}/ importieren</button>
+  <input form="sources-bulk-import" type="hidden" name="folder" value="{{ folder }}">
+  {% elif unimported_new %}
+  <button form="sources-bulk-import" type="submit" name="action" value="import_all">Alle neuen importieren</button>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if not rows %}
-  <p class="muted">{% if total_all %}Keine Quelle passt zum Filter.{% else %}Noch keine Quellen importiert.{% endif %}</p>
+  <p class="muted">{% if total_all %}Keine Quelle passt zum Filter.{% else %}Keine Quelldateien oder importierten Quellen in dieser Domain gefunden.{% endif %}</p>
 {% elif display == 'cards' %}
   <div class="sb-cards">
     {% for row in rows %}
       <div class="sb-card">
-        <div class="sb-card__head"><span title="{{ row.kind_label }}">{{ row.icon }}</span> <a href="{{ row.detail_url }}">{{ row.title }} · Records ansehen</a></div>
-        <div class="mono sb-origin" title="{{ row.relative }}">{% if row.folder %}{% if row.linked %}🔗 {% endif %}{{ row.folder }}/{% endif %}{{ row.relative }}{% if row.missing %} <span class="badge badge-danger">Datei fehlt</span>{% endif %}</div>
+        <div class="sb-card__head">{% if row.can_import %}<input form="sources-bulk-import" type="checkbox" name="item" value="{{ row.item_value }}" aria-label="{{ row.title }} auswählen"> {% endif %}<span title="{{ row.kind_label }}">{{ row.icon }}</span> {{ title(row) }}</div>
+        <div class="mono sb-origin" title="{{ row.relative }}">{{ origin(row) }}</div>
         <div class="muted">{{ row.records }} Einträge · {{ row.artifacts }} Artefakte · {{ row.updated_at }}</div>
+        <div>{{ state(row) }}</div>
         {{ actions(row) }}
       </div>
     {% endfor %}
   </div>
 {% else %}
+  {% set headers = header_links|default({}) %}
   <div class="table-wrap">
     <table class="sb-table">
-      <thead><tr><th></th><th>Titel</th><th>Herkunft</th><th class="num">Einträge</th><th class="num">Artefakte</th><th>Stand</th><th></th></tr></thead>
+      <thead><tr><th>Auswahl</th><th><a href="{{ headers.title|default('#') }}">Titel</a></th><th><a href="{{ headers.path|default('#') }}">Herkunft</a></th><th><a href="{{ headers.records|default('#') }}">Einträge</a></th><th class="num">Artefakte</th><th><a href="{{ headers.status|default('#') }}">Status / Stand</a></th><th></th></tr></thead>
       <tbody>
         {% for row in rows %}
           <tr>
-            <td title="{{ row.kind_label }}">{{ row.icon }}</td>
-            <td><a href="{{ row.detail_url }}">{{ row.title }} · Records ansehen</a></td>
-            <td class="mono sb-origin" title="{{ row.relative }}">{% if row.folder %}{% if row.linked %}🔗 {% endif %}{{ row.folder }}/{% endif %}{{ row.relative }}{% if row.missing %} <span class="badge badge-danger">Datei fehlt</span>{% endif %}</td>
+            <td>{% if row.can_import %}<input form="sources-bulk-import" type="checkbox" name="item" value="{{ row.item_value }}" aria-label="{{ row.title }} auswählen">{% endif %} <span title="{{ row.kind_label }}">{{ row.icon }}</span></td>
+            <td>{{ title(row) }}</td>
+            <td class="mono sb-origin" title="{{ row.relative }}">{{ origin(row) }}</td>
             <td class="num">{{ row.records }}</td>
             <td class="num">{{ row.artifacts }}</td>
-            <td class="nowrap">{{ row.updated_at }}</td>
+            <td>{{ state(row) }} <span class="nowrap">{{ row.updated_at }}</span></td>
             <td>{{ actions(row) }}</td>
           </tr>
         {% endfor %}

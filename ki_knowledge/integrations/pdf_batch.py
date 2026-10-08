@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import knowledge_db_path
+from ki_knowledge.config_runtime import knowledge_db_path, knowledge_store_target
 from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf
@@ -603,7 +603,7 @@ class PDFBatchProcessor(SqliteJobStoreBase):
         return knowledge_db_path(Config.from_env())
 
     def _knowledge_store(self) -> KnowledgeStore:
-        return KnowledgeStore(self._knowledge_db_path())
+        return KnowledgeStore(knowledge_store_target(Config.from_env()))
 
     def cleanup_stale_jobs(self, domain: str | None = None, timeout_seconds: int = 3600) -> dict[str, int]:
         """Fail expired leases and safely suppress duplicate pending jobs.

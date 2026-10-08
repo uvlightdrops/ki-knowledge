@@ -32,6 +32,7 @@ urlpatterns = [
     path("data-sources/sources/infosite/create/", views.create_source_infosite_project, name="source-infosite-create"),
     path("data-sources/sources/<path:source_id>/", views.source_detail, name="source-detail"),
     path("data-sources/pdf/", views.pdf_import_jobs_view, name="pdf-import-jobs"),
+    path("data-sources/pdf/inventory/", views.pdf_inventory_view, name="pdf-inventory"),
     path("data-sources/pdf/report/", views.pdf_import_report_view, name="pdf-import-report"),
     path("data-sources/pdf/jobs/<str:job_id>/", views.pdf_job_detail_view, name="pdf-job-detail"),
     path("data-sources/pdf/jobs.json", views.pdf_import_jobs_json, name="pdf-import-jobs-json"),

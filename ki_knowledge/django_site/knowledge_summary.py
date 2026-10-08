@@ -17,8 +17,10 @@ from ki_knowledge.django_site.domain_paths import (
     invalidate_domain_summary_cache,
     normalize_semantic_domain,
 )
+from ki_knowledge.config_runtime import semantic_store_target
 from ki_knowledge.integrations.semantic_terms import SemanticTermStore
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
+from ki_knowledge.integrations.sql_backend import connect, json_text, ilike_operator
 
 
 def _domain_summary_cache_key(domain: str | None = None) -> str:
@@ -50,7 +52,7 @@ def _is_under_dir(path: Path, root: Path) -> bool:
 
 
 def store() -> KnowledgeStore:
-    return KnowledgeStore(settings.KNOWLEDGE_DB_PATH)
+    return KnowledgeStore(settings.KNOWLEDGE_STORE_TARGET)
 
 
 def _domain_scoped_sources(domain: str | None = None, *, limit: int | None = None) -> list[Any]:
@@ -73,8 +75,7 @@ def _domain_scoped_sources(domain: str | None = None, *, limit: int | None = Non
     if limit is not None:
         sql += " LIMIT ?"
         params.append(str(limit))
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         rows = conn.execute(sql, params).fetchall()
     store_obj = store()
     return [store_obj._row_to_source(row) for row in rows]
@@ -94,8 +95,7 @@ def domain_knowledge_summary(domain: str | None = None) -> dict[str, Any]:
         result = {"sources": 0, "records": 0, "artifacts": 0, "recent_sources": [], "recent_artifacts": []}
         _cached_set(cache_key, result)
         return result
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         source_placeholders = ",".join("?" for _ in source_ids)
         record_count = conn.execute(
             f"""
@@ -177,7 +177,7 @@ def knowledge_base_clear_domain_artifacts(domain: str | None = None) -> dict[str
     invalidate_domain_summary_cache(normalized_domain)
     if not source_ids:
         return {"domain": normalized_domain, "deleted_artifacts": 0}
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         placeholders = ",".join("?" for _ in source_ids)
         row = conn.execute(
             f"SELECT COUNT(*) FROM knowledge_artifacts WHERE source_id IN ({placeholders})",
@@ -206,7 +206,8 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
             "deleted_artifacts": 0,
             "deleted_sources": 0,
         }
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
+        source_expr = json_text("metadata_json", "source_id", conn.dialect)
         block_ids: list[str] = []
         queries: list[tuple[str, list[str]]] = []
         if source_locations:
@@ -216,7 +217,7 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
             placeholders = ",".join("?" for _ in source_ids)
             queries.append(
                 (
-                    f"SELECT id FROM knowledge_blocks WHERE json_extract(metadata_json, '$.source_id') IN ({placeholders})",
+                    f"SELECT id FROM knowledge_blocks WHERE {source_expr} IN ({placeholders})",
                     source_ids,
                 )
             )
@@ -291,7 +292,7 @@ def knowledge_base_reset_domain(domain: str | None = None) -> dict[str, Any]:
 def knowledge_base_reset_all() -> dict[str, Any]:
     for domain in (default_semantic_domain(), "default"):
         invalidate_domain_summary_cache(domain)
-    with sqlite3.connect(settings.KNOWLEDGE_DB_PATH) as conn:
+    with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
         counts = {}
         for table in (
             "knowledge_relations",
@@ -325,7 +326,7 @@ def jira_cache_db_path(domain: str | None = None) -> str:
 
 
 def semantic_store(domain: str | None = None) -> SemanticTermStore:
-    return SemanticTermStore(jira_cache_db_path(domain))
+    return SemanticTermStore(semantic_store_target(normalize_semantic_domain(domain or default_semantic_domain()), sqlite_path=jira_cache_db_path(domain)))
 
 
 def semantic_terms(status: str | None = None, limit: int = 300, domain: str | None = None):

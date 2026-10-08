@@ -3,6 +3,7 @@ import socket
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from django.db.backends.utils import CursorWrapper
@@ -19,6 +20,39 @@ from ki_knowledge.django_site import widget_catalog_preview
 
 
 LIVE_RENDER_WIDGET_DATA = page_widgets.render_widget_data
+
+
+def test_sources_browser_renders_quick_import_alongside_native_widgets(monkeypatch):
+    context = widget_catalog_preview.build_catalog_preview_context("anthro")
+    context.update({"filter_params": {}, "display": "table", "sources": []})
+    loaded = []
+
+    def load_context(ctx):
+        loaded.append(ctx["active_domain"])
+        return ctx
+
+    monkeypatch.setattr(page_widgets, "_sources_datasource_context", load_context)
+    monkeypatch.setattr(
+        "ki_knowledge.django_site.quick_import.quick_import_rows",
+        lambda domain, state, sources: [],
+    )
+    cards = page_widgets.build_sources_widget_cards(
+        request=None,
+        ctx=context,
+        widget_ids=[
+            "datasources.sources.list.v1",
+            "datasources.import.quick.v1",
+            "datasources.jobs.recent.v1",
+        ],
+    )
+    assert [card["widget_id"] for card in cards] == [
+        "datasources.sources.list.v1",
+        "datasources.import.quick.v1",
+        "datasources.jobs.recent.v1",
+    ]
+    assert loaded == ["anthro"]
+    assert "<em>anthro</em>" in cards[1]["body"]
+    assert 'action="/data-sources/quick-import/"' in cards[1]["body"]
 
 
 @pytest.fixture(autouse=True)
@@ -76,8 +110,7 @@ def test_every_registered_widget_has_domain_scoped_readonly_sample(widget_id):
     assert json.loads(json.dumps(payload)) == payload
     ReadOnlyMarkup().feed(payload["body_html"])
     expected_status = (
-        "unimplemented" if widget_id in widget_catalog_preview.UNIMPLEMENTED_WIDGETS
-        else "planned" if widget_id.startswith("infooutput.quiz.") else "sample"
+        "planned" if widget_id.startswith("infooutput.quiz.") else "sample"
     )
     assert payload["status"] == expected_status
 
@@ -98,9 +131,8 @@ def test_batch_builds_sample_context_once_and_reuses_real_renderers(monkeypatch)
     assert len(contexts) == 1
     context = contexts[0]
     overrides = {
-        *widget_catalog_preview.UNIMPLEMENTED_WIDGETS,
         "datasources.import.quick.v1", "datasources.mix.overview.v1",
-        "datasources.sources.filter.v1", "datasources.sources.list.v1",
+        "datasources.sources.list.v1",
         "datasources.sources.unimported.v1", "admin.workspace.config.v1",
         "admin.sync.hosts.v1",
     }
@@ -136,17 +168,54 @@ def test_preview_only_helpers_use_exact_templates(monkeypatch):
         return original(name, context)
 
     monkeypatch.setattr(widget_catalog_preview, "render_fragment", render)
+    monkeypatch.setattr(page_widgets, "render_fragment", render)
     ids = [
         "datasources.import.quick.v1", "datasources.mix.overview.v1",
-        "datasources.sources.filter.v1", "datasources.sources.list.v1",
-        "datasources.sources.unimported.v1", "admin.workspace.config.v1",
+        "datasources.sources.list.v1",
+        "datasources.sources.unimported.v1", "datasources.markdown.files.v1",
+        "datasources.ontology.overview.v1", "admin.workspace.config.v1",
     ]
     page_widgets.build_widget_preview_payload(widget_ids=ids, active_domain="research")
     assert [name for name, _ in fragments] == [
         "datasources_import_quick", "datasources_mix_overview",
-        "sources_filter", "sources_list", "sources_unimported", "admin_workspace_config",
+        "sources_list", "sources_unimported",
+        "datasources_markdown_files", "datasources_ontology_overview",
+        "admin_workspace_config",
     ]
     assert all("default" not in str(context) for _, context in fragments)
+
+
+def test_datasource_summary_widgets_render_distinct_domain_data_and_actions():
+    context = widget_catalog_preview.build_catalog_preview_context("research")
+    handlers = page_widgets._widget_fragment_handlers()
+
+    markdown_html = handlers["datasources.markdown.files.v1"]({
+        **context, "display_mode": "table",
+    })
+    assert "sample-guide.md" in markdown_html
+    assert 'name="import_type" value="file"' in markdown_html
+    assert "No Markdown files" not in markdown_html
+
+    ontology_html = handlers["datasources.ontology.overview.v1"](context)
+    assert "1</strong> ontology file(s)" in ontology_html
+    assert "1</strong> imported OWL source(s)" in ontology_html
+
+    discovery_html = handlers["datasources.sources.discovery.v1"](context)
+    assert "3 Markdown" in discovery_html
+    assert "2 PDF" in discovery_html
+    assert "markdown: 1" in discovery_html
+    assert "Sources:</strong> 2" not in discovery_html
+
+    jobs_html = handlers["datasources.jobs.recent.v1"](context)
+    assert "PDF queue" in jobs_html
+    assert "Jira issues" in jobs_html
+    assert "semantic jobs" not in jobs_html
+
+    datasource_ids = [
+        spec.widget_id for spec in widget_registry().values()
+        if spec.area == "datasources"
+    ]
+    assert all(widget_id in handlers for widget_id in datasource_ids)
 
 
 def test_readonly_fragment_removes_all_active_markup_and_escapes_text():
@@ -223,6 +292,45 @@ def test_domain_widgets_have_single_admin_identity():
         assert widget_by_id(old_id).area == "admin"
     assert not any(item.startswith("datasources.domain.") for item in default_widget_ids_for_area("datasources"))
     assert not any(item.startswith("datasources.domain.") for item in default_widget_ids_for_area("datasources", "workspace"))
+
+
+def test_datasource_aliases_and_defaults_only_offer_supported_widgets():
+    assert canonical_widget_id("datasources.source.list.v1") == "datasources.sources.list.v1"
+    assert widget_by_id("datasources.source.list.v1").widget_id == "datasources.sources.list.v1"
+    assert widget_by_id("datasources.ai.summary.v1") is None
+    assert "datasources.source.list.v1" not in widget_registry()
+    assert "datasources.ai.summary.v1" not in widget_registry()
+    assert "datasources.markdown.files.v1" in default_widget_ids_for_area("datasources", "workspace")
+    assert all(
+        widget_by_id(widget_id) is not None
+        for area in ("datasources",)
+        for widget_id in default_widget_ids_for_area(area)
+    )
+
+
+def test_saved_layout_drops_retired_widgets_and_resolves_source_list_alias(monkeypatch):
+    from ki_knowledge.django_site import views_common
+
+    placements = [
+        SimpleNamespace(widget_id="datasources.ai.summary.v1"),
+        SimpleNamespace(widget_id="datasources.source.list.v1"),
+        SimpleNamespace(widget_id="datasources.sources.list.v1"),
+    ]
+
+    class LayoutStore:
+        def load_layout(self, **kwargs):
+            return SimpleNamespace(exists=True, placements=placements)
+
+    monkeypatch.setattr(views_common, "_LAYOUT_STORE", LayoutStore())
+    monkeypatch.setattr(views_common, "_active_semantic_domain", lambda request: "research")
+    monkeypatch.setattr(views_common, "ensure_domain_registered", lambda domain: object())
+    request = RequestFactory().get("/")
+    request.user = SimpleNamespace(is_authenticated=False)
+    request.session = {}
+
+    assert views_common._load_dashboard_widget_ids(
+        request, area_key="datasources", fallback=[],
+    ) == ["datasources.sources.list.v1"]
 
 
 def test_catalog_counts_are_global_when_filtered(monkeypatch):

@@ -5,13 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 from ki_knowledge.integrations.jira_cache import DomainTerm
+from ki_knowledge.integrations.sql_backend import StoreTarget, connect, table_columns
 
 
 @dataclass
@@ -76,17 +76,17 @@ class ChatBackend(Protocol):
 class SemanticTermStore:
     """Stores canonical terms, enrichment jobs, immutable facts and relations."""
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_path: str | Path | StoreTarget):
+        self.target = db_path if isinstance(db_path, StoreTarget) else StoreTarget.parse(db_path, schema="semantic_default")
+        self.db_path = str(self.target.sqlite_path) if self.target.is_sqlite else self.target.safe_label()
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return connect(self.target)
 
     def _init_schema(self) -> None:
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        if self.target.is_sqlite:
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.execute(
                 """
@@ -202,10 +202,7 @@ class SemanticTermStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_semantic_jobs_status ON semantic_enrichment_jobs(status, updated_at)"
             )
-            columns = {
-                row["name"]
-                for row in conn.execute("PRAGMA table_info(semantic_enrichment_jobs)").fetchall()
-            }
+            columns = table_columns(conn, "semantic_enrichment_jobs")
             if "prompt_text" not in columns:
                 conn.execute("ALTER TABLE semantic_enrichment_jobs ADD COLUMN prompt_text TEXT")
             conn.execute(
@@ -239,7 +236,7 @@ class SemanticTermStore:
 
     def _upsert_term_with_conn(
         self,
-        conn: sqlite3.Connection,
+        conn,
         *,
         label: str,
         source: str = "domain_terms",
@@ -274,7 +271,7 @@ class SemanticTermStore:
 
     def _upsert_term_with_conn_if_missing(
         self,
-        conn: sqlite3.Connection,
+        conn,
         *,
         label: str,
         source: str,
@@ -283,7 +280,7 @@ class SemanticTermStore:
 
     def _upsert_alias(
         self,
-        conn: sqlite3.Connection,
+        conn,
         term_id: str,
         alias_label: str,
         source: str,
@@ -295,9 +292,15 @@ class SemanticTermStore:
         alias_id = f"alias:{hashlib.sha1(f'{term_id}:{normalized}'.encode('utf-8')).hexdigest()[:20]}"
         conn.execute(
             """
-            INSERT OR REPLACE INTO semantic_term_aliases (
+            INSERT INTO semantic_term_aliases (
                 alias_id, term_id, alias_label, normalized_alias, source, created_at
             ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(alias_id) DO UPDATE SET
+                term_id = excluded.term_id,
+                alias_label = excluded.alias_label,
+                normalized_alias = excluded.normalized_alias,
+                source = excluded.source,
+                created_at = excluded.created_at
             """,
             (alias_id, term_id, alias_label.strip(), normalized, source, now),
         )
@@ -328,13 +331,22 @@ class SemanticTermStore:
         with self._connect() as conn:
             conn.executemany(
                 """
-                INSERT OR REPLACE INTO semantic_term_candidates (
+                INSERT INTO semantic_term_candidates (
                     candidate_id, raw_label, normalized_label, score, issue_count,
                     sample_issue_keys_json, source_type, created_at, promoted_term_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
                     (SELECT promoted_term_id FROM semantic_term_candidates WHERE candidate_id = ?),
                     NULL
                 ))
+                ON CONFLICT(candidate_id) DO UPDATE SET
+                    raw_label = excluded.raw_label,
+                    normalized_label = excluded.normalized_label,
+                    score = excluded.score,
+                    issue_count = excluded.issue_count,
+                    sample_issue_keys_json = excluded.sample_issue_keys_json,
+                    source_type = excluded.source_type,
+                    created_at = excluded.created_at,
+                    promoted_term_id = excluded.promoted_term_id
                 """,
                 [(*row, row[0]) for row in rows],
             )
@@ -1140,7 +1152,7 @@ class SemanticTermStore:
             ],
         }
 
-    def _row_to_term(self, row: sqlite3.Row) -> SemanticTerm:
+    def _row_to_term(self, row) -> SemanticTerm:
         return SemanticTerm(
             term_id=row["term_id"],
             canonical_label=row["canonical_label"],
@@ -1151,7 +1163,7 @@ class SemanticTermStore:
             updated_at=row["updated_at"],
         )
 
-    def _row_to_fact(self, row: sqlite3.Row) -> SemanticFact:
+    def _row_to_fact(self, row) -> SemanticFact:
         return SemanticFact(
             fact_id=row["fact_id"],
             term_id=row["term_id"],
@@ -1166,7 +1178,7 @@ class SemanticTermStore:
             created_at=row["created_at"],
         )
 
-    def _row_to_job(self, row: sqlite3.Row) -> SemanticJob:
+    def _row_to_job(self, row) -> SemanticJob:
         return SemanticJob(
             job_id=row["job_id"],
             term_id=row["term_id"],
@@ -1185,7 +1197,7 @@ class SemanticTermStore:
 
     def _enqueue_job_if_absent(
         self,
-        conn: sqlite3.Connection,
+        conn,
         *,
         term_id: str,
         job_type: str,
@@ -1245,7 +1257,7 @@ class SemanticEnrichmentService:
         store: SemanticTermStore,
         backend: ChatBackend,
         model_id: str,
-        knowledge_db_path: str | None = None,
+        knowledge_db_path: str | Path | StoreTarget | None = None,
     ):
         self.store = store
         self.backend = backend

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from ki_knowledge.data_layout import MARKDOWN, PDF, DataLayout
-from ki_knowledge.data_layout_migration import apply_plan, plan_v1_to_v2
+from ki_knowledge.data_layout_migration import apply_plan, plan_migration, plan_v1_to_v2
 
 
 @pytest.fixture
@@ -35,9 +35,12 @@ def v1_root(tmp_path):
     (root / "django.sqlite3").write_bytes(b"")
 
     with sqlite3.connect(root / ".pdf_import_jobs.sqlite") as conn:
-        conn.execute("CREATE TABLE pdf_import_jobs (job_id TEXT, pdf_path TEXT)")
-        conn.execute("INSERT INTO pdf_import_jobs VALUES ('1', ?)", (str(root / "pdf" / "Anthro" / "b.pdf"),))
-        conn.execute("INSERT INTO pdf_import_jobs VALUES ('2', '/elsewhere/c.pdf')")
+        conn.execute("CREATE TABLE pdf_import_jobs (job_id TEXT, pdf_path TEXT, result_json TEXT)")
+        conn.execute(
+            "INSERT INTO pdf_import_jobs (job_id, pdf_path) VALUES ('1', ?)",
+            (str(root / "pdf" / "Anthro" / "b.pdf"),),
+        )
+        conn.execute("INSERT INTO pdf_import_jobs (job_id, pdf_path) VALUES ('2', '/elsewhere/c.pdf')")
     home.mkdir(parents=True)
     (home / "pipeline_jobs.db").write_bytes(b"")
     return root, home, cloud
@@ -123,3 +126,128 @@ def test_relative_symlink_is_recreated_absolute(tmp_path):
     link = DataLayout(root).source_dir(MARKDOWN, "politik")
     assert link.is_symlink()
     assert link.resolve() == (tmp_path / "shared" / "politik").resolve()
+
+
+def test_v1_to_v3_moves_to_direct_domain_roots_and_rewrites_json_paths(v1_root):
+    root, home, _ = v1_root
+    old_source = root / "md" / "human-design" / "prompt-library" / "p.md"
+    with sqlite3.connect(root / "knowledge.db") as conn:
+        conn.execute("CREATE TABLE knowledge_sources (location TEXT, metadata_json TEXT)")
+        conn.execute(
+            "INSERT INTO knowledge_sources VALUES (?, ?)",
+            (
+                str(old_source),
+                json.dumps({"provenance": {"source_path": str(old_source)}}),
+            ),
+        )
+        conn.execute("CREATE TABLE knowledge_blocks (source_path TEXT, metadata_json TEXT)")
+        conn.execute(
+            "INSERT INTO knowledge_blocks VALUES (?, ?)",
+            (str(old_source), json.dumps({"source_document": str(old_source)})),
+        )
+        conn.execute("CREATE TABLE knowledge_artifacts (content TEXT)")
+        conn.execute(
+            "INSERT INTO knowledge_artifacts VALUES (?)",
+            (f"Imported from {old_source} for review.",),
+        )
+    with sqlite3.connect(home / "pipeline_jobs.db") as conn:
+        conn.execute("CREATE TABLE distributed_sync_jobs (payload_json TEXT)")
+        conn.execute(
+            "INSERT INTO distributed_sync_jobs VALUES (?)",
+            (json.dumps({"source_directory": str(old_source.parent)}),),
+        )
+
+    plan = plan_migration(root, home_state_dir=home)
+
+    assert plan.ok, plan.conflicts
+    assert plan.target_version == 3
+    assert plan.db_rows_to_rewrite == {
+        "knowledge_blocks.metadata_json": 1,
+        "knowledge_blocks.source_path": 1,
+        "knowledge_artifacts.content": 1,
+        "knowledge_sources.location": 1,
+        "knowledge_sources.metadata_json": 1,
+        "pdf_import_jobs.pdf_path": 1,
+        "distributed_sync_jobs.payload_json": 1,
+    }
+    result = apply_plan(plan)
+
+    layout = DataLayout(root)
+    assert layout.version == 3
+    assert not (root / "domains").exists()
+    assert not (root / "md").exists()
+    assert (layout.source_dir(MARKDOWN, "human-design", "prompt-library", "p.md")).exists()
+    assert (layout.source_dir(PDF, "anthro", "b.pdf")).exists()
+    assert (layout.source_dir("jira", "human-design", "issues.csv")).exists()
+    assert (layout.domain_state_dir("human-design") / "cache.sqlite").exists()
+    assert (layout.output_dir("anthro", "sstk", "index.md")).exists()
+    with sqlite3.connect(layout.knowledge_db_path()) as conn:
+        source_path, metadata = conn.execute("SELECT location, metadata_json FROM knowledge_sources").fetchone()
+        block_path, block_metadata = conn.execute("SELECT source_path, metadata_json FROM knowledge_blocks").fetchone()
+    expected = str(layout.source_dir(MARKDOWN, "human-design", "prompt-library", "p.md"))
+    assert source_path == expected and block_path == expected
+    assert json.loads(metadata)["provenance"]["source_path"] == expected
+    assert json.loads(block_metadata)["source_document"] == expected
+    with sqlite3.connect(layout.knowledge_db_path()) as conn:
+        artifact_content = conn.execute("SELECT content FROM knowledge_artifacts").fetchone()[0]
+    assert artifact_content == f"Imported from {expected} for review."
+    with sqlite3.connect(layout.pipeline_jobs_db_path()) as conn:
+        sync_payload = json.loads(conn.execute("SELECT payload_json FROM distributed_sync_jobs").fetchone()[0])
+    assert sync_payload["source_directory"] == str(layout.source_dir(MARKDOWN, "human-design", "prompt-library"))
+    assert result.db_rows_rewritten == plan.db_rows_to_rewrite
+
+
+def test_v2_to_v3_flattens_domain_sources_and_rewrites_paths(tmp_path):
+    root = tmp_path / "data-v2"
+    old_source = root / "domains" / "anthro" / "sources" / "md" / "book" / "a.md"
+    old_source.parent.mkdir(parents=True)
+    old_source.write_text("# A")
+    (root / ".layout-version").write_text("2\n")
+    (root / "domains" / "anthro" / "sources" / "pdf").mkdir()
+    (root / "domains" / "anthro" / "derived").mkdir()
+    (root / "domains" / "anthro" / "output").mkdir()
+    (root / "system").mkdir()
+    with sqlite3.connect(root / "system" / "knowledge.db") as conn:
+        conn.execute("CREATE TABLE knowledge_blocks (source_path TEXT, metadata_json TEXT)")
+        conn.execute("INSERT INTO knowledge_blocks VALUES (?, '{}')", (str(old_source),))
+
+    plan = plan_migration(root)
+    assert plan.ok, plan.conflicts
+    assert plan.db_rows_to_rewrite == {"knowledge_blocks.source_path": 1}
+    apply_plan(plan)
+
+    layout = DataLayout(root)
+    new_source = layout.source_dir(MARKDOWN, "anthro", "book", "a.md")
+    assert layout.version == 3
+    assert new_source.read_text() == "# A"
+    assert (layout.source_dir(PDF, "anthro")).is_dir()
+    assert (layout.domain_state_dir("anthro")).is_dir()
+    assert layout.output_dir("anthro").is_dir()
+    with sqlite3.connect(layout.knowledge_db_path()) as conn:
+        assert conn.execute("SELECT source_path FROM knowledge_blocks").fetchone()[0] == str(new_source)
+
+
+def test_migration_blocks_relative_links_that_escape_moved_tree(tmp_path):
+    root = tmp_path / "data"
+    tree = root / "md" / "anthro"
+    tree.mkdir(parents=True)
+    (root / "outside").mkdir()
+    (tree / "external").symlink_to(Path("../../../outside"), target_is_directory=True)
+
+    plan = plan_migration(root)
+
+    assert not plan.ok
+    assert any("escapes moved tree" in conflict for conflict in plan.conflicts)
+    with pytest.raises(RuntimeError, match="conflicts"):
+        apply_plan(plan)
+    assert (tree / "external").is_symlink()
+
+
+def test_migration_rejects_reserved_domain_name(tmp_path):
+    root = tmp_path / "data"
+    (root / "md" / "system").mkdir(parents=True)
+
+    plan = plan_migration(root)
+
+    assert not plan.ok
+    assert any("reserved" in conflict for conflict in plan.conflicts)

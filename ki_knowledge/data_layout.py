@@ -5,7 +5,7 @@ on-disk structure can be changed in one place. Nothing else should build paths
 such as ``data_root / "md" / domain``.
 
 The layout version is stored in ``<root>/.layout-version``; a root without
-that file uses v1. ``python manage.py migrate_data_layout`` converts v1 to v2.
+that file uses v1. ``python manage.py migrate_data_layout`` converts older layouts to v3.
 
 v2 (domain first)::
 
@@ -29,6 +29,21 @@ v2 (domain first)::
         block_store.db                   store of InfoSiteBlockStorage
       archive/                           unexpected files found by the migration
 
+v3 (direct domain roots)::
+
+    <root>/
+      .layout-version                    "3"
+      <domain>/
+        md/<working_title>/...           Markdown sources
+        pdf/                             PDF sources
+        jira/                            Jira CSVs
+        owl/                             ontology sources
+        mix/                             mixed formats
+        derived/                         cache.sqlite, graph.sqlite, graph.cypher
+        output/<working_title>/          generated output
+      system/                            Global state databases
+      archive/                           Archived unexpected files
+
 v1 (source type first, legacy)::
 
     <root>/
@@ -42,7 +57,7 @@ v1 (source type first, legacy)::
     ~/.ki-knowledge/pipeline_jobs.db, ~/.ki-knowledge/knowledge.db
 
 ``KNOWLEDGE_*_ROOT`` env overrides keep the ``<override>/<domain>/`` form in
-both versions.
+all versions.
 """
 
 from __future__ import annotations
@@ -55,10 +70,10 @@ from typing import TYPE_CHECKING, NamedTuple
 if TYPE_CHECKING:
     from ki_knowledge.app_config import AppConfig
 
-LAYOUT_VERSION = 2
+LAYOUT_VERSION = 3
 """Newest layout version; roots without a version file are treated as v1."""
 LAYOUT_VERSION_FILE = ".layout-version"
-SUPPORTED_LAYOUT_VERSIONS = (1, 2)
+SUPPORTED_LAYOUT_VERSIONS = (1, 2, 3)
 
 MARKDOWN = "markdown"
 PDF = "pdf"
@@ -92,6 +107,10 @@ _ARCHIVE_DIR = "archive"
 _SOURCES_DIR = "sources"
 _DERIVED_DIR = "derived"
 _DOMAIN_OUTPUT_DIR = "output"
+_V3_RESERVED_ROOT_DIRS = frozenset({
+    _DOMAINS_DIR, _SYSTEM_DIR, _ARCHIVE_DIR, _V1_OUTPUT_DIR,
+    *_SOURCE_TYPE_DIRS.values(), _SOURCES_DIR, _DERIVED_DIR, _DOMAIN_OUTPUT_DIR, "rdf",
+})
 
 # Global state files as (v1 path relative to the root, v2 name inside system/).
 _GLOBAL_FILES: dict[str, tuple[str, str]] = {
@@ -250,6 +269,10 @@ class DataLayout:
     def is_domain_first(self) -> bool:
         return self.version >= 2
 
+    @property
+    def is_direct_domain(self) -> bool:
+        return self.version >= 3
+
     def version_file(self) -> Path:
         return self.root / LAYOUT_VERSION_FILE
 
@@ -257,15 +280,28 @@ class DataLayout:
 
     def domains_root(self) -> Path:
         """``<root>/domains`` (v2 only)."""
-        self._require_domain_first("domains_root")
+        if self.version != 2:
+            raise LayoutError(f"domains_root requires layout v2 (root {self.root} is v{self.version})")
         return self.root / _DOMAINS_DIR
 
     def domain_root(self, domain: str) -> Path:
-        """``<root>/domains/<domain>`` (v2 only)."""
+        """Domain directory (``<root>/domains/<domain>`` in v2, ``<root>/<domain>`` in v3)."""
+        if self.is_direct_domain:
+            return self.root / domain
         return self.domains_root() / domain
 
     def domain_names(self) -> list[str]:
         """Directory names of every domain that has sources or derived state."""
+        if self.is_direct_domain:
+            names = {
+                child.name
+                for child in self.root.iterdir()
+                if child.is_dir() and child.name.casefold() not in _V3_RESERVED_ROOT_DIRS
+            } if self.root.is_dir() else set()
+            for source_type in SOURCE_TYPES:
+                if source_type in self.type_root_overrides:
+                    names.update(self.source_domain_names(source_type))
+            return sorted(names)
         names: set[str] = set(self.state_domain_names())
         for source_type in SOURCE_TYPES:
             names.update(self.source_domain_names(source_type))
@@ -283,10 +319,17 @@ class DataLayout:
             return None
         return self.root / _SOURCE_TYPE_DIRS[canonical]
 
+    def domain_root_for_source(self, source_type: str, domain: str) -> Path:
+        """Return the v3 source-type root, or the v2 per-domain source path."""
+        if self.is_direct_domain:
+            return self.domain_root(domain) / source_type_dir_name(source_type)
+        return self.domain_root(domain).joinpath(_SOURCES_DIR, source_type_dir_name(source_type))
+
     def source_type_root(self, source_type: str) -> Path:
         """Common parent of all domains' sources of one type.
 
-        Only exists in v1 or for overridden types; v2 raises :class:`LayoutError`.
+        Only exists in v1 or for overridden types; domain-first layouts raise
+        :class:`LayoutError`.
         """
         base = self._source_base(source_type)
         if base is None:
@@ -296,10 +339,12 @@ class DataLayout:
     def source_domain_names(self, source_type: str) -> list[str]:
         """Existing domain directory names that can hold sources of a type.
 
-        In v2 every domain directory qualifies, so callers matching a domain
-        name case-insensitively find the shared domain folder.
+        In domain-first layouts every domain directory qualifies, so callers
+        matching a domain name case-insensitively find the shared domain folder.
         """
         base = self._source_base(source_type)
+        if self.is_direct_domain and canonical_source_type(source_type) not in self.type_root_overrides:
+            return self.domain_names()
         if base is None:
             return _child_dir_names(self.domains_root())
         return _child_dir_names(base)
@@ -308,7 +353,7 @@ class DataLayout:
         """Directory of one domain's sources of a type (+ optional sub path)."""
         base = self._source_base(source_type)
         if base is None:
-            return self.domain_root(domain).joinpath(_SOURCES_DIR, source_type_dir_name(source_type), *parts)
+            return self.domain_root_for_source(source_type, domain).joinpath(*parts)
         return base.joinpath(domain, *parts)
 
     def locate_source(self, path: str | Path) -> SourceLocation | None:
@@ -340,8 +385,10 @@ class DataLayout:
 
     def state_domain_names(self) -> list[str]:
         """Existing domain directory names that can hold derived state."""
-        if self.is_domain_first:
+        if self.version == 2:
             return _child_dir_names(self.domains_root())
+        if self.is_direct_domain:
+            return self.domain_names()
         return _child_dir_names(self.source_type_root(JIRA))
 
     def domain_state_dir(self, domain: str) -> Path:
@@ -349,7 +396,9 @@ class DataLayout:
 
         v1 keeps them next to the Jira CSVs in ``jira/<domain>/``.
         """
-        if self.is_domain_first:
+        if self.version == 2:
+            return self.domain_root(domain) / _DERIVED_DIR
+        if self.is_direct_domain:
             return self.domain_root(domain) / _DERIVED_DIR
         return self.source_type_root(JIRA) / domain
 
@@ -363,6 +412,11 @@ class DataLayout:
     def output_relative(self, path: str | Path) -> Path | None:
         """``<domain>/<rest>`` for a generated file, or ``None`` outside the output tree."""
         candidate = Path(path).expanduser()
+        if self.is_direct_domain:
+            relative = _relative_parts(candidate, self.root)
+            if relative and len(relative) >= 2 and relative[0].casefold() not in _V3_RESERVED_ROOT_DIRS and relative[1] == _DOMAIN_OUTPUT_DIR:
+                return Path(relative[0], *relative[2:])
+            return None
         if self.is_domain_first:
             parts = _relative_parts(candidate, self.domains_root())
             if parts and len(parts) >= 2 and parts[1] == _DOMAIN_OUTPUT_DIR:
@@ -432,9 +486,16 @@ class DataLayout:
         """Shorten a root-relative path for the UI.
 
         Markdown sources are shown as ``<domain>/<working_title>/...``; other
-        per-domain paths as ``<domain>/<kind>/...`` in v2.
+        per-domain paths as ``<domain>/<kind>/...`` in domain-first layouts.
         """
         parts = relative.parts
+        if self.is_direct_domain:
+            if len(parts) < 2 or parts[0].casefold() in _V3_RESERVED_ROOT_DIRS:
+                return relative
+            domain, rest = parts[0], parts[1:]
+            if rest and rest[0] == _SOURCE_TYPE_DIRS[MARKDOWN]:
+                return Path(domain, *rest[1:])
+            return Path(domain, *rest)
         if self.is_domain_first:
             if len(parts) < 2 or parts[0] != _DOMAINS_DIR:
                 return relative
@@ -451,7 +512,7 @@ class DataLayout:
 
     def _require_domain_first(self, what: str) -> None:
         if not self.is_domain_first:
-            raise LayoutError(f"{what} requires layout v2 (root {self.root} is v{self.version})")
+            raise LayoutError(f"{what} requires a domain-first layout (root {self.root} is v{self.version})")
 
 
 __all__ = [

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import config as runtime_config, knowledge_data_root, knowledge_db_path
+from ki_knowledge.config_runtime import config as runtime_config, knowledge_data_root, knowledge_db_path, knowledge_store_target
 from ki_knowledge.data_layout import DataLayout
 
 
@@ -13,9 +13,15 @@ _CONFIG = runtime_config()
 DATA_DIR = knowledge_data_root(_CONFIG)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 KNOWLEDGE_DB_PATH = str(knowledge_db_path(_CONFIG))
+KNOWLEDGE_STORE_TARGET = knowledge_store_target(_CONFIG)
 DJANGO_DB_PATH = os.getenv("DJANGO_DB_PATH", str(DataLayout(DATA_DIR).django_db_path()))
 for _db_path in (KNOWLEDGE_DB_PATH, DJANGO_DB_PATH):
     Path(_db_path).parent.mkdir(parents=True, exist_ok=True)
+
+POSTGRES_DSN = (
+    os.getenv("KI_KNOWLEDGE_POSTGRES_DSN", "").strip()
+    or getattr(_CONFIG, "distributed_postgres_dsn", "").strip()
+)
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-ki-knowledge-site")
 DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes"}
@@ -48,6 +54,8 @@ INSTALLED_APPS = [
     "modelcluster",
     "taggit",
 ]
+if POSTGRES_DSN:
+    INSTALLED_APPS.append("django.contrib.postgres")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -70,14 +78,13 @@ DATABASES = {
     }
 }
 
-POSTGRES_DSN = (
-    os.getenv("KI_KNOWLEDGE_POSTGRES_DSN", "").strip()
-    or getattr(_CONFIG, "distributed_postgres_dsn", "").strip()
-)
 if POSTGRES_DSN:
     import dj_database_url
 
     DATABASES["default"] = dj_database_url.parse(POSTGRES_DSN, conn_max_age=600)
+    # Read-only source for `migrate_django_db_to_postgres`; never written to.
+    if Path(DJANGO_DB_PATH).is_file():
+        DATABASES["sqlite_legacy"] = {"ENGINE": "django.db.backends.sqlite3", "NAME": DJANGO_DB_PATH}
 
 # Default dev cache: safe local caching for repeated dashboard metadata and
 # template fragments without requiring an external cache service.

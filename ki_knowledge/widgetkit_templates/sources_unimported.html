@@ -1,67 +1,35 @@
 <div id="sources-unimported">
 {% if not pending.total %}
-  <p>✅ Alle Dateien der Domain sind importiert.</p>
+  <p>Keine Dateien für den Sammelimport offen. Nicht unterstützte Dateien und der separate Jira-Workflow stehen in der Quellenliste.</p>
 {% else %}
   <div class="sb-unimported-head">
     <span>{{ pending.new }} neu{% if pending.total > pending.new %}, {{ pending.total - pending.new }} in Warteschlange/fehlgeschlagen{% endif %}</span>
     {% if pending.new %}
     <form method="post" action="{{ action_url }}">
       {{ hidden|safe }}
-      <label>Bildverarbeitung
-        <select name="image_processing">
-          <option value="ocr" selected>Bildobjekt + OCR-Text</option>
-          <option value="asset">Nur Bildobjekt</option>
-        </select>
-      </label>
-      <button type="submit" name="action" value="import_all">⚡ Alle {{ pending.new }} neuen importieren</button>
+      <input type="hidden" name="image_processing" value="ocr">
+      <button type="submit" name="action" value="import_all">⚡ Alle neuen importieren</button>
     </form>
     {% endif %}
   </div>
+  <ul class="sb-files">
   {% for group in pending.folders %}
-    <details class="sb-folder"{% if loop.first %} open{% endif %}>
-      <summary><strong>{{ group.key }}/</strong> – {{ group.files|length }} Datei(en){% if group.new %} ({{ group.new }} neu){% endif %}</summary>
-      {% if group.new > 1 %}
+    <li>
+      <strong><a href="{{ base_url }}?status=new&folder={{ group.key }}">{{ group.key }}/</a></strong>
+      – {{ group.files|length }} offen{% if group.new %}, <a href="{{ base_url }}?status=new&folder={{ group.key }}">{{ group.new }} neu</a>{% endif %}
+      {% set failed = group.files|selectattr('status', 'equalto', 'failed')|list|length %}
+      {% if failed %} · <a href="{{ base_url }}?status=failed&folder={{ group.key }}">{{ failed }} fehlgeschlagen</a>{% endif %}
+      {% if group.new %}
       <form method="post" action="{{ action_url }}" class="sb-folder__all">
         {{ hidden|safe }}
         <input type="hidden" name="folder" value="{{ group.key }}">
-        <label>Bildverarbeitung
-          <select name="image_processing">
-            <option value="ocr" selected>Bildobjekt + OCR-Text</option>
-            <option value="asset">Nur Bildobjekt</option>
-          </select>
-        </label>
-        <button type="submit" name="action" value="import_all">{{ group.key }}/ komplett importieren</button>
+        <input type="hidden" name="image_processing" value="ocr">
+        <button type="submit" name="action" value="import_all">{{ group.key }}/ neue importieren</button>
       </form>
       {% endif %}
-      <ul class="sb-files">
-        {% for item in group.files[:max_files] %}
-          <li>
-            <span>{{ item.icon }}</span>
-            <span class="mono sb-origin" title="{{ item.relative }}">{{ item.relative }}</span>
-            {% if item.status == 'queued' %}<span class="badge badge-warning">in Warteschlange</span>
-            {% elif item.status == 'failed' %}<span class="badge badge-danger" title="{{ item.error }}">fehlgeschlagen</span>{% endif %}
-            {% if item.status != 'queued' %}
-            <form method="post" action="{{ action_url }}">
-              {{ hidden|safe }}
-              <input type="hidden" name="folder" value="{{ item.folder }}">
-              <input type="hidden" name="file" value="{{ item.relative }}">
-              {% if item.kind == 'image' %}
-              <label>Bildverarbeitung
-                <select name="image_processing">
-                  <option value="ocr" selected>Bildobjekt + OCR-Text</option>
-                  <option value="asset">Nur Bildobjekt</option>
-                </select>
-              </label>
-              {% else %}<input type="hidden" name="image_processing" value="asset">{% endif %}
-              <button type="submit" name="action" value="import_file">{% if item.status == 'failed' %}Erneut{% else %}Importieren{% endif %}</button>
-            </form>
-            {% endif %}
-          </li>
-        {% endfor %}
-        {% if group.files|length > max_files %}<li class="muted">… und {{ group.files|length - max_files }} weitere</li>{% endif %}
-      </ul>
-    </details>
+    </li>
   {% endfor %}
+  </ul>
   {% if ocr_missing %}<p class="muted">OCR ist hier nicht verfügbar. Bilder können weiterhin als Bildobjekte übernommen werden; Hinweise zur Systemkonfiguration stehen in der Dokumentation.</p>{% endif %}
 {% endif %}
 </div>

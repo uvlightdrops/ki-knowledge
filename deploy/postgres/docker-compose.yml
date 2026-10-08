@@ -1,0 +1,49 @@
+# Local/master PostgreSQL for ki-knowledge (pgvector enabled).
+# Usage: cp .env.example .env, set a password, then `docker compose up -d`.
+# Table browser: `docker compose --profile tools up -d pgadmin` -> http://127.0.0.1:5050
+name: ki-knowledge-db
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KI_PG_DB:-ki_knowledge}
+      POSTGRES_USER: ${KI_PG_USER:-ki_knowledge}
+      POSTGRES_PASSWORD: ${KI_PG_PASSWORD:?set KI_PG_PASSWORD in .env}
+    ports:
+      - "${KI_PG_BIND:-127.0.0.1}:${KI_PG_PORT:-5432}:5432"
+    volumes:
+      - ${KI_PG_DATA_DIR:?set KI_PG_DATA_DIR in .env}:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Optional web UI, single-user desktop mode, reachable from this host only.
+  pgadmin:
+    image: dpage/pgadmin4:9
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: unused-in-desktop-mode
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+      KI_PGPASS_LINE: "postgres:5432:*:${KI_PG_USER:-ki_knowledge}:${KI_PG_PASSWORD:?set KI_PG_PASSWORD in .env}"
+    # libpq ignores group/world-readable pgpass files, so write it inside the container.
+    entrypoint: ["/bin/sh", "-c", "umask 077 && printf '%s\\n' \"$$KI_PGPASS_LINE\" > /var/lib/pgadmin/pgpass && exec /entrypoint.sh"]
+    ports:
+      - "127.0.0.1:${KI_PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+
+volumes:
+  pgadmin-data:

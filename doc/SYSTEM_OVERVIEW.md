@@ -1,5 +1,8 @@
 # Ki-Knowledge System Overview
 
+> For the Data Sources interaction model and intake workflow, use the leading
+> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+
 **Letzte Aktualisierung:** 2026-09-02  
 **Status:** Architecture Review & Refactoring
 
@@ -47,9 +50,8 @@
 │  │    DATA & STORAGE LAYER              │                     │
 │  ├──────────────────────────────────────┤                     │
 │  │ Filesystem:                          │                     │
-│  │ • md/<domain>/<working_title>/       │                     │
-│  │ • data_out/<domain>/<working_title>/ │                     │
-│  │ • pdf/<domain>/                      │                     │
+│  │ • <domain>/{md,pdf,jira,owl,mix}/    │                     │
+│  │ • <domain>/output/<working_title>/   │                     │
 │  │                                      │                     │
 │  │ Databases:                           │                     │
 │  │ • Django DB (SQLite)                 │                     │
@@ -185,10 +187,10 @@ gespeichert und als erstes `SourceDocument` registriert; das Projekt ist danach 
 
 **Purpose:** Generate browsable, markdown-based knowledge presentations
 
-**Input:** Source documents from `md/<domain>/<working_title>/`, abstracted behind a canonical
+**Input:** Source documents from `<domain>/md/<working_title>/` in the current layout, abstracted behind a canonical
 `DataSource`/`InfoSiteSourceAdapter` layer (`ki_knowledge/knowledge/adapters.py`) so markdown, PDF,
 and future source kinds share one discovery/import/path-resolution implementation.
-**Output:** Structured markdown in `data_out/<domain>/<working_title>/`
+**Output:** Structured markdown in `<domain>/output/<working_title>/` in the current layout
 
 **Phases (completed, in migration order):**
 
@@ -284,7 +286,7 @@ separate application flows that happen to share storage plumbing.
 
 ```
 1. SOURCE DOCUMENT
-   └── md/<domain>/<working_title>/*.md
+   └── <domain>/md/<working_title>/*.md
        or PDF, Jira issue, etc.
 
 2. DISCOVERY SERVICE
@@ -375,7 +377,7 @@ InfoSiteProject
 ├── title
 ├── domain
 ├── description
-├── source_directory          # Path to md/<domain>/<working_title>/
+├── source_directory          # Path to <domain>/md/<working_title>/ (layout v3)
 ├── enabled
 ├── last_generated
 ├── created_at / updated_at
@@ -458,34 +460,38 @@ names; use `DataLayout.from_config(cfg)` (honours `KNOWLEDGE_*_ROOT` /
 `ki_knowledge.django_site.domain_paths.data_layout()`.
 
 The layout version is read from `<data_root>/.layout-version` (missing = v1).
-
-**v2 – domain first (current target):**
+**v3 – direct domain roots (current target):**
 
 | Path | Content |
 |------|---------|
-| `domains/<domain>/sources/md/<working_title>/` | Markdown sources (may be a symlink, e.g. into a cloud folder) |
-| `domains/<domain>/sources/{pdf,jira,owl}/` | PDF, Jira CSV and ontology sources |
-| `domains/<domain>/sources/mix/` | Mixed formats (PDF, tables, images/OCR, md, owl), see below |
-| `domains/<domain>/derived/` | Per-domain DBs (`cache.sqlite`, `graph.sqlite`, `graph.cypher`) |
-| `domains/<domain>/output/<working_title>/` | Generated InfoSite output |
+| `<domain>/md/<working_title>/` | Markdown sources (may be a symlink, e.g. into a cloud folder) |
+| `<domain>/{pdf,jira,owl}/` | PDF, Jira CSV and ontology sources |
+| `<domain>/mix/` | Mixed formats (PDF, tables, images/OCR, md, owl), see below |
+| `<domain>/derived/` | Per-domain DBs (`cache.sqlite`, `graph.sqlite`, `graph.cypher`) |
+| `<domain>/output/<working_title>/` | Generated InfoSite output |
 | `system/` | `knowledge.db`, `django.sqlite3`, `pdf_import_jobs.sqlite`, `pipeline_jobs.db`, `block_store.db`, global Jira DBs, migration journal |
-| `archive/` | Unexpected files found during migration |
+| `archive/` | Unexpected files found during migration; reserved at the root |
+
+**v2 – nested domain roots (legacy supported):** `domains/<domain>/sources/{md,pdf,jira,owl,mix}/`,
+with `derived/`, `output/` and global databases in `system/`.
 
 **v1 – source type first (legacy):** `md/<domain>/`, `pdf/<domain>/`,
 `jira/<domain>/` (CSV + derived DBs), `owl/<domain>/`, `data_out/<domain>/`,
 global DBs in the root, pipeline jobs and block store in `~/.ki-knowledge/`.
 
-**Migration v1 → v2:** `python manage.py migrate_data_layout` prints the plan
-(dry run); `--apply` executes it. Stop the dev server and job workers first.
-The whole plan is checked for conflicts before anything moves; symlinked
-domain folders are moved as links (targets untouched); stored absolute paths
-in the PDF job queue and the InfoSite tables are rewritten; every step is
-logged to `system/layout-migration.jsonl`.
+**Migration to v3:** `python manage.py migrate_data_layout` prints a read-only
+plan; `--target-version 2` selects the compatibility layout. Applying requires
+`--apply --confirm-services-stopped` after the dev server and all workers have
+been stopped. The planner blocks destination collisions, reserved domain names,
+unsafe relative symlinks, external source-root/database overrides and
+non-SQLite Django databases. It rewrites stored paths in PDF jobs, InfoSite
+records, and the knowledge store (including JSON provenance), and journals
+every executed step to `system/layout-migration.jsonl`.
 
 `DataLayout.locate_source()` / `domain_paths.infer_domain_from_path()` map a
 file back to its domain, including files reached through symlinked folders.
 
-**Mixed sources (`sources/mix/`):** a folder (typically a symlink into a cloud
+**Mixed sources (`<domain>/mix/`):** a folder (typically a symlink into a cloud
 folder) with arbitrary formats. `integrations/mixed_ingest.py` classifies files
 by extension and converts them to markdown:
 
@@ -557,7 +563,7 @@ and the import workflow (discover → select → import).
 ### Phase 2: Generation & Versioning ✅ Done
 
 `InfoSiteGenerator` is wired into the web UI (`infosite_generate`/`infosite_preview`/`infosite_versions`
-views); output lands in `data_out/<domain>/<working_title>/` with version tracking.
+views); output lands in `<domain>/output/<working_title>/` with version tracking.
 
 ### Phase 3: AI Refinement ✅ Done
 

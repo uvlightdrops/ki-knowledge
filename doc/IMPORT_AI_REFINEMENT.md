@@ -1,5 +1,10 @@
 # 📥 Import & AI Refinement - Django Site Feature
 
+> Leitendes Dokument für Quellenaufnahme und UI:
+> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+> Diese Seite beschreibt projektspezifische InfoSite-Aktionen, keine zweite
+> allgemeine Quellenverwaltung.
+
 ## Overview
 
 Der Django Site wurde um zwei mächtige Features erweitert:

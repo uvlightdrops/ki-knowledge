@@ -1,5 +1,10 @@
 # Knowledge Blocks
 
+> Source intake and UI are defined in
+> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+> Block extraction is downstream of discovery and import; structural parsing
+> alone does not constitute semantic understanding.
+
 ## Zweck
 
 Dieses Modul extrahiert hierarchische Elemente aus Markdown-Dateien und speichert sie als einzelne Wissensbausteine.
@@ -59,3 +64,13 @@ Zusätzlich gibt es:
 - eine Streamlit-Oberfläche für Source-/Record-/Artifact-Inspektion
 - Graph-Visualisierung
 - eine FastAPI unter `/api/knowledge/...`
+
+## Leitlinien für Review und Kuratierung
+
+Hintergrund und Abwägung: [Wissen semantische Blocks workflow](md/Wissen%20semantische%20Blocks%20workflow.md) (externe Einschätzung, archiviert).
+
+- Die Extraktion (OCR, Segmentierung, LLM) läuft asynchron in den bestehenden Job-Queues; die UI zeigt nur Status und Ergebnis.
+- Ein Buch hat eine natürliche Hierarchie (Buch → Kapitel → Unterkapitel → Blöcke). Sie wird als eigenes Strukturmodell gespeichert, nicht als Wagtail-Seitenbaum, damit Inhaltsverzeichnisse vergleichbar bleiben.
+- Blöcke sind einzelne Datensätze (`KnowledgeBlockRecord`) mit `block_type` (z. B. Definition, Argumentation, Beispiel), Reihenfolge und Herkunft (Seite/Position), keine Wagtail-Seiten und kein StreamField.
+- Human-in-the-loop: Redakteure prüfen extrahierte Blöcke, fassen sie zusammen, teilen, verschieben, korrigieren und geben sie frei. Wagtail-Workflow greift auf Buch-/Kapitelebene, pro Block genügt ein Review-Status.
+- Embeddings können nach der PostgreSQL-Umstellung mit pgvector direkt beim Block liegen.

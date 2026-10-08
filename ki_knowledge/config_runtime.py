@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.data_layout import JIRA, DataLayout
+from ki_knowledge.integrations.sql_backend import StoreTarget, backend_forced_sqlite, normalized_schema
 
 
 def config() -> Config:
@@ -63,3 +64,40 @@ def jira_graph_db_path(cfg: Config | None = None) -> Path:
     if resolved.knowledge_graph_db:
         return Path(resolved.knowledge_graph_db).expanduser()
     return DataLayout.from_config(resolved).global_jira_graph_db_path()
+
+
+def _postgres_dsn(cfg: Config | None = None) -> str:
+    resolved = cfg or config()
+    return (
+        os.getenv("KI_KNOWLEDGE_POSTGRES_DSN", "").strip()
+        or getattr(resolved, "distributed_postgres_dsn", "").strip()
+    )
+
+
+def knowledge_store_target(cfg: Config | None = None) -> StoreTarget:
+    dsn = _postgres_dsn(cfg)
+    if dsn and not backend_forced_sqlite():
+        return StoreTarget.postgres(dsn, schema="knowledge")
+    return StoreTarget.sqlite(knowledge_db_path(cfg))
+
+
+def semantic_store_target(
+    domain: str | None = None,
+    cfg: Config | None = None,
+    *,
+    sqlite_path: str | Path | None = None,
+) -> StoreTarget:
+    """PostgreSQL schema ``semantic_<domain>`` or the domain's SQLite cache file.
+
+    Callers pass an already resolved domain and, for SQLite, the path from their
+    domain-aware cache resolution (env overrides, legacy paths).
+    """
+    dsn = _postgres_dsn(cfg)
+    resolved_domain = domain or "default"
+    if dsn and not backend_forced_sqlite():
+        return StoreTarget.postgres(dsn, schema=normalized_schema("semantic_", resolved_domain))
+    if sqlite_path is not None:
+        return StoreTarget.sqlite(Path(sqlite_path))
+    if resolved_domain == "default":
+        return StoreTarget.sqlite(jira_cache_db_path(cfg))
+    return StoreTarget.sqlite(DataLayout.from_config(cfg).domain_state_dir(resolved_domain) / "cache.sqlite")

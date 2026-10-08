@@ -1,5 +1,9 @@
 # Content-Modell-Matrix
 
+> Leitendes Dokument für die Quellen-UI und den Aufnahmeprozess:
+> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+> Diese Matrix ergänzt es um Datenmodelle und Zuständigkeiten.
+
 > Voraussetzung: [`content-model-matrix-intro.md`](./content-model-matrix-intro.md)
 > (Zweck, Dimensionen, "Spiegeln statt Duplizieren"-Prinzip).
 >

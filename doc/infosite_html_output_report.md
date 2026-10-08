@@ -15,7 +15,7 @@ The InfoSite workflow needed a way to preview the generated project as a simple 
 ## Output structure
 
 ```text
-data_out/<domain>/<working_title>/
+<domain>/output/<working_title>/
 ├── index.md
 ├── overview.md
 ├── metadata.yml

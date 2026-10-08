@@ -1,5 +1,9 @@
-<p><strong>Pending:</strong> {{ pdf_jobs.pending|default(0) }}</p>
-<p><strong>Processing:</strong> {{ pdf_jobs.processing|default(0) }}</p>
-<p><strong>Jira issues:</strong> {{ jira_issues }}</p>
-<p><a href="/knowledge/jobs/">View semantic jobs</a></p>
-<p><a href="/data-sources/pdf/">View PDF jobs</a></p>
+<dl>
+  <div><dt>PDF queue</dt><dd>{{ pdf_jobs.total|default(0) }} total</dd></div>
+  <div><dt>Waiting</dt><dd>{{ pdf_jobs.pending|default(0) }}</dd></div>
+  <div><dt>Processing</dt><dd>{{ pdf_jobs.processing|default(0) }}</dd></div>
+  <div><dt>Completed</dt><dd>{{ pdf_jobs.done|default(0) }}</dd></div>
+  <div><dt>Failed</dt><dd>{{ pdf_jobs.failed|default(0) }}</dd></div>
+</dl>
+<p>{{ jira_issues }} Jira issues in the active domain</p>
+<p><a href="/data-sources/pdf/">Open PDF queue and processing report</a></p>

@@ -1,20 +1,26 @@
 # Infosite Architecture Analysis & Refactoring Plan
 
+> Historical architecture plan. The leading source-intake/UI document is
+> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+> Its shared inventory model takes precedence over separate intake screens
+> proposed here.
+
 ## Current State Assessment
 
 ### 🎯 Problem
 - Admin models created (InfoSiteProject, SourceDocument) but Django views/URLs not architected
-- Input documents in `datadir/md/<domain>/<working_title>` not auto-discovered
+- Input documents in the configured domain markdown directory are not auto-discovered
 - Architecture is "arbitrary" - models without clear integration with rest of Django site
 - Logic similar to "data sources" but not unified
 
 ### 📊 Data Structure (Example: anthro/sstk)
 ```
-~/dev_data/ki-knowledge/md/
+~/dev_data/ki-knowledge/
 ├── anthro/
-│   ├── prompt-library/          (existing)
-│   └── sstk/                    (infosite working title)
-│       └── bg/                  (symlink to source documents)
+│   └── md/
+│       ├── prompt-library/      (existing)
+│       └── sstk/                (infosite working title)
+│           └── bg/              (symlink to source documents)
 │           ├── DreigliederungAlsLeitbild/
 │           ├── Framework_Diagnosen/
 │           ├── IntegralePsychologie/
@@ -31,7 +37,7 @@
 
 ### InfoSite Output Structure
 ```
-<data_root>/data_out/<domain>/<working_title>/
+<data_root>/<domain>/output/<working_title>/
 ├── index.md
 ├── overview.md
 ├── metadata.yml
@@ -40,7 +46,7 @@
 ```
 
 ### InfoSite Workflow (Phase 1)
-1. **Discovery**: Auto-find source documents in `md/<domain>/<working_title>/`
+1. **Discovery**: Auto-find source documents in `<domain>/md/<working_title>/`
 2. **Import**: Scan & track found files in Django DB (SourceDocument model)
 3. **Generation**: Convert to structured markdown in output dir
 4. **Versioning**: Store original as v1-original baseline
@@ -146,4 +152,3 @@ path("infosite/", include([
 3. **Implement project views** (detail, manage, import)
 4. **Link UI to models** (show discovered documents)
 5. **Add generation workflow** (import → generate → versioning)
-

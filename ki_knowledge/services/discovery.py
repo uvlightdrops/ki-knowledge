@@ -40,7 +40,7 @@ class DocumentDiscoveryService:
     Unified service for discovering source documents.
     
     Used by:
-    - Infosite (find markdown in md/<domain>/<working_title>/)
+    - Infosite (find markdown through the configured DataLayout)
     - Data Sources (find PDFs, markdown, etc.)
     - Import pipelines (locate files to import)
     """
@@ -64,7 +64,7 @@ class DocumentDiscoveryService:
         """
         Find source documents for an infosite.
         
-        Searches in: md/<domain>/<working_title>/
+        Searches in the configured domain markdown directory.
         
         Args:
             domain: Domain name (e.g., "anthro")
@@ -88,7 +88,7 @@ class DocumentDiscoveryService:
         """
         Find all markdown files in a domain.
         
-        Searches in: md/<domain>/
+        Searches in the configured domain markdown directory.
         
         Args:
             domain: Domain name
@@ -111,7 +111,7 @@ class DocumentDiscoveryService:
         """
         Find all PDF files in a domain.
         
-        Searches in: pdf/<domain>/
+        Searches in the configured domain PDF directory.
         
         Args:
             domain: Domain name

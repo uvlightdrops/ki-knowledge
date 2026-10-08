@@ -582,13 +582,13 @@ class InfoSiteMappingRule(models.Model):
 
 
 class GeneratedDocument(EditorialWorkflowMixin, index.Indexed, WorkflowMixin, DraftStateMixin, RevisionMixin, models.Model):
-    """A generated/refined InfoSite output file living under data_out/.
+    """A generated/refined InfoSite output file in the configured domain output directory.
 
     Mirrors SourceDocument's Wagtail-editorial treatment (snippet, workflow,
     draft/live, revisions), but on the *output* side of the pipeline: rows
     here are upserted automatically by
     ki_knowledge.services.output_registry whenever InfoSiteGeneratorService
-    or the AI-refinement view writes a markdown file to data_out/, so
+    or the AI-refinement view writes a markdown file to the configured output directory, so
     Wagtail always knows about output files right after they are produced
     (see docs/content-model-matrix.md and the CMS-workflow rollout plan).
     """
@@ -662,7 +662,7 @@ class GeneratedDocument(EditorialWorkflowMixin, index.Indexed, WorkflowMixin, Dr
 
     @property
     def display_path(self) -> str:
-        """Return file_path relative to the project's output root (data_out/<domain>/<working_title>/)."""
+        """Return file_path relative to the project's configured output root."""
         from ki_knowledge.knowledge.adapters import InfoSiteSourceAdapter
 
         return InfoSiteSourceAdapter.relative_output_path(self.project, self.file_path)

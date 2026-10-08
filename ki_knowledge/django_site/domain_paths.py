@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -143,8 +144,60 @@ def domain_mix_dir(domain: str | None = None) -> Path:
     return domain_source_dir(MIX, domain)
 
 
+_LINKED_DIRS_CACHE: dict[str, tuple[float, list[tuple[Path, Path]]]] = {}
+_LINKED_DIRS_TTL = 60.0
+_LINKED_DIRS_MAX_DEPTH = 3
+
+
+def linked_subdirectories(directory: Path) -> list[tuple[Path, Path]]:
+    """(link path, resolved target) of symlinked directories below ``directory``.
+
+    Sources inside such links (e.g. ``<domain>/pdf/GA -> ~/cloud/.../pdf``) are stored with
+    their resolved location, so domain scoping must know these targets as roots too.
+    """
+    directory = directory.expanduser()
+    key = str(directory)
+    now = time.monotonic()
+    cached = _LINKED_DIRS_CACHE.get(key)
+    if cached is not None and now - cached[0] < _LINKED_DIRS_TTL:
+        return cached[1]
+
+    found: list[tuple[Path, Path]] = []
+    seen: set[Path] = set()
+    pending: list[tuple[Path, Path, int]] = [(directory, directory, 0)]
+    while pending:
+        logical, physical, depth = pending.pop()
+        try:
+            physical_resolved = physical.resolve()
+        except OSError:
+            continue
+        if physical_resolved in seen or depth > _LINKED_DIRS_MAX_DEPTH:
+            continue
+        seen.add(physical_resolved)
+        try:
+            entries = list(os.scandir(physical))
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if not entry.is_dir(follow_symlinks=True):
+                    continue
+                link_path = logical / entry.name
+                if entry.is_symlink():
+                    target = Path(entry.path).resolve()
+                    found.append((link_path, target))
+                    pending.append((link_path, target, depth + 1))
+                else:
+                    pending.append((link_path, Path(entry.path), depth + 1))
+            except OSError:
+                continue
+    _LINKED_DIRS_CACHE[key] = (now, found)
+    return found
+
+
 def domain_source_roots(domain: str | None = None) -> list[Path]:
-    """All source folders of a domain (as configured and symlink-resolved) for scoping queries."""
+    """All source folders of a domain (as configured, symlink-resolved and the targets of
+    symlinked subfolders) for scoping queries."""
     roots: list[Path] = []
     for directory in (
         domain_markdown_dir(domain),
@@ -153,7 +206,9 @@ def domain_source_roots(domain: str | None = None) -> list[Path]:
         domain_source_dir(PDF, domain),
         domain_mix_dir(domain),
     ):
-        for candidate in (directory.expanduser(), directory.expanduser().resolve()):
+        candidates = [directory.expanduser(), directory.expanduser().resolve()]
+        candidates.extend(target for _link, target in linked_subdirectories(directory))
+        for candidate in candidates:
             if candidate not in roots:
                 roots.append(candidate)
     return roots
@@ -206,5 +261,6 @@ __all__ = [
     "domain_pdf_dir",
     "domain_mix_dir",
     "domain_source_roots",
+    "linked_subdirectories",
     "invalidate_domain_summary_cache",
 ]

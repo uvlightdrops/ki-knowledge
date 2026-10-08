@@ -223,3 +223,41 @@ Für `ki-knowledge` ist der nächste pragmatische Schritt:
 - Heartbeat aktiv vom Host aus senden
 - Host-Registry um Health/Capabilities erweitern
 - Remote-Kommandos als explizite Command-Typen modellieren
+
+## PostgreSQL-Umstellung
+
+### Stufe 1 – Django-/Wagtail-DB (umgesetzt)
+
+- Server: `deploy/postgres/docker-compose.yml` (`pgvector/pgvector:pg16`, Extension `vector`
+  per `initdb/`). Zugangsdaten in `deploy/postgres/.env` (nicht versioniert, Vorlage `.env.example`),
+  Datenverzeichnis `<data-root>/system/postgres`, standardmäßig nur an `127.0.0.1` gebunden.
+  Start: `cd deploy/postgres && docker compose up -d`.
+- Tabellen-Browser (optional): `docker compose --profile tools up -d pgadmin` → http://127.0.0.1:5050
+  (pgAdmin 4, Einzelplatzmodus ohne Login, nur lokal erreichbar; Server „ki-knowledge“ ist vorkonfiguriert).
+- Django nutzt PostgreSQL, sobald `KI_KNOWLEDGE_POSTGRES_DSN` oder
+  `apps.ki_knowledge.distributed.postgres_dsn` (lokale `ki.yaml`) gesetzt ist; dann ist auch
+  `django.contrib.postgres` aktiv. Ohne DSN bleibt SQLite (Tests, Edge-Hosts).
+- Datenübernahme: `python manage.py migrate_django_db_to_postgres` (Probelauf), danach
+  `--apply --confirm-services-stopped` (`--replace` überschreibt ein bereits befülltes Ziel).
+  Primärschlüssel und ContentTypes werden 1:1 übernommen (Wagtail referenziert Objekte über
+  Text-IDs), Zeilenzahlen pro Modell werden verglichen, der Suchindex wird neu aufgebaut.
+  Die SQLite-Datei bleibt unverändert als Backup, zusätzlich ein JSON-Export in `system/`.
+- Migration `0007_backfill_domain_registry` kapselt den Aufruf von Live-Code in einen
+  Savepoint, damit frische PostgreSQL-Installationen migrieren.
+
+### Stufe 2 – KnowledgeStore und SemanticTerms
+
+- `KnowledgeStore`, `KnowledgeGraph` und `SemanticTermStore` laufen über ein gemeinsames
+  Backend (`sql_backend`): lokal weiter SQLite, bei konfigurierter PostgreSQL-DSN PostgreSQL.
+- Schema-Layout in PostgreSQL: globale Wissensdaten in `knowledge`, SemanticTerms je Domain in
+  `semantic_<domain>` (normalisiert und kollisionssicher gekürzt). JSON-Felder werden als `jsonb`
+  gespeichert, Embeddings als `pgvector`.
+- Auswahl: `KI_KNOWLEDGE_POSTGRES_DSN` bzw. `distributed_postgres_dsn`; Escape-Hatch
+  `KI_KNOWLEDGE_STORE_BACKEND=sqlite` erzwingt SQLite (auch für Tests/Notfallbetrieb).
+- Migration: `python manage.py migrate_knowledge_store_to_postgres` ist Dry-Run; echte Kopie nur mit
+  `--apply --confirm-services-stopped`, erneut befüllbar mit `--replace`, optional `--domain`
+  bzw. `--knowledge-only`. Domains ohne Cache-Datei werden übersprungen; ihr Schema entsteht bei
+  der ersten Nutzung. Am 2026-10-08 übernommen: 126.169 Zeilen (knowledge + anthro/eakte),
+  Zählungen und Stichproben (source_stats, Suche, Semantic-Totals) identisch zu SQLite.
+- SQLite bleibt zuständig für lokale Offline-/Cache-Daten: Job-Queues (`pdf_import_jobs`,
+  `pipeline_jobs`, Sync-Jobs), JiraCache-Tabellen, Jira-Graph und `block_store.db`.

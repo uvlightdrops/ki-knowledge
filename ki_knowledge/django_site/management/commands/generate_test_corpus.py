@@ -1,8 +1,8 @@
 """Generate a synthetic markdown corpus for load/volume testing the pipeline.
 
 Creates a configurable number of nested markdown files with realistic
-heading structure (H1 -> H2 -> H3, paragraphs, tags) under
-<KI_CONFIG.knowledge_data_root>/md/<domain>/<working_title>/, and
+heading structure (H1 -> H2 -> H3, paragraphs, tags) under the configured
+domain markdown directory, and
 optionally registers/updates an InfoSiteProject that points at it.
 
 Content is procedurally generated (no external/copyrighted text), so it's

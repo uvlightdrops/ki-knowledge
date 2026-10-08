@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlencode
 
 from django.middleware.csrf import get_token
 from django.template.loader import render_to_string
+from django.urls import reverse
 
 from .dashboard_registry import widget_adapter_key, widget_by_id
 from .infosite_models import GeneratedDocument
@@ -111,6 +113,77 @@ def _render_mix_overview(ctx: dict[str, Any]) -> str:
         "active_domain": ctx.get("active_domain"),
         "csrf_token": ctx["csrf_token"],
     })
+
+
+def _render_markdown_files(ctx: dict[str, Any]) -> str:
+    workspace_url = reverse("workspace")
+    files = [
+        {
+            **item,
+            "workspace_url": (
+                f"{workspace_url}?{urlencode({'domain': ctx['active_domain'], 'path': item['path']})}"
+            ),
+        }
+        for item in (ctx.get("markdown_files") or [])
+    ]
+    return render_fragment("datasources_markdown_files", {
+        "active_domain": ctx["active_domain"],
+        "markdown_count": ctx["markdown_count"],
+        "markdown_files": files[:8],
+        "action_url": reverse("import-action"),
+        "all_files_url": f"{workspace_url}?{urlencode({'domain': ctx['active_domain'], 'q': ctx.get('query', '')})}",
+        "csrf_token": ctx["csrf_token"],
+        "display_mode": ctx.get("display_mode", "cards"),
+        "query": ctx.get("query", ""),
+    })
+
+
+def _render_ontology_overview(ctx: dict[str, Any]) -> str:
+    return render_fragment("datasources_ontology_overview", {
+        "active_domain": ctx["active_domain"],
+        "ontology_count": ctx["ontology_count"],
+        "ontology_dir": ctx["ontology_dir"],
+        "owl_sources": ctx["owl_sources"],
+        "sources_url": f"{reverse('sources')}?{urlencode({'kind': 'owl', 'domain': ctx['active_domain']})}",
+    })
+
+
+def _render_source_browser_link(ctx: dict[str, Any]) -> str:
+    widget_id = ctx["widget_id"]
+    widget_copy = {
+        "datasources.sources.filter.v1": (
+            "Filter und Sortierung der Domain-Quellen verwenden.",
+            "Filter öffnen",
+        ),
+        "datasources.sources.list.v1": (
+            "Importierte und noch nicht importierte Dateien in einer domainweiten Liste prüfen.",
+            "Quellenliste öffnen",
+        ),
+        "datasources.sources.unimported.v1": (
+            "Neue, wartende oder fehlgeschlagene Dateien gezielt importieren.",
+            "Importliste öffnen",
+        ),
+    }
+    description, action_label = widget_copy[widget_id]
+    return render_fragment("datasources_sources_browser_link", {
+        "description": description,
+        "action_label": action_label,
+        "url": f"{reverse('sources')}?{urlencode({'domain': ctx['active_domain']})}",
+        "source_count": len(ctx.get("sources", [])),
+        "active_domain": ctx["active_domain"],
+    })
+
+
+def _source_type_counts(sources: list[Any]) -> list[tuple[str, int]]:
+    counts: dict[str, int] = {}
+    for source in sources:
+        source_type = getattr(source, "source_type", None)
+        if source_type is None and isinstance(source, dict):
+            source_type = source.get("source_type", source.get("kind"))
+        if source_type:
+            normalized = str(source_type)
+            counts[normalized] = counts.get(normalized, 0) + 1
+    return sorted(counts.items())
 
 
 def _render_infooutput_overview(ctx: dict[str, Any]) -> str:
@@ -246,9 +319,23 @@ def _widget_fragment_handlers() -> dict[str, Any]:
     return {
         "datasources.overview.summary.v1": lambda ctx: render_fragment("datasources_overview_summary", {"sources": ctx["sources"], "markdown_count": ctx["markdown_count"], "owl_sources": ctx["owl_sources"]}),
         "datasources.import.quick.v1": _render_quick_import,
-        "datasources.sources.discovery.v1": lambda ctx: render_fragment("datasources_sources_discovery", {"markdown_count": ctx["markdown_count"], "sources": ctx["sources"]}),
+        "datasources.sources.discovery.v1": lambda ctx: render_fragment("datasources_sources_discovery", {
+            "markdown_count": ctx["markdown_count"],
+            "pdf_count": ctx["pdf_count"],
+            "ontology_count": ctx["ontology_count"],
+            "imported_by_type": _source_type_counts(ctx["sources"]),
+            "sources_url": f"{reverse('sources')}?{urlencode({'domain': ctx['active_domain']})}",
+        }),
         "datasources.mix.overview.v1": _render_mix_overview,
-        "datasources.jobs.recent.v1": lambda ctx: render_fragment("datasources_jobs_recent", {"pdf_jobs": ctx["pdf_jobs"], "jira_issues": ctx["jira_issues"]}),
+        "datasources.sources.filter.v1": _render_source_browser_link,
+        "datasources.sources.list.v1": _render_source_browser_link,
+        "datasources.sources.unimported.v1": _render_source_browser_link,
+        "datasources.markdown.files.v1": _render_markdown_files,
+        "datasources.ontology.overview.v1": _render_ontology_overview,
+        "datasources.jobs.recent.v1": lambda ctx: render_fragment("datasources_jobs_recent", {
+            "pdf_jobs": ctx["pdf_jobs"],
+            "jira_issues": ctx["jira_issues"],
+        }),
         "knowledge.overview.summary.v1": lambda ctx: render_fragment("knowledge_overview_summary", {"scoped_knowledge": ctx["scoped_knowledge"]}),
         "knowledge.semantic.overview.v1": _render_knowledge_semantic_overview,
         "knowledge.semantic.monitor.v1": lambda ctx: render_fragment("knowledge_semantic_monitor", {"active_domain": ctx["active_domain"]}),
@@ -489,6 +576,8 @@ def build_data_sources_widget_cards(
     all_domains: list[dict[str, Any]],
     active_domain_state: dict[str, Any],
     markdown_count: int,
+    markdown_files: list[dict[str, Any]],
+    display_mode: str,
     data_dir: str,
     jira_issues: int,
     jira_csv_path: str,
@@ -511,7 +600,26 @@ def build_data_sources_widget_cards(
         if spec is None:
             continue
         handler = handlers.get(spec.widget_id)
-        body = handler({"active_domain": active_domain, "active_domain_state": active_domain_state, "all_domains": all_domains, "sources": sources, "markdown_count": markdown_count, "owl_sources": owl_sources, "csrf_token": csrf_token, "pdf_jobs": pdf_jobs, "jira_issues": jira_issues}) if handler else f"<p>{spec.description}</p>"
+        context = {
+            "active_domain": active_domain,
+            "active_domain_state": active_domain_state,
+            "all_domains": all_domains,
+            "sources": sources,
+            "markdown_count": markdown_count,
+            "markdown_files": markdown_files or [],
+            "display_mode": display_mode,
+            "owl_sources": owl_sources,
+            "ontology_count": ontology_count,
+            "ontology_dir": ontology_dir,
+            "pdf_count": pdf_count,
+            "csrf_token": csrf_token,
+            "pdf_jobs": pdf_jobs,
+            "jira_issues": jira_issues,
+            "widget_id": spec.widget_id,
+        }
+        if handler is None:
+            raise ValueError(f"No datasource widget renderer registered for {spec.widget_id}")
+        body = handler(context)
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 
@@ -534,19 +642,64 @@ def build_sources_widget_cards(
     )
     shared = {**ctx, "csrf_token": csrf_token, "hidden": hidden}
     templates = {
-        "datasources.sources.filter.v1": "sources_filter",
         "datasources.sources.list.v1": "sources_list",
         "datasources.sources.unimported.v1": "sources_unimported",
     }
+    handlers = _widget_fragment_handlers()
+    datasource_context = None
     cards: list[dict[str, str]] = []
+    seen: set[str] = set()
     for widget_id in widget_ids:
         spec = widget_by_id(widget_id)
-        if spec is None:
+        if spec is None or spec.widget_id in seen:
             continue
-        template = templates.get(widget_id)
-        body = render_fragment(template, shared) if template else f"<p>{spec.description}</p>"
+        seen.add(spec.widget_id)
+        template = templates.get(spec.widget_id)
+        if template is not None:
+            body = render_fragment(template, shared)
+        else:
+            handler = handlers.get(spec.widget_id)
+            if handler is None or spec.area != "datasources":
+                raise ValueError(f"No sources-browser widget renderer registered for {spec.widget_id}")
+            if datasource_context is None:
+                datasource_context = _sources_datasource_context(shared)
+            body = handler({**datasource_context, "widget_id": spec.widget_id})
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
+
+
+def _sources_datasource_context(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Supply the same domain data for movable datasource widgets on the browser."""
+    from .services import (
+        display_data_path,
+        jira_issue_count,
+        semantic_domain_states,
+        workspace_markdown_files,
+        workspace_ontology_files,
+    )
+
+    domain = ctx["active_domain"]
+    states = semantic_domain_states()
+    state = next((item for item in states if item.get("domain") == domain), {})
+    markdown_files = workspace_markdown_files(domain=domain)
+    ontology_files = workspace_ontology_files(domain=domain)
+    sources = ctx["sources"]
+    return {
+        **ctx,
+        "active_domain_state": state,
+        "all_domains": states,
+        "markdown_files": markdown_files,
+        "markdown_count": len(markdown_files),
+        "display_mode": ctx["display"],
+        "ontology_count": len(ontology_files),
+        "ontology_dir": display_data_path(state.get("ontology_dir")),
+        "owl_sources": sum(source.source_type == "owl" for source in sources),
+        "pdf_count": int(state.get("pdf_files", 0) or 0),
+        "pdf_jobs": state.get("pdf_jobs") or {
+            "pending": 0, "processing": 0, "done": 0, "failed": 0, "total": 0,
+        },
+        "jira_issues": jira_issue_count(domain),
+    }
 
 
 def build_workspace_widget_cards(
@@ -556,6 +709,9 @@ def build_workspace_widget_cards(
     all_domains: list[dict[str, Any]],
     active_domain_state: dict[str, Any],
     markdown_count: int,
+    markdown_files: list[dict[str, Any]] | None = None,
+    display_mode: str = "cards",
+    query: str = "",
     sources: list[Any],
     widget_ids: list[str],
     widget_widths: dict[str, int] | None = None,
@@ -568,17 +724,26 @@ def build_workspace_widget_cards(
         if spec is None:
             continue
         handler = handlers.get(spec.widget_id)
+        if handler is None:
+            raise ValueError(f"No workspace widget renderer registered for {spec.widget_id}")
         body = handler({
             "active_domain": active_domain,
             "active_domain_state": active_domain_state,
             "all_domains": all_domains,
             "sources": sources,
             "markdown_count": markdown_count,
+            "markdown_files": markdown_files,
+            "display_mode": display_mode,
+            "query": query,
             "owl_sources": 0,
-            "csrf_token": csrf_token,
+            "ontology_count": 0,
+            "ontology_dir": "",
+            "pdf_count": 0,
             "pdf_jobs": {"pending": 0, "processing": 0, "done": 0, "failed": 0, "total": 0},
+            "csrf_token": csrf_token,
             "jira_issues": 0,
-        }) if handler else f"<p>{spec.description}</p>"
+            "widget_id": spec.widget_id,
+        })
         cards.append(_build_widget_card(body, spec, widget_widths=widget_widths))
     return cards
 

@@ -22,12 +22,14 @@ _AREAS = [
             ("Sources", "/data-sources/sources/", "Quellen-Registry der aktiven Domain."),
             ("Workspace", "/data-sources/workspace/", "Quellen vor dem Import prüfen, vorbereiten und importieren."),
             ("PDF Import Jobs", "/data-sources/pdf/", "PDF-Batch-Import-Jobs und Verlauf."),
+            ("PDF Inventar", "/data-sources/pdf/inventory/", "Alle PDFs im Datenverzeichnis (alle Domains) mit Titel und Herkunft – nur lesend."),
         ],
         "targets": [
             ("overview", "Übersicht", "/data-sources/"),
             ("sources", "Sources", "/data-sources/sources/"),
             ("workspace", "Workspace", "/data-sources/workspace/"),
             ("pdf", "PDF Import Jobs", "/data-sources/pdf/"),
+            ("pdf-inventory", "PDF Inventar", "/data-sources/pdf/inventory/"),
         ],
     },
     {

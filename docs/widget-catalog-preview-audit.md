@@ -1,8 +1,13 @@
 # Widget catalog preview audit
 
+> The leading Data Sources interaction model is
+> [Source Workspace and Workflow Concept](../doc/source-workspace-and-workflow-concept.md).
+> This audit documents current renderers, not a requirement to retain every
+> existing intake widget as an independent view.
+
 ## Contract and implementation
 
-The canonical registry currently contains **47 widgets**. The catalog previously
+The canonical registry currently contains **45 widgets**. The catalog previously
 used shared adapter keys, so unrelated widgets could show the same table or
 counts, and adapters queried the hardcoded `default` domain. Catalog rendering
 now uses the actual widget fragment handlers, not those runtime data adapters.
@@ -30,11 +35,9 @@ helper and `render_widget_preview` also require an explicit active domain.
 Batch calls reuse one context. Renderer errors propagate rather than being
 silently converted into empty or misleading previews.
 
-There are **41 sample previews using real renderers/templates**, **two actual
-planned Quiz placeholders**, and **four explicitly unimplemented registrations**.
-The latter have no dedicated renderer in the normal widget-card paths. Inventing
-an operational UI for them would misrepresent the application; their catalog
-previews explain this instead of reusing an unrelated adapter.
+There are **43 sample previews using real renderers/templates** and **two
+planned Quiz placeholders**. Every registered widget has a real renderer;
+planned Quiz is explicitly the only feature placeholder.
 
 ## Read-only rendering and styling
 
@@ -81,16 +84,13 @@ are disabled by the shared preview boundary.
 | --- | --- | --- |
 | `datasources.overview.summary.v1` | J: `datasources_overview_summary`; source, Markdown, OWL counts | Actual summary fragment with two sample sources; no live inventory scan. |
 | `datasources.import.quick.v1` | J: `datasources_import_quick`; upload drop zone, image mode, five folder tiles, import-all | Exact upload/import template with five sample folder rows. Bypasses `quick_import_rows`, path resolution and symlink checks; no upload/import handlers. |
-| `datasources.sources.discovery.v1` | J: `datasources_sources_discovery`; file/source counts and browser link | Exact fragment with sample counts, not output documents or a generic adapter table. |
+| `datasources.sources.discovery.v1` | J: `datasources_sources_discovery`; Markdown/PDF/ontology file counts, imported-source count and browser link | Separates on-disk inventory from imported sources; it no longer repeats the overview widget's same two totals. |
 | `datasources.mix.overview.v1` | J: `datasources_mix_overview`; folder, file-kind counts, OCR notice, import button | Exact populated template using sample mixed files. Bypasses `mixed_files_summary`; OCR availability is demonstrative, not detected. |
-| `datasources.sources.filter.v1` | J: `sources_filter`; kind chips, search/sort, table/cards choices | Actual browser filter template with sample chips. Filtering controls and inline submission handler are disabled/removed. |
-| `datasources.sources.list.v1` | J: `sources_list`; source table, provenance, records/artifacts, row actions, pager | Real Markdown/image rows, including image mode. No source store query, reimport, generate, or delete action. Shows table mode, not every alternate card/filter state. |
-| `datasources.sources.unimported.v1` | J: `sources_unimported`; folder details, queued/new files, import actions | Actual populated folder template with new/queued examples. No filesystem discovery or queue creation; first folder is visibly expanded. |
-| `datasources.jobs.recent.v1` | J: `datasources_jobs_recent`; pending/processing/Jira counts and job links | Exact current renderer. Despite the registry label, the normal widget is counts/links, not a job-history table. |
-| `datasources.source.list.v1` | No dedicated fragment handler; normal card is the registry description | Explicit **unimplemented** status instead of the incorrectly mapped domain-database adapter. A future source-card renderer should be shared with the real page before previewing it. |
-| `datasources.ai.summary.v1` | No dedicated fragment handler; normal card is the registry description | Explicit **unimplemented** status. Do not claim AI workflow controls exist merely because another discovery adapter can produce counts. |
-| `datasources.markdown.files.v1` | No dedicated fragment handler; normal card is the registry description | Explicit **unimplemented** status. A real Markdown file-card renderer is required before claiming a live file list. |
-| `datasources.ontology.overview.v1` | No dedicated fragment handler; normal card is the registry description | Explicit **unimplemented** status. Future ontology state should come from a dedicated shared renderer, not the generic adapter fallback. |
+| `datasources.sources.list.v1` | J: `sources_list` plus package toolbar; filters, shortcuts, source table, provenance, records/artifacts, row actions, pager | Real Markdown/image rows and toolbar presets. No source store query, reimport, generate, or delete action. Shows table mode, not every alternate card/filter state. |
+| `datasources.sources.unimported.v1` | J: `sources_unimported`; compact open-file summary and import-all actions | Populated folder counts with new/queued examples. No filesystem discovery or queue creation. |
+| `datasources.jobs.recent.v1` | J: `datasources_jobs_recent`; current PDF queue counts, Jira issue count and PDF queue link | Renamed **PDF import status** to match its actual data; it does not claim to display recent job rows. |
+| `datasources.markdown.files.v1` | J: `datasources_markdown_files`; bounded Markdown file list, workspace selection links and import forms | Uses the active domain's real discovered Markdown files. Workspace owns filtering and cards/table mode; catalog actions and navigation are inert. |
+| `datasources.ontology.overview.v1` | J: `datasources_ontology_overview`; on-disk ontology files and imported OWL sources | Uses domain-scoped file/source counts and links to the OWL source filter; no parsing or import runs in the widget. |
 | `knowledge.overview.summary.v1` | J: `knowledge_overview_summary`; sources/records/artifacts | Exact counts fragment with consistent sample knowledge summary; no knowledge store scan. |
 | `knowledge.semantic.monitor.v1` | J: `knowledge_semantic_monitor`; active domain and semantic/jobs links | Exact current link-based widget. Does not invent progress/enrichment indicators absent from its renderer. |
 | `knowledge.semantic.quick.v1` | J: `knowledge_semantic_quick`; analysis/search/graph navigation | Exact quick-navigation fragment. No semantic extraction jobs or search calls. |
@@ -131,13 +131,27 @@ are disabled by the shared preview boundary.
 
 `datasources.domain.overview.v1` and `datasources.domain.switcher.v1` resolve to
 the canonical `admin.domain.management.v1` and `admin.domain.switcher.v1`.
-They do not appear twice in the catalog. Saved aliases continue to resolve.
+`datasources.source.list.v1` resolves to `datasources.sources.list.v1`; the two
+IDs represented the same source-browser list and are no longer separate widgets.
+These aliases do not appear twice in the catalog. Saved aliases continue to
+resolve. The nonfunctional `datasources.ai.summary.v1` registration was retired:
+no AI-specific data-source workflow exists to render. Saved placements for this
+retired ID are ignored at load time without changing stored layouts.
+
+The default Data Sources page now includes overview, quick import, inventory
+discovery, mixed-folder status, Markdown files, ontology status, and PDF import
+status. Workspace's Markdown widget is backed by the same live file list used
+for selecting/importing files; the duplicate hardcoded file list was removed.
+PDF jobs and PDF inventory remain standalone workflow pages: the jobs page
+owns queue controls and processing reports, while inventory scans only after an
+explicit request. The PDF-status widget links to that queue rather than
+duplicating its controls or showing a description-only card there.
 Full widget IDs, wider metadata list, area-tab counts, and no redundant category
 footer are preserved.
 
-When adding a registry entry, add its real renderer or explicitly record its
-unimplemented state; the all-registry test will fail on an unexplained missing
-handler. Extend the bounded sample context instead of introducing a live query.
+When adding a registry entry, add its real renderer (or an explicitly planned
+feature template); the all-registry test will fail on a missing handler. Extend
+the bounded sample context instead of introducing a live query.
 Future empty/error/multiple-role/card-mode variants can be offered as explicit
 sample scenarios, but are not currently selectable. No browser screenshot or
 full interactive-page parity is claimed: this is a read-only catalog of the

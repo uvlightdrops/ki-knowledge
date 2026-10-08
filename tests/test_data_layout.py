@@ -27,6 +27,7 @@ def clear_type_root_env(monkeypatch):
         "KICLI_OWL_ROOT",
         "KNOWLEDGE_PDF_ROOT",
         "KICLI_PDF_ROOT",
+        "KNOWLEDGE_MIX_ROOT",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -221,3 +222,65 @@ def test_v2_display_and_output_relative(tmp_path):
     assert layout.display_relative(Path("system/knowledge.db")) == Path("system/knowledge.db")
     assert layout.output_relative(layout.output_dir("anthro", "sstk", "a.md")) == Path("anthro/sstk/a.md")
     assert layout.output_relative(layout.source_dir(MARKDOWN, "anthro", "a.md")) is None
+
+
+def _v3_root(tmp_path: Path) -> Path:
+    root = tmp_path / "root-v3"
+    root.mkdir()
+    (root / ".layout-version").write_text("3\n")
+    return root
+
+
+def test_v3_layout_is_direct_domain_first(tmp_path):
+    root = _v3_root(tmp_path)
+    layout = DataLayout(root)
+
+    assert layout.version == 3
+    assert layout.source_dir(MARKDOWN, "anthro", "sstk") == root / "anthro" / "md" / "sstk"
+    assert layout.source_dir(PDF, "anthro") == root / "anthro" / "pdf"
+    assert layout.source_dir(JIRA, "anthro") == root / "anthro" / "jira"
+    assert layout.source_dir(ONTOLOGY, "anthro") == root / "anthro" / "owl"
+    assert layout.source_dir("mix", "anthro") == root / "anthro" / "mix"
+    assert layout.domain_state_dir("anthro") == root / "anthro" / "derived"
+    assert layout.output_dir("anthro", "sstk") == root / "anthro" / "output" / "sstk"
+    assert layout.knowledge_db_path() == root / "system" / "knowledge.db"
+    assert layout.pipeline_jobs_db_path() == root / "system" / "pipeline_jobs.db"
+    with pytest.raises(LayoutError):
+        layout.domains_root()
+    with pytest.raises(LayoutError):
+        layout.source_type_root(MARKDOWN)
+
+
+def test_v3_domains_ignore_reserved_root_directories(tmp_path):
+    root = _v3_root(tmp_path)
+    for name in ("anthro", "system", "pdf", "archive"):
+        (root / name).mkdir()
+    layout = DataLayout(root)
+
+    assert layout.domain_names() == ["anthro"]
+    assert layout.source_domain_names(PDF) == ["anthro"]
+    assert layout.state_domain_names() == ["anthro"]
+
+
+def test_v3_locate_display_and_output_relative(tmp_path):
+    root = _v3_root(tmp_path)
+    layout = DataLayout(root)
+    source = layout.source_dir(MARKDOWN, "anthro", "sstk", "a.md")
+    source.parent.mkdir(parents=True)
+    source.write_text("# A")
+
+    assert layout.locate_source(source) == (MARKDOWN, "anthro", Path("sstk/a.md"))
+    assert layout.locate_source(layout.source_dir(PDF, "anthro", "a.pdf")) == (PDF, "anthro", Path("a.pdf"))
+    assert layout.display_relative(Path("anthro/md/sstk/a.md")) == Path("anthro/sstk/a.md")
+    assert layout.display_relative(Path("anthro/pdf/a.pdf")) == Path("anthro/pdf/a.pdf")
+    assert layout.output_relative(layout.output_dir("anthro", "sstk", "a.md")) == Path("anthro/sstk/a.md")
+    assert layout.output_relative(source) is None
+
+
+def test_v3_type_override_keeps_legacy_domain_subdirectories(tmp_path):
+    external_pdf = tmp_path / "external-pdfs"
+    layout = DataLayout(_v3_root(tmp_path), {"pdf": external_pdf})
+
+    assert layout.source_dir(PDF, "anthro", "a.pdf") == external_pdf / "anthro" / "a.pdf"
+    assert layout.source_dir(MARKDOWN, "anthro") == layout.root / "anthro" / "md"
+    assert layout.source_type_root(PDF) == external_pdf

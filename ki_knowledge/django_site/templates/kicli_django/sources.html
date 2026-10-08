@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% load ui_extras %}
+{% load ui_extras static %}
 {% block title %}Sources · KICLI{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'widgetkit_django/css/data-table.css' %}?v=20261008">{% endblock %}
 {% block content %}
 <h1>Quellen <span class="muted">· {{ active_domain }} · {{ source_count }}</span></h1>
 <p class="muted">Öffne einen Quelleneintrag, um die Records im Dokumentzusammenhang und die daraus erzeugten Artefakte zu durchsuchen.</p>

@@ -39,6 +39,7 @@
     </div>
     <p class="hint">
       <a href="{% url 'pdf-import-report' %}?domain={{ active_domain }}">Open full report</a>
+      · <a href="{% url 'pdf-inventory' %}">PDF-Inventar (alle Domains)</a>
       · current domain: <span class="mono">{{ active_domain }}</span>
     </p>
     {% if report.processing_jobs %}

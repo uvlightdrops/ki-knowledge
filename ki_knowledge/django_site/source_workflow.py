@@ -44,7 +44,7 @@ IMAGE_PROCESSING_OPTIONS = (IMAGE_PROCESSING_OCR, IMAGE_PROCESSING_ASSET)
 
 
 def store() -> KnowledgeStore:
-    return KnowledgeStore(settings.KNOWLEDGE_DB_PATH)
+    return KnowledgeStore(settings.KNOWLEDGE_STORE_TARGET)
 
 
 def data_dir(domain: str | None = None) -> Path:

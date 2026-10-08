@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load ui_extras %}
+
+{% block title %}PDF Inventar - KICLI Knowledge{% endblock %}
+
+{% block content %}
+<h1>PDF Inventar</h1>
+<p class="muted">
+  PDF-Dateien der aktuellen Domain <strong>{{ active_domain }}</strong>, nur lesend.
+  Es wird nichts importiert, kein OCR und kein LLM ausgeführt.
+  · <a href="{% url 'pdf-import-jobs' %}">Zurück zu PDF Import Jobs</a>
+</p>
+
+<div class="section">
+  <div class="card">
+    <form method="get" action="{% url 'pdf-inventory' %}" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+      <input type="hidden" name="scan" value="1">
+      <input type="hidden" name="domain" value="{{ active_domain }}">
+      <label class="muted"><input type="checkbox" name="text" value="1"{% if include_text %} checked{% endif %}> Erste Textzeile von Seite 1 zeigen (nur Hinweis, langsamer)</label>
+      <label class="muted">Sortierung
+        <select name="sort">
+          <option value="title"{% if sort == "title" %} selected{% endif %}>Titel</option>
+          <option value="path"{% if sort == "path" %} selected{% endif %}>Pfad</option>
+        </select>
+      </label>
+      <button type="submit">{% if scan_requested %}Neu scannen{% else %}Datenverzeichnis scannen{% endif %}</button>
+    </form>
+    <p class="hint">
+      <strong>Titel-Herkunft:</strong>
+      <span class="badge badge-success">metadata</span> = Titel aus den PDF-Metadaten (vom Ersteller gesetzt, nicht geprüft).
+      <span class="badge badge-warning">filename</span> = kein Metadaten-Titel vorhanden, Dateiname als Ersatz.
+      Gescannte Bücher enthalten meist nur Seitenbilder ohne Metadaten; ihr echter Titel lässt sich erst per OCR bzw. manueller Prüfung verifizieren.
+      Die optionale Textzeile stammt aus der eingebetteten Textebene von Seite 1 und ist kein bestätigter Titel.
+    </p>
+  </div>
+</div>
+
+{% if inventory %}
+<div class="section">
+  <h2>Scan-Wurzeln</h2>
+  <div class="card">
+    <ul>
+      {% for root in inventory.roots %}
+        <li>{{ root.label }}: <span class="mono">{{ root.path }}</span>
+          {% if root.status == "ok" %}<span class="badge badge-success">ok</span>{% else %}<span class="badge badge-danger">{{ root.status }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+      <div><strong>PDFs:</strong> {{ summary.total }}</div>
+      <div><strong>Metadaten-Titel:</strong> {{ summary.metadata_titles }}</div>
+      <div><strong>Dateiname-Fallback:</strong> {{ summary.filename_fallbacks }}</div>
+      <div><strong style="color: #f87171;">Dateifehler:</strong> {{ summary.file_errors }}</div>
+      <div><strong style="color: #f87171;">Verzeichnisfehler:</strong> {{ summary.scan_errors }}</div>
+      <div><strong>Duplikate (gleiche Datei):</strong> {{ summary.duplicates }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>PDFs ({{ summary.total }})</h2>
+  {% if inventory.entries %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Titel</th>
+            <th>Herkunft</th>
+            <th>Autor</th>
+            <th>Seiten</th>
+            <th>Pfad (relativ)</th>
+            {% if include_text %}<th>Seite 1 (Text-Hinweis)</th>{% endif %}
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in inventory.entries %}
+            <tr>
+              <td>{{ entry.title }}</td>
+              <td>{% if entry.title_source == "metadata" %}<span class="badge badge-success">metadata</span>{% else %}<span class="badge badge-warning">filename</span>{% endif %}</td>
+              <td>{{ entry.author|default:"—" }}</td>
+              <td>{% if entry.page_count is not None %}{{ entry.page_count }}{% else %}—{% endif %}</td>
+              <td class="mono" style="font-size: 0.85rem;">{{ entry.relative_path }}{% if entry.via_symlink %} <span class="muted">(via Symlink)</span>{% endif %}{% if entry.root_label != "data root" %} <span class="muted">[{{ entry.root_label }}]</span>{% endif %}</td>
+              {% if include_text %}<td class="muted">{{ entry.first_page_text|default:"— (keine Textebene)" }}</td>{% endif %}
+              <td>
+                {% if entry.error %}<span class="badge badge-danger">{{ entry.error }}</span>
+                {% elif entry.warnings %}<span class="badge badge-warning" title="{{ entry.warnings|join:'; ' }}">lesbar mit Warnungen</span>
+                {% else %}<span class="badge badge-success">ok</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Keine PDF-Dateien gefunden.</p>
+  {% endif %}
+</div>
+
+{% if inventory.scan_errors or inventory.duplicates or inventory.skipped_cycles %}
+<div class="section">
+  <h2>Hinweise</h2>
+  <div class="card">
+    {% for item in inventory.scan_errors %}<p><span class="badge badge-danger">Fehler</span> <span class="mono">{{ item.path }}</span>: {{ item.error }}</p>{% endfor %}
+    {% for item in inventory.duplicates %}<p><span class="badge badge-warning">Duplikat</span> <span class="mono">{{ item.relative_path }}</span> ist dieselbe Datei wie <span class="mono">{{ item.same_as }}</span></p>{% endfor %}
+    {% for item in inventory.skipped_cycles %}<p><span class="badge badge-warning">Symlink-Zyklus übersprungen</span> <span class="mono">{{ item }}</span></p>{% endfor %}
+  </div>
+</div>
+{% endif %}
+{% elif not scan_requested %}
+<div class="section">
+  <p class="muted">Noch nicht gescannt. Der Scan liest nur Metadaten und läuft erst nach Klick auf „Datenverzeichnis scannen“.</p>
+</div>
+{% endif %}
+{% endblock %}

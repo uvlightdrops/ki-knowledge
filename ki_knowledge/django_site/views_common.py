@@ -105,6 +105,18 @@ def _subpage_dashboard_slug(area_key: str, subpage_key: str | None, active_domai
 
 
 
+def _canonical_deduped_widget_ids(widget_ids: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for raw_widget_id in widget_ids:
+        widget_id = canonical_widget_id(raw_widget_id)
+        if widget_by_id(widget_id) is None or widget_id in seen:
+            continue
+        seen.add(widget_id)
+        deduped.append(widget_id)
+    return deduped
+
+
 def _load_dashboard_widget_ids(
     request: HttpRequest,
     *,
@@ -119,7 +131,7 @@ def _load_dashboard_widget_ids(
     active_domain = _active_semantic_domain(request)
     domain_obj = ensure_domain_registered(active_domain)
     if domain_obj is None:
-        return list(fallback)
+        return _canonical_deduped_widget_ids(list(fallback))
 
     owner = request.user if getattr(request.user, "is_authenticated", False) else None
     layout = _LAYOUT_STORE.load_layout(
@@ -139,19 +151,12 @@ def _load_dashboard_widget_ids(
         if shared.exists:
             placements = shared.placements
         else:
-            return list(fallback)
+            return _canonical_deduped_widget_ids(list(fallback))
 
-    selected = [canonical_widget_id(item.widget_id) for item in placements]
+    selected = _canonical_deduped_widget_ids([item.widget_id for item in placements])
     if not selected:
         return []
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for widget_id in selected:
-        if widget_id in seen:
-            continue
-        seen.add(widget_id)
-        deduped.append(widget_id)
-    return deduped
+    return selected
 
 
 def _load_dashboard_widget_widths(

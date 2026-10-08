@@ -6,7 +6,7 @@ pipeline's directory scan (available_data_domains()). This is additive only
 - it does not touch InfoSiteProject rows or any legacy-pipeline files.
 """
 
-from django.db import migrations
+from django.db import migrations, transaction
 
 
 def backfill_domains(apps, schema_editor):
@@ -21,7 +21,10 @@ def backfill_domains(apps, schema_editor):
     try:
         from ki_knowledge.django_site.services import available_data_domains
 
-        slugs.update(available_data_domains())
+        # Live code may query columns added by later migrations; the savepoint
+        # keeps a failure here from aborting PostgreSQL's migration transaction.
+        with transaction.atomic(using=schema_editor.connection.alias):
+            slugs.update(available_data_domains())
     except Exception:
         # Best-effort: legacy scan depends on filesystem layout that may not
         # exist in every environment (e.g. CI). Missing it here just means

@@ -37,7 +37,7 @@ class InfoSiteGeneratorService:
     Generates structured markdown output and versioning baseline.
     
     Output structure:
-        data_out/<domain>/<working_title>/
+        <domain>/output/<working_title>/ (layout v3; resolved by DataLayout)
         ├── index.md
         ├── overview.md
         ├── metadata.yml

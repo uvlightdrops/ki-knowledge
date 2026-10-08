@@ -2,6 +2,7 @@
 {% load ui_extras static %}
 {% block title %}Records · KICLI{% endblock %}
 {% block content %}
+<style>.record-preview{color:#cbd5e1;min-width:32ch;max-width:70ch;font-size:.9em;line-height:1.35}.records-table td,.records-table th{padding:4px 6px}.records-table td.mono{white-space:nowrap}</style>
 <h1>Records</h1>
 <p class="muted"><strong>Gesamtzahl Records:</strong> {{ total_record_count }} · angezeigt: {{ records|length }}</p>
 <p class="muted">Filter source_id: {{ source_id }} · Untertyp: {{ block_type }} · Seite {{ page }}</p>
@@ -49,6 +50,7 @@
                 <input type="checkbox" name="record_ids" value="{{ record.block_id }}">
               </div>
               <p><span class="chip">{{ record.record_type }}</span></p>
+              <p class="record-preview" title="{{ record.preview_full }}">{{ record.preview }}</p>
               <p class="mono">{{ record.block_id|short_id }}</p>
               <p class="mono" title="{{ record.display_source_id }}">{{ record.display_source_id|short_id }}</p>
               <p class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</p>
@@ -57,14 +59,14 @@
         </div>
       {% else %}
         <div class="table-wrap">
-        <table>
+        <table class="records-table">
           <thead>
             <tr>
               <th><input type="checkbox" data-select-all="record_ids"></th>
-              <th>Block ID</th>
               <th>Source ID</th>
               <th>Type</th>
               <th>Title</th>
+              <th>Textanfang</th>
               <th>Path</th>
             </tr>
           </thead>

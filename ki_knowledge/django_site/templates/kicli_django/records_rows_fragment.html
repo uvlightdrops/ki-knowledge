@@ -1,11 +1,11 @@
 {% load ui_extras %}
 {% for record in records %}
   <tr>
-    <td><input type="checkbox" name="record_ids" value="{{ record.block_id }}"></td>
-    <td class="mono">{{ record.block_id|short_id }}</td>
+    <td><input type="checkbox" name="record_ids" value="{{ record.block_id }}" title="{{ record.block_id }}"></td>
     <td class="mono"><a href="{% url 'source-detail' record.source_id %}" title="{{ record.display_source_id }}">{{ record.display_source_id|short_id }}</a></td>
     <td><span class="chip">{{ record.record_type }}</span></td>
     <td>{{ record.title }}</td>
+    <td class="record-preview" title="{{ record.preview_full }}">{{ record.preview }}</td>
     <td class="mono" title="{{ record.display_path }}">{{ record.display_path|short_id }}</td>
   </tr>
 {% empty %}

@@ -1,3 +1,8 @@
-<p><strong>Files:</strong> {{ markdown_count }}</p>
-<p><strong>Sources:</strong> {{ sources|length }}</p>
-<p><a href="/data-sources/sources/">Open sources</a></p>
+<p>{{ markdown_count }} Markdown · {{ pdf_count }} PDF · {{ ontology_count }} ontology files on disk</p>
+{% if imported_by_type %}
+  <p>Imported sources by format:</p>
+  <ul>{% for source_type, count in imported_by_type %}<li>{{ source_type }}: {{ count }}</li>{% endfor %}</ul>
+{% else %}
+  <p>No imported sources are currently recorded.</p>
+{% endif %}
+<p><a href="{{ sources_url }}">Browse sources and import status</a></p>

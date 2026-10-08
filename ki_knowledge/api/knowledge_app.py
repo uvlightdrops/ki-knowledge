@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.config_runtime import jira_cache_db_path, jira_graph_db_path, knowledge_db_path
+from ki_knowledge.config_runtime import jira_cache_db_path, jira_graph_db_path, knowledge_store_target
 from ki_knowledge.data_layout import DataLayout
 
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph
@@ -22,7 +22,8 @@ from ki_knowledge.knowledge.ingest import KnowledgeIngestService
 from ki_knowledge.knowledge.ontology_ingest import import_ontology_to_store
 
 _CONFIG = Config.from_env()
-_DB_PATH = str(knowledge_db_path(_CONFIG))
+_STORE_TARGET = knowledge_store_target(_CONFIG)
+_DB_PATH = str(_STORE_TARGET.sqlite_path) if _STORE_TARGET.is_sqlite else ""
 
 app = FastAPI(title="Knowledge API", version="0.1.0")
 _cache = None
@@ -75,11 +76,15 @@ class PDFImportListResponse(BaseModel):
 
 
 def _store() -> KnowledgeStore:
-    return KnowledgeStore(_DB_PATH)
+    if _DB_PATH:
+        return KnowledgeStore(_DB_PATH)
+    return KnowledgeStore(_STORE_TARGET)
 
 
 def _graph() -> KnowledgeGraph:
-    return KnowledgeGraph(_DB_PATH)
+    if _DB_PATH:
+        return KnowledgeGraph(_DB_PATH)
+    return KnowledgeGraph(_STORE_TARGET)
 
 
 def _get_components():
