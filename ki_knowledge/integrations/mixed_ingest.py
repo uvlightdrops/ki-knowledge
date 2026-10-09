@@ -24,11 +24,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from ki_knowledge.integrations.tei_ingest import is_tei_file
+
 PDF_KIND = "pdf"
 MARKDOWN_KIND = "markdown"
 ONTOLOGY_KIND = "ontology"
 TABLE_KIND = "table"
 IMAGE_KIND = "image"
+TEI_KIND = "tei"
 UNSUPPORTED_KIND = "unsupported"
 
 _KIND_BY_SUFFIX = {
@@ -53,7 +56,7 @@ _KIND_BY_SUFFIX = {
     ".gif": IMAGE_KIND,
     ".webp": IMAGE_KIND,
 }
-MIX_KINDS = (PDF_KIND, MARKDOWN_KIND, ONTOLOGY_KIND, TABLE_KIND, IMAGE_KIND, UNSUPPORTED_KIND)
+MIX_KINDS = (PDF_KIND, MARKDOWN_KIND, ONTOLOGY_KIND, TABLE_KIND, IMAGE_KIND, TEI_KIND, UNSUPPORTED_KIND)
 
 # Guards against the huge "repeated" empty cells/rows ODS files use for padding.
 _MAX_REPEAT = 1024
@@ -71,7 +74,11 @@ class OcrUnavailableError(MixedIngestError):
 
 
 def classify_file(path: str | Path) -> str:
-    return _KIND_BY_SUFFIX.get(Path(path).suffix.lower(), UNSUPPORTED_KIND)
+    kind = _KIND_BY_SUFFIX.get(Path(path).suffix.lower())
+    if kind is not None:
+        return kind
+    # TEI is only recognised by content, so names of not-yet-written uploads stay unsupported.
+    return TEI_KIND if is_tei_file(path) else UNSUPPORTED_KIND
 
 
 def discover_mixed_files(root: str | Path) -> dict[str, list[Path]]:

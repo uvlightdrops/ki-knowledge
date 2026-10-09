@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Semantische Suche · KICLI{% endblock %}
+{% block content %}
+<style>
+.search-hit{padding:10px 0;border-bottom:1px solid #1e293b}
+.search-hit__meta{display:flex;gap:10px;flex-wrap:wrap;font-size:.85em}
+.search-score{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+<h1>Semantische Suche</h1>
+<p class="muted">
+  Domain <strong>{{ domain }}</strong> · Modell <span class="mono">{{ model }}</span> ·
+  {{ embedded }} / {{ blocks }} Blöcke eingebettet ({{ coverage }} %)
+  · <a href="{% url 'book-pipeline' %}">Buch-Pipeline</a>
+</p>
+{% if blocks and embedded < blocks %}
+<p class="muted">Fehlende Embeddings ergänzen: <code>python manage.py embed_blocks --domain {{ domain }}</code> (fortsetzbar).</p>
+{% endif %}
+
+<form method="get" class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+  <input type="search" name="q" value="{{ query }}" placeholder="Frage oder Begriff, z. B. „Verwandlung des Blattes zur Blüte“" style="flex:1;min-width:280px;" autofocus>
+  <select name="limit">
+    <option value="10" {% if limit == 10 %}selected{% endif %}>10</option>
+    <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
+    <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+  </select>
+  <button type="submit">Suchen</button>
+</form>
+
+{% if error %}<div class="card" style="border-color:#ef4444">{{ error }}</div>{% endif %}
+
+{% if query and not error %}
+<div class="card">
+  {% for hit in hits %}
+  <div class="search-hit">
+    <div class="search-hit__meta">
+      <span class="search-score" title="Kosinus-Ähnlichkeit">{{ hit.score }} %</span>
+      <a href="{{ hit.records_url }}">{{ hit.source_title }}</a>
+      <span class="muted">{{ hit.page }}</span>
+    </div>
+    <div>{{ hit.preview }}</div>
+  </div>
+  {% empty %}
+  <p class="muted">Keine Treffer{% if not embedded %} – in dieser Domain gibt es noch keine Embeddings{% endif %}.</p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -893,23 +895,90 @@ def semantic_domain_states() -> list[dict[str, Any]]:
     return states
 
 
+def _domain_blockers(resolved: str, domain_root: Path) -> list[str]:
+    """Reasons that protect a domain from removal: real source files, imported sources, projects."""
+    blockers: list[str] = []
+    if domain_root.is_dir():
+        state_dir = data_layout().domain_state_dir(resolved)
+        entries = [path for path in domain_root.rglob("*") if state_dir not in path.parents]
+        files = [path for path in entries if path.is_file() and not path.is_symlink()]
+        links = [path for path in entries if path.is_symlink()]
+        if files:
+            blockers.append(f"{len(files)} Quelldatei(en) im Domain-Verzeichnis")
+        if links:
+            blockers.append(f"{len(links)} verlinkte Quelle(n)")
+    from ki_knowledge.django_site.knowledge_summary import _domain_scoped_sources
+
+    sources = len(list(_domain_scoped_sources(resolved)))
+    if sources:
+        blockers.append(f"{sources} importierte Quelle(n)")
+    try:
+        from ki_knowledge.django_site.infosite_models import InfoSiteProject
+
+        projects = InfoSiteProject.objects.filter(domain=resolved).count()
+    except Exception:  # Registry not reachable outside Django (FastAPI tests).
+        projects = 0
+    if projects:
+        blockers.append(f"{projects} InfoSite-Projekt(e)")
+    return blockers
+
+
 def delete_semantic_domain(domain: str | None) -> dict[str, Any]:
-    resolved = normalize_semantic_domain(domain)
-    paths = domain_db_paths(resolved)
-    if not paths["cache_db"].exists() and not paths["graph_db"].exists():
-        raise ValueError(f"domain has no db files: {resolved}")
+    """Remove an empty domain: derived DBs, PostgreSQL semantic schema, stage rows, registry and directory.
+
+    Domains that still hold source files, imported sources or InfoSite projects
+    are refused; their content has to be removed first.
+    """
+    raw = (domain or "").strip()
+    if not raw:
+        raise ValueError("domain missing")
+    resolved = normalize_semantic_domain(raw)
+    if resolved == "default":
+        raise ValueError("Die Domain 'default' kann nicht entfernt werden.")
+    known = resolved in set(available_data_domains())
+    domain_root = data_layout().domain_root(resolved)
+    try:
+        from ki_knowledge.django_site.infosite_models import Domain
+
+        registry = Domain.objects.filter(slug=resolved)
+        registered = registry.exists()
+    except Exception:  # Registry not reachable outside Django (FastAPI tests).
+        registry, registered = None, False
+    if not known and not registered:
+        raise ValueError(f"Domain nicht gefunden: {resolved}")
+    blockers = _domain_blockers(resolved, domain_root)
+    if blockers:
+        raise ValueError(f"Domain '{resolved}' enthält noch Daten: {', '.join(blockers)}")
+
     removed: list[str] = []
+    paths = domain_db_paths(resolved)
     for key in ("cache_db", "graph_db", "cypher_path"):
         path = paths.get(key)
         if isinstance(path, Path) and path.exists():
             path.unlink()
             removed.append(str(path))
-    domain_dir = paths["domain"]
-    if domain_dir.exists() and domain_dir.is_dir():
-        try:
-            domain_dir.rmdir()
-        except OSError:
-            pass
+    target = semantic_target(resolved)
+    if target.is_postgres and target.postgres_schema:
+        with connect(target) as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM information_schema.schemata WHERE schema_name = ?", (target.postgres_schema,)
+            ).fetchone()
+            if exists:
+                conn.execute(f'DROP SCHEMA "{target.postgres_schema}" CASCADE')
+                removed.append(f"postgres:{target.postgres_schema}")
+    try:
+        from ki_knowledge.django_site.book_pipeline import stage_store
+
+        stage_store().delete_missing(resolved, [])
+    except Exception:  # The stage table is optional for domains that never ran the pipeline.
+        logging.getLogger(__name__).debug("no pipeline stages removed for %s", resolved, exc_info=True)
+    if registry is not None and registered:
+        registry.delete()
+        removed.append(f"registry:{resolved}")
+    if domain_root.is_dir():
+        shutil.rmtree(domain_root)
+        removed.append(str(domain_root))
+    invalidate_domain_summary_cache(resolved)
     return {"domain": resolved, "removed": removed}
 
 

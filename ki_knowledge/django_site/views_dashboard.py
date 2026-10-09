@@ -497,7 +497,7 @@ def admin_domain_management_view(request: HttpRequest):
             target_domain = request.POST.get("domain", "").strip()
             try:
                 result = delete_semantic_domain(target_domain)
-                messages.success(request, f"Domain '{result['domain']}' entfernt ({len(result['removed'])} Datei(en)).")
+                messages.success(request, f"Domain '{result['domain']}' entfernt ({len(result['removed'])} Einträge bereinigt).")
             except ValueError as exc:
                 messages.error(request, str(exc))
         elif action == "sync_pull":

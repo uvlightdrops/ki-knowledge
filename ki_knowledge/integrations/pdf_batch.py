@@ -12,21 +12,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import knowledge_db_path, knowledge_store_target
+from ki_knowledge.integrations.document_pipeline import DocumentInput, record_document
 from ki_knowledge.integrations.job_store_base import SqliteJobStoreBase
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf
 from ki_knowledge.integrations.pdf_paths import pdf_relative_source_path, pdf_source_id
 from ki_knowledge.knowledge.generate import KnowledgeArtifactGenerator
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -544,6 +548,7 @@ class PDFBatchProcessor(SqliteJobStoreBase):
                 source_name=source_name,
                 source_id=source_id,
                 source_type="pdf",
+                replace=True,
             )
             if not blocks:
                 raise ValueError("PDF produced no knowledge blocks")
@@ -581,6 +586,18 @@ class PDFBatchProcessor(SqliteJobStoreBase):
             )
             if not self.complete_job(job_id, claim_token):
                 return {"job_id": job_id, "status": "lease_lost", "file": str(pdf_path)}
+            self._record_pipeline_stage(
+                lambda: store.target,
+                job,
+                DocumentInput(
+                    source_id=source_id,
+                    title=pdf_path.stem,
+                    path=source_path,
+                    imported=True,
+                    pages_total=int(job.pages_total or pages_processed),
+                    job_status="done",
+                ),
+            )
 
             return {
                 **result_payload,
@@ -592,12 +609,33 @@ class PDFBatchProcessor(SqliteJobStoreBase):
             error_msg = str(exc)
             if not self.fail_job(job_id, error_msg, claim_token):
                 return {"job_id": job_id, "status": "lease_lost", "file": str(pdf_path)}
+            self._record_pipeline_stage(
+                lambda: self._knowledge_store().target,
+                job,
+                DocumentInput(
+                    source_id=pdf_source_id(pdf_path, domain=job.domain),
+                    title=pdf_path.stem,
+                    path=str(pdf_path),
+                    pages_total=int(job.pages_total or 0),
+                    job_status="failed",
+                    job_error=error_msg,
+                ),
+            )
             return {
                 "job_id": job_id,
                 "status": "failed",
                 "error": error_msg,
                 "file": str(pdf_path),
             }
+
+    def _record_pipeline_stage(self, target: Callable[[], Any], job: PDFImportJob, document: DocumentInput) -> None:
+        """Keep the book pipeline overview current; it must never fail the import itself."""
+        if not job.domain:
+            return
+        try:
+            record_document(target(), job.domain, document)
+        except Exception:  # noqa: BLE001
+            logger.warning("Could not update book pipeline status for %s", document.source_id, exc_info=True)
 
     def _knowledge_db_path(self) -> Path:
         return knowledge_db_path(Config.from_env())

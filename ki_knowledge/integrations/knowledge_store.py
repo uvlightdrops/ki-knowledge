@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -28,6 +29,14 @@ _SQLITE_MAX_VARIABLES = 900
 def _chunked(items: list, size: int) -> "list[list]":
     """Split items into chunks of at most `size` elements."""
     return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _cosine(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right))
+    norm = math.sqrt(sum(a * a for a in left)) * math.sqrt(sum(b * b for b in right))
+    return dot / norm if norm else 0.0
 
 
 def _json_loads(value: Any) -> Any:
@@ -222,7 +231,9 @@ class KnowledgeStore:
         allowed_block_types: Optional[list[str]] = None,
         source_id: Optional[str] = None,
         source_type: Optional[str] = None,
+        replace: bool = False,
     ) -> list[KnowledgeBlock]:
+        """Import markdown blocks; ``replace`` removes records of the source that the new text no longer contains."""
         parser = parser or MarkdownBlockParser()
         blocks = parser.parse_markdown(text, source_path=source_path)
         if allowed_block_types:
@@ -243,9 +254,14 @@ class KnowledgeStore:
         for block in blocks:
             block.metadata["source_name"] = source_name or Path(source_path).name
 
-        for record in MarkdownKnowledgeAdapter.to_records(blocks, source):
+        records = MarkdownKnowledgeAdapter.to_records(blocks, source)
+        for record in records:
             self.upsert_record(record)
         self.delete_records_by_type(source.source_id, {"heading"})
+        if replace:
+            current = {record.block_id for record in records}
+            stale = [record.block_id for record in self.list_records(source_id=source.source_id) if record.block_id not in current]
+            self.delete_records(stale)
 
         return blocks
 
@@ -783,6 +799,125 @@ class KnowledgeStore:
                 """,
                 (block_id, model, value, self._now()),
             )
+
+    def blocks_needing_embeddings(
+        self,
+        source_ids: Iterable[str],
+        model: str,
+        *,
+        limit: int = 256,
+    ) -> list[KnowledgeBlockRecord]:
+        """Blocks of the sources without an up-to-date embedding of ``model``.
+
+        An embedding is outdated when it was made with another model or before
+        the block's last update (re-import with changed text).
+        """
+        ids = sorted({str(item) for item in source_ids if item})
+        if not ids:
+            return []
+        with self._connect() as conn:
+            placeholders = ",".join("?" for _ in ids)
+            rows = conn.execute(
+                f"""
+                SELECT b.* FROM knowledge_blocks b
+                LEFT JOIN knowledge_embeddings e ON e.block_id = b.id
+                WHERE {json_text('b.metadata_json', 'source_id', conn.dialect)} IN ({placeholders})
+                  AND b.block_type <> 'heading'
+                  AND (e.block_id IS NULL OR e.model <> ? OR e.created_at < b.updated_at)
+                ORDER BY b.id
+                LIMIT ?
+                """,
+                [*ids, model, limit],
+            ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    def embedding_counts(self, source_ids: Iterable[str], model: str) -> dict[str, int]:
+        """``blocks`` (without headings) and up-to-date ``embedded`` blocks of the sources."""
+        ids = sorted({str(item) for item in source_ids if item})
+        if not ids:
+            return {"blocks": 0, "embedded": 0}
+        with self._connect() as conn:
+            placeholders = ",".join("?" for _ in ids)
+            row = conn.execute(
+                f"""
+                SELECT COUNT(*),
+                       SUM(CASE WHEN e.block_id IS NOT NULL AND e.model = ? AND e.created_at >= b.updated_at
+                                THEN 1 ELSE 0 END)
+                FROM knowledge_blocks b
+                LEFT JOIN knowledge_embeddings e ON e.block_id = b.id
+                WHERE {json_text('b.metadata_json', 'source_id', conn.dialect)} IN ({placeholders})
+                  AND b.block_type <> 'heading'
+                """,
+                [model, *ids],
+            ).fetchone()
+        return {"blocks": int(row[0] or 0), "embedded": int(row[1] or 0)}
+
+    def add_embeddings(self, model: str, items: Iterable[tuple[str, list[float]]]) -> int:
+        """Store several ``(block_id, vector)`` pairs in one transaction."""
+        now = self._now()
+        with self._connect() as conn:
+            postgres = conn.dialect == "postgres"
+            payload = [
+                (block_id, model, vector_literal(vector) if postgres else json.dumps(vector), now)
+                for block_id, vector in items
+            ]
+            if not payload:
+                return 0
+            placeholder = "?::vector" if postgres else "?"
+            conn.executemany(
+                f"""
+                INSERT INTO knowledge_embeddings (block_id, model, vector_json, created_at)
+                VALUES (?, ?, {placeholder}, ?)
+                ON CONFLICT(block_id) DO UPDATE SET
+                    model = excluded.model,
+                    vector_json = excluded.vector_json,
+                    created_at = excluded.created_at
+                """,
+                payload,
+            )
+        return len(payload)
+
+    def similar_blocks(
+        self,
+        vector: list[float],
+        *,
+        model: str,
+        source_ids: Iterable[str] | None = None,
+        limit: int = 10,
+    ) -> list[tuple[KnowledgeBlockRecord, float]]:
+        """Nearest blocks by cosine similarity (pgvector in PostgreSQL, Python scan in SQLite)."""
+        ids = sorted({str(item) for item in source_ids or [] if item})
+        with self._connect() as conn:
+            scope = ""
+            params: list[Any] = []
+            if source_ids is not None:
+                if not ids:
+                    return []
+                scope = f" AND {json_text('b.metadata_json', 'source_id', conn.dialect)} IN ({','.join('?' for _ in ids)})"
+                params.extend(ids)
+            if conn.dialect == "postgres":
+                rows = conn.execute(
+                    f"""
+                    SELECT b.*, 1 - (e.vector_json <=> ?::vector) AS similarity
+                    FROM knowledge_embeddings e JOIN knowledge_blocks b ON b.id = e.block_id
+                    WHERE e.model = ?{scope}
+                    ORDER BY e.vector_json <=> ?::vector
+                    LIMIT ?
+                    """,
+                    [vector_literal(vector), model, *params, vector_literal(vector), limit],
+                ).fetchall()
+                return [(self._row_to_record(row), float(row["similarity"])) for row in rows]
+            rows = conn.execute(
+                f"""
+                SELECT b.*, e.vector_json AS embedding_json
+                FROM knowledge_embeddings e JOIN knowledge_blocks b ON b.id = e.block_id
+                WHERE e.model = ?{scope}
+                """,
+                [model, *params],
+            ).fetchall()
+        scored = [(_cosine(vector, _json_loads(row["embedding_json"]) or []), row) for row in rows]
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [(self._row_to_record(row), score) for score, row in scored[:limit]]
 
     def get_embedding(self, block_id: str) -> Optional[list[float]]:
         with self._connect() as conn:

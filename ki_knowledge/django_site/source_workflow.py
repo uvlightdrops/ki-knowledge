@@ -25,6 +25,7 @@ from ki_knowledge.integrations.mixed_ingest import (
     ONTOLOGY_KIND,
     PDF_KIND,
     TABLE_KIND,
+    TEI_KIND,
     MixedIngestError,
     classify_file,
     discover_mixed_files,
@@ -36,7 +37,8 @@ from ki_knowledge.integrations.pdf_paths import pdf_relative_source_path, pdf_so
 from ki_knowledge.knowledge.ontology_ingest import fetch_ontology_url, import_ontology_to_store
 from ki_knowledge.ui.knowledge_api_client import discover_markdown_files
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
-from ki_knowledge.knowledge.models import KnowledgeBlockRecord, KnowledgeSource
+from ki_knowledge.integrations.tei_ingest import parse_tei
+from ki_knowledge.knowledge.models import KnowledgeArtifact, KnowledgeBlockRecord, KnowledgeSource
 
 IMAGE_PROCESSING_OCR = "ocr"
 IMAGE_PROCESSING_ASSET = "asset"
@@ -251,6 +253,7 @@ def import_pdf_file(path: Path, *, source_name: str | None = None, domain: str |
         source_name=source_name or pdf_relative_source_path(path, domain=domain),
         source_id=pdf_source_id(path, domain=domain),
         source_type="pdf",
+        replace=True,
     )
     invalidate_domain_summary_cache(domain or _infer_domain_from_path(path))
     source_id = pdf_source_id(path, domain=domain)
@@ -327,6 +330,60 @@ def import_table_file(path: Path, *, domain: str | None = None, source_name: str
         result = {"imported": 0, "error": str(exc), "file": str(path), "kind": TABLE_KIND}
     invalidate_domain_summary_cache(resolved_domain)
     return result
+
+
+REFERENCE_STRUCTURE_ARTIFACT = "reference_structure"
+
+
+def import_tei_file(path: Path, *, domain: str | None = None, source_name: str | None = None) -> dict[str, Any]:
+    """Import a TEI edition as page text and keep its markup outline as reference structure.
+
+    Headings are imported as plain paragraphs so structure detection still has
+    to find them; the TEI ``div``/``head`` outline is stored separately as a
+    ``reference_structure`` artifact for evaluation.
+    """
+    resolved_domain = domain or _infer_domain_from_path(path)
+    try:
+        document = parse_tei(path)
+        result = _import_converted_file(path, TEI_KIND, document.to_markdown(), domain=resolved_domain, source_name=source_name)
+    except (ValueError, OSError, UnicodeError) as exc:
+        invalidate_domain_summary_cache(resolved_domain)
+        return {"imported": 0, "error": str(exc), "file": str(path), "kind": TEI_KIND}
+
+    source_id = result["source_id"]
+    store_obj = store()
+    source = store_obj.get_source(source_id)
+    if source is not None:
+        source.title = source_name or document.title or source.title
+        source.metadata = {
+            **source.metadata,
+            "domain": resolved_domain,
+            "relative_path": _mixed_relative_name(path, resolved_domain),
+            "title": document.title,
+            "author": document.author,
+            "year": document.year,
+            "licence": document.licence,
+            "pages_total": len(document.pages),
+            "reference_sections": len(document.sections),
+        }
+        store_obj.upsert_source(source)
+    store_obj.upsert_artifact(
+        KnowledgeArtifact(
+            artifact_id=hashlib.sha256(f"{source_id}:{REFERENCE_STRUCTURE_ARTIFACT}".encode("utf-8")).hexdigest()[:24],
+            artifact_type=REFERENCE_STRUCTURE_ARTIFACT,
+            source_id=source_id,
+            source_block_ids=[],
+            content=document.outline_markdown(),
+            metadata={
+                "origin": "tei",
+                "licence": document.licence,
+                "pages_total": len(document.pages),
+                "sections": [section.to_dict() for section in document.sections],
+            },
+        )
+    )
+    invalidate_domain_summary_cache(resolved_domain)
+    return {**result, "reference_sections": len(document.sections), "pages": len(document.pages)}
 
 
 def import_image_file(
@@ -414,6 +471,8 @@ def import_mixed_file(
         return import_table_file(path, domain=domain)
     if kind == IMAGE_KIND:
         return import_image_file(path, domain=domain, image_processing=image_processing)
+    if kind == TEI_KIND:
+        return import_tei_file(path, domain=domain)
     if kind == PDF_KIND:
         return {**import_pdf_file(path, domain=domain), "kind": kind}
     if kind == MARKDOWN_KIND:

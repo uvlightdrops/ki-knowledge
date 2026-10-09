@@ -23,6 +23,7 @@ from ki_knowledge.integrations.mixed_ingest import (
     ONTOLOGY_KIND,
     PDF_KIND,
     TABLE_KIND,
+    TEI_KIND,
     UNSUPPORTED_KIND,
     classify_file,
     discover_mixed_files,
@@ -50,13 +51,14 @@ SOURCE_KINDS: tuple[SourceKind, ...] = (
     SourceKind("owl", "Ontologie", "🕸️", ("owl",)),
     SourceKind("table", "Tabelle", "📊", (TABLE_KIND,)),
     SourceKind("image", "Bild", "🖼️", (IMAGE_KIND,)),
+    SourceKind("tei", "TEI", "📜", (TEI_KIND,)),
 )
 _OTHER_KIND = SourceKind("other", "Sonstige", "📦", ())
 _KIND_BY_TYPE = {source_type: kind for kind in SOURCE_KINDS for source_type in kind.source_types}
 KIND_KEYS = tuple(kind.key for kind in SOURCE_KINDS) + (_OTHER_KIND.key,)
 
 # Folder names describe their usual content, not a restriction on file formats.
-_SUPPORTED_FILE_KINDS = (PDF_KIND, MARKDOWN_KIND, ONTOLOGY_KIND, TABLE_KIND, IMAGE_KIND)
+_SUPPORTED_FILE_KINDS = (PDF_KIND, MARKDOWN_KIND, ONTOLOGY_KIND, TABLE_KIND, IMAGE_KIND, TEI_KIND)
 _FOLDERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("md", MARKDOWN, _SUPPORTED_FILE_KINDS),
     ("pdf", PDF, _SUPPORTED_FILE_KINDS),
@@ -64,7 +66,7 @@ _FOLDERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("mix", MIX, _SUPPORTED_FILE_KINDS),
 )
 FOLDER_KEYS = tuple(key for key, _type, _kinds in _FOLDERS)
-_FILE_KIND_ICON = {PDF_KIND: "📄", MARKDOWN_KIND: "📝", ONTOLOGY_KIND: "🕸️", TABLE_KIND: "📊", IMAGE_KIND: "🖼️"}
+_FILE_KIND_ICON = {PDF_KIND: "📄", MARKDOWN_KIND: "📝", ONTOLOGY_KIND: "🕸️", TABLE_KIND: "📊", IMAGE_KIND: "🖼️", TEI_KIND: "📜"}
 STATUS_KEYS = ("imported", "new", "queued", "failed", "unsupported")
 SORT_KEYS = ("updated", "title", "records", "kind", "path", "status")
 PAGE_SIZE = 100
@@ -491,7 +493,7 @@ def can_reimport(source: Any) -> bool:
     location = str(getattr(source, "location", "") or "")
     if source.source_type == "owl" and location.startswith(("http://", "https://")):
         return True
-    return source.source_type in {"markdown", "pdf", "owl", TABLE_KIND, IMAGE_KIND} and Path(location).expanduser().is_file()
+    return source.source_type in {"markdown", "pdf", "owl", TABLE_KIND, IMAGE_KIND, TEI_KIND} and Path(location).expanduser().is_file()
 
 
 def reimport_source(

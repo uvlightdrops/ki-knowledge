@@ -155,6 +155,96 @@ done ✓  or  failed ✗
 - Database queries are fast; no blocking on other operations
 - Multiple workers can be added in future for true parallelism
 
+## Buch-Pipeline (Verarbeitungsstand pro Buch)
+
+Übersicht: `/knowledge/pipeline/` (Navigation *Knowledge → Buch-Pipeline*).
+
+Jedes Buch durchläuft feste Stufen. Pro Buch und Stufe steht eine Zeile in
+`knowledge.document_stage_status` (Status, Stufen-Version, Kennzahlen als JSON, Fehler):
+
+| Stufe | Quelle des Status |
+|---|---|
+| `ingest` – Text importiert | Import-Job + Blöcke im KnowledgeStore |
+| `quality` – Textqualität | Zeichen/Seite, leere Seiten, wiederkehrende Kopfzeilen → Hinweise *OCR nötig*, *Viele leere Seiten*, *Viele Kopfzeilen* |
+| `structure` – Gliederung | `evaluate_structure` (siehe unten) |
+| `segments` – Abschnitte | künftige semantische Segmentierung |
+| `embeddings` | Anteil der Blöcke mit Eintrag in `knowledge_embeddings` (`embed_blocks`) |
+| `terms` – Begriffe | Anteil der Blöcke mit `semantic_record_term_links` |
+| `review` – Geprüft | redaktionelle Prüfung pro Buch (später über Wagtail-Workflow) |
+
+Status: `pending`, `partial`, `warning`, `done`, `failed`; `stale` (veraltet) wird
+abgeleitet, wenn die gespeicherte Version kleiner als die aktuelle Stufen-Version ist –
+so lässt sich nach Verbesserungen gezielt neu verarbeiten.
+
+- Nach jedem PDF-Job aktualisiert der Worker die Stufen dieses Buchs automatisch.
+- Neu berechnen für die ganze Domain: Button *Status neu berechnen* oder
+  `python manage.py sync_book_pipeline --domain anthro` (liest Quellen/Blöcke nur).
+- Ergebnisse künftiger Worker (`structure`, `segments`, `review`) werden beim
+  Neuberechnen nicht überschrieben; Worker schreiben sie mit
+  `DocumentStageStore.record(source_id, stage, domain=..., status=..., metrics=...)`.
+
+### Gliederung erkennen und prüfen
+
+`python manage.py evaluate_structure --domain corpus [--misses] [--dry-run]`
+(`ki_knowledge/integrations/structure_eval.py`, `django_site/book_structure.py`):
+
+- Verfahren `heading` (kurze Überschriften-Absätze: `§. 3.`, `Erster Abschnitt`, römische
+  Ziffern, `Einleitung` …), `toc` (gedrucktes Inhaltsverzeichnis parsen und die Titel im
+  Text suchen) und `combined` (Standard: TOC + zusätzliche Überschriften).
+  Wiederkehrende Zeilen (Kolumnentitel, Copyright-Fußzeilen) werden verworfen.
+- Ergebnis: Artefakt `detected_structure` und Stufe `structure`. Ansicht pro Buch:
+  `/knowledge/pipeline/structure/<source_id>/` (Klick auf den Gliederungs-Punkt).
+- Bücher mit Referenz (TEI-Import, Artefakt `reference_structure`) bekommen Präzision,
+  Recall und *Kapitel-Recall* (nur Abschnitte mit Worttitel, ohne reine `§. 12.`).
+  Treffer = Titelähnlichkeit ≥ 0,8 auf derselben Seite ± 1; unterschiedliche
+  Abschnittsnummern passen nie. Status: `done` ab Kapitel-Recall 0,8 und Präzision 0,7,
+  `warning` ab Kapitel-Recall 0,5, sonst `partial`; ohne Referenz `warning` (ungeprüft).
+- Zusätzlich wird eine *PDF-ähnliche* Variante bewertet (alle Absätze einer Seite
+  zusammengefügt) – so verhielt sich der PDF-Import bis 2026-10-09 (ein Block pro Seite).
+
+Referenzkorpus: Domain `corpus`, 10 DTA-Werke als TEI-P5 unter `corpus/mix/dta/`
+(Herkunft/Lizenz: `corpus/QUELLEN-DTA.md`, CC BY-SA 4.0). TEI-Dateien werden am Inhalt
+erkannt (Typ `tei`); der Import übernimmt Text seitenweise (ohne Fußnoten, Kolumnentitel,
+Bogensignaturen; Silbentrennung zusammengeführt, ſ → s) und speichert die
+`div`/`head`-Gliederung als Referenz – Überschriften stehen im Text als normale Absätze,
+damit die Erkennung sie selbst finden muss.
+
+Stand 2026-10-08 (`combined`): Präzision Ø 0,67, Kapitel-Recall Ø 0,90; PDF-ähnlich nur
+dort gut, wo ein gedrucktes Inhaltsverzeichnis existiert (Goethe, Schelling, Carus).
+Für die PDF-Bücher heißt das: Zeilenumbrüche beim PDF-Import erhalten, dann greift auch
+die Überschriften-Erkennung (siehe *PDF-Absätze*).
+
+### PDF-Absätze
+
+pypdf liefert den Text zeilenweise. Seit 2026-10-09 baut `extract_text_from_pdf`
+(`pdf_ingest.reflow_page_text`) daraus Absätze: Ein Absatz (oder eine Überschrift) endet
+an einer Leerzeile oder an einer Zeile, die deutlich kürzer ist als die übliche
+Zeilenbreite der Seite (< 75 % des Medians) und nicht auf `-` oder `,` endet;
+Silbentrennungen am Zeilenende werden zusammengeführt. Jeder Absatz wird ein eigener
+Block mit `metadata.page`. Ein erneuter PDF-Import ersetzt die Blöcke der Quelle
+(veraltete Seitenblöcke samt Embeddings werden entfernt).
+
+Probe GA009 (PDF-Lesezeichen als Referenz, 18 Kapitel): Kapitel-Recall 0,00 mit
+Seitenblöcken → 0,83 mit Absätzen.
+
+Bestand: `anthro` ist noch seitenweise importiert (Embeddings laufen darauf); Umstellung
+per erneutem Import, wenn gewünscht.
+
+### Embeddings (Ollama)
+
+`python manage.py embed_blocks --domain anthro [--batch 32] [--limit N] [--status]`
+
+- Modell `knowledge.embed_model` (Standard `nomic-embed-text`) über
+  `providers.ollama.base_url`; Dokumente mit Präfix `search_document:`, Anfragen mit
+  `search_query:`; Texte über ~6000 Zeichen werden gekürzt.
+- Fortsetzbar: verarbeitet nur Blöcke ohne aktuellen Vektor dieses Modells (fehlend,
+  anderes Modell oder Block seit dem Embedding geändert). Fehlerhafte Batches werden
+  blockweise wiederholt; einzelne Ausfälle werden gemeldet und übersprungen.
+- Aktualisiert die Stufe `embeddings` der Buch-Pipeline unterwegs und am Ende.
+- Suche: `/knowledge/search/` (pgvector `<=>`, Kosinus-Ähnlichkeit, aktive Domain).
+- Durchsatz hier ~7 Blöcke/s (Ollama teils auf CPU); `anthro` (~125 000 Seitenblöcke)
+  braucht damit mehrere Stunden.
+
 ## Database Schema
 
 ```sql

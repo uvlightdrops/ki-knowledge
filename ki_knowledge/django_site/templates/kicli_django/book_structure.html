@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Gliederung · {{ source.title }} · KICLI{% endblock %}
+{% block content %}
+<style>
+.structure-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.structure-list{list-style:none;margin:0;padding:0;font-size:.9em}
+.structure-list li{padding:2px 0;display:flex;gap:8px}
+.structure-list .page{min-width:3.5em;text-align:right;color:#94a3b8;font-variant-numeric:tabular-nums}
+.structure-list .hit{color:#22c55e}.structure-list .miss{color:#ef4444}
+.structure-metrics td{padding:2px 10px 2px 0}
+</style>
+<p><a href="{% url 'book-pipeline' %}">← Buch-Pipeline</a> · <a href="{{ records_url }}">Records</a></p>
+<h1>Gliederung: {{ source.title }}</h1>
+<p class="muted mono">{{ source.source_id }} · Verfahren: {{ method|default:"–" }}</p>
+
+{% if evaluation %}
+<div class="card" style="margin-bottom:16px;">
+  <h2 style="margin-top:0;">Abgleich mit der Referenz</h2>
+  <table class="structure-metrics">
+    <tr><th></th><th>Import</th><th title="Absätze je Seite zusammengefügt, wie beim früheren PDF-Import (ein Block pro Seite)">PDF-ähnlich</th></tr>
+    <tr><td>Präzision</td><td>{% widthratio evaluation.precision 1 100 %} %</td><td>{% widthratio evaluation_flat.precision 1 100 %} %</td></tr>
+    <tr><td>Recall (alle Abschnitte)</td><td>{% widthratio evaluation.recall 1 100 %} %</td><td>{% widthratio evaluation_flat.recall 1 100 %} %</td></tr>
+    <tr><td title="Nur Abschnitte mit Worttitel, ohne reine Nummern wie „§. 12.“">Recall Kapitel ({{ evaluation.titled_reference }})</td><td>{% widthratio evaluation.titled_recall 1 100 %} %</td><td>{% widthratio evaluation_flat.titled_recall 1 100 %} %</td></tr>
+    <tr><td>F1</td><td>{% widthratio evaluation.f1 1 100 %} %</td><td>{% widthratio evaluation_flat.f1 1 100 %} %</td></tr>
+  </table>
+  <p class="muted" style="margin-bottom:0;">Treffer: ähnlicher Titel (≥ 80 %) auf derselben Seite ± 1.</p>
+</div>
+{% elif not has_reference %}
+<p class="muted">Keine Referenzgliederung vorhanden – die erkannte Gliederung ist ungeprüft.</p>
+{% endif %}
+
+<div class="structure-grid">
+  <div class="card">
+    <h2 style="margin-top:0;">Erkannt ({{ headings|length }})</h2>
+    <ul class="structure-list">
+      {% for heading in headings %}
+      <li><span class="page">S. {{ heading.page }}</span>{% if has_reference %}<span class="{% if heading.matched %}hit{% else %}miss{% endif %}">{% if heading.matched %}✓{% else %}✗{% endif %}</span>{% endif %}<span style="padding-left:{{ heading.level|add:'-1' }}em">{{ heading.title }}</span></li>
+      {% empty %}<li class="muted">Keine Gliederung erkannt.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% if has_reference %}
+  <div class="card">
+    <h2 style="margin-top:0;">Referenz ({{ sections|length }})</h2>
+    <ul class="structure-list">
+      {% for section in sections %}
+      <li><span class="page">S. {{ section.page_index }}</span><span class="{% if section.matched %}hit{% else %}miss{% endif %}">{% if section.matched %}✓{% else %}✗{% endif %}</span><span style="padding-left:{{ section.level|add:'-1' }}em">{{ section.title }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

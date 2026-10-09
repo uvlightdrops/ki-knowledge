@@ -65,6 +65,25 @@ class OllamaEmbeddingProvider:
         data = response.json()
         return data.get("embedding", [])
 
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        """Batch embedding via ``/api/embed``; over-long inputs are truncated to the model context."""
+        if not texts:
+            return []
+        response = requests.post(
+            f"{self.base_url}/api/embed",
+            json={"model": self.model, "input": texts, "truncate": True},
+            timeout=self.timeout,
+        )
+        if response.status_code == 404:
+            raise RuntimeError(
+                f"Embedding model '{self.model}' not found in Ollama. Install it with: ollama pull {self.model}"
+            )
+        response.raise_for_status()
+        vectors = response.json().get("embeddings") or []
+        if len(vectors) != len(texts):
+            raise RuntimeError(f"Ollama returned {len(vectors)} embeddings for {len(texts)} texts")
+        return vectors
+
 
 class TFIDFEmbeddingProvider:
     """

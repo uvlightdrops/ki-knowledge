@@ -273,7 +273,7 @@ _SOURCES_PRESETS = (
 def _sources_table_spec() -> TableSpec:
     from .sources_browser import FOLDER_KEYS, KIND_KEYS, STATUS_KEYS, SORT_KEYS
 
-    kind_labels = {"markdown": "Markdown", "pdf": "PDF", "owl": "Ontologie", "table": "Tabelle", "image": "Bild", "other": "Sonstige"}
+    kind_labels = {"markdown": "Markdown", "pdf": "PDF", "owl": "Ontologie", "table": "Tabelle", "image": "Bild", "tei": "TEI", "other": "Sonstige"}
     folder_labels = {key: f"{key}/" for key in (*FOLDER_KEYS, "jira")}
     return TableSpec(
         filters=(

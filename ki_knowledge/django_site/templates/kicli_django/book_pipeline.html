@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Buch-Pipeline · KICLI{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'widgetkit_django/css/data-table.css' %}?v=20261008">{% endblock %}
+{% block content %}
+<style>
+.pipeline-funnel{width:100%;border-collapse:collapse}
+.pipeline-funnel td,.pipeline-funnel th{padding:4px 8px;text-align:left;vertical-align:middle}
+.pipeline-bar{position:relative;height:14px;min-width:160px;background:#1e293b;border-radius:7px;overflow:hidden}
+.pipeline-bar span{position:absolute;inset:0 auto 0 0;background:#22c55e}
+.pipeline-bar--blocks span{background:#60a5fa}
+.pipeline-table td,.pipeline-table th{padding:4px 6px}
+.pipeline-table td.num{text-align:right;white-space:nowrap}
+.stage-dots{display:flex;gap:3px}
+.stage-dot{width:12px;height:12px;border-radius:3px;background:#334155;display:inline-block}
+.stage-dot--done{background:#22c55e}.stage-dot--warning{background:#eab308}.stage-dot--partial{background:#60a5fa}
+.stage-dot--failed{background:#ef4444}.stage-dot--stale{background:#a855f7}
+.pipeline-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.85em}
+.pipeline-legend span{display:inline-flex;align-items:center;gap:4px}
+</style>
+
+<h1>Buch-Pipeline</h1>
+<p class="muted">{{ total_documents }} Bücher · Stand: {{ last_updated|default:"noch nie berechnet" }}</p>
+
+<div class="card" style="margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h2 style="margin:0;">Fortschritt je Stufe</h2>
+    <form method="post" action="{% url 'book-pipeline' %}">
+      {% csrf_token %}
+      <button type="submit" name="action" value="refresh">Status neu berechnen</button>
+    </form>
+  </div>
+  <table class="pipeline-funnel">
+    <thead><tr><th>Stufe</th><th>Bücher</th><th></th><th>Blöcke</th><th>Offen / Hinweise / Fehler</th></tr></thead>
+    <tbody>
+    {% for item in funnel %}
+      <tr title="{{ item.description }} (Version {{ item.version }})">
+        <td><a href="{{ item.done_href }}">{{ item.label }}</a></td>
+        <td class="num">{{ item.done }} / {{ item.total }} · <strong>{{ item.percent }} %</strong></td>
+        <td><div class="pipeline-bar"><span style="width:{{ item.percent|stringformat:'.1f' }}%"></span></div></td>
+        <td>{% if "blocks" in item %}<div class="pipeline-bar pipeline-bar--blocks" title="{{ item.blocks_done }} / {{ item.blocks }} Blöcke"><span style="width:{{ item.blocks_percent|stringformat:'.1f' }}%"></span></div> {{ item.blocks_percent }} %{% endif %}</td>
+        <td>
+          <a href="{{ item.open_href }}">{{ item.statuses.pending }} offen</a>
+          {% if item.statuses.partial %} · {{ item.statuses.partial }} teilweise{% endif %}
+          {% if item.statuses.warning %} · {{ item.statuses.warning }} mit Hinweisen{% endif %}
+          {% if item.statuses.failed %} · <span style="color:#ef4444">{{ item.statuses.failed }} Fehler</span>{% endif %}
+          {% if item.statuses.stale %} · {{ item.statuses.stale }} veraltet{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  {{ toolbar_html }}
+  <div class="pipeline-legend muted" style="margin:8px 0;">
+    {% for stage in stages %}<span>{{ forloop.counter }}={{ stage.label }}</span>{% endfor %}
+    <span><i class="stage-dot stage-dot--done"></i>erledigt</span>
+    <span><i class="stage-dot stage-dot--warning"></i>Hinweise</span>
+    <span><i class="stage-dot stage-dot--partial"></i>teilweise</span>
+    <span><i class="stage-dot stage-dot--failed"></i>Fehler</span>
+    <span><i class="stage-dot stage-dot--stale"></i>veraltet</span>
+    <span><i class="stage-dot"></i>offen</span>
+  </div>
+  <p class="muted">{{ first_index }}–{{ last_index }} von {{ total }}{% if active_stage %} · Stufe: <a class="chip" href="{{ clear_stage_href }}" title="Stufenfilter entfernen">{{ active_stage }} ✕</a>{% endif %}</p>
+  <div class="table-wrap">
+  <table class="pipeline-table">
+    <thead>
+      <tr>
+        <th><a href="{{ header_links.title }}">Buch</a></th>
+        <th><a href="{{ header_links.progress }}">Stufen</a></th>
+        <th><a href="{{ header_links.pages }}">Seiten</a></th>
+        <th>Blöcke</th>
+        <th><a href="{{ header_links.chars }}">Zeichen/Seite</a></th>
+        <th><a href="{{ header_links.empty }}">Leer</a></th>
+        <th>Hinweise</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td title="{{ row.path }}">
+          {% if row.detail_url %}<a href="{{ row.detail_url }}">{{ row.title }}</a>{% else %}{{ row.title }}{% endif %}
+          <div class="muted mono" style="font-size:.8em;">{{ row.source_id }}</div>
+        </td>
+        <td>
+          <div class="stage-dots">
+            {% for stage in row.stages %}{% if stage.url %}<a href="{{ stage.url }}">{% endif %}<i class="stage-dot stage-dot--{{ stage.status }}" title="{{ forloop.counter }}. {{ stage.label }}: {{ stage.status_label }}{% if stage.detail %} – {{ stage.detail }}{% endif %}{% if stage.error %} – {{ stage.error }}{% endif %}"></i>{% if stage.url %}</a>{% endif %}{% endfor %}
+          </div>
+        </td>
+        <td class="num">{{ row.pages|default:"–" }}</td>
+        <td class="num">{% if row.records_url %}<a href="{{ row.records_url }}">{{ row.blocks }}</a>{% else %}–{% endif %}</td>
+        <td class="num">{{ row.chars_per_page|default:"–" }}</td>
+        <td class="num">{% if row.empty_percent != "" %}{{ row.empty_percent }} %{% else %}–{% endif %}</td>
+        <td>
+          {% if row.reference_sections %}<span class="chip" title="Referenzgliederung mit {{ row.reference_sections }} Abschnitten (TEI)">Referenz</span> {% endif %}
+          {% for flag in row.flags %}<span class="chip">{{ flag.label }}</span> {% endfor %}
+          {% if row.error %}<span class="chip" style="border-color:#ef4444" title="{{ row.error }}">Importfehler</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="muted">Keine Bücher – ggf. „Status neu berechnen“.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p>
+    {% if prev_href %}<a href="{{ prev_href }}">← zurück</a>{% endif %}
+    {% if next_href %}<a href="{{ next_href }}" style="margin-left:12px;">weiter →</a>{% endif %}
+  </p>
+</div>
+{% endblock %}
