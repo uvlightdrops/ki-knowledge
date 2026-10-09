@@ -1,0 +1,103 @@
+# Service stack for stackctl (./kistack). Generic tool, project-specific spec:
+# local = processes + docker compose, minikube/k8s = generic Helm chart.
+# Per stage/host: config/stages/*.yaml, host-local: config/runtime/runtime.yaml.
+stack:
+  name: ki-knowledge
+  target: local
+  services:
+    postgres:
+      kind: compose
+      compose: {dir: deploy/postgres, service: postgres, requires: [deploy/postgres/.env]}
+      port: 5432
+      k8s:
+        image: pgvector/pgvector:pg16
+        secret_env: true
+        secret_files: false
+        init: false
+        env:
+          POSTGRES_DB: $(KI_PG_DB)
+          POSTGRES_USER: $(KI_PG_USER)
+          POSTGRES_PASSWORD: $(KI_PG_PASSWORD)
+          PGDATA: /var/lib/postgresql/data/pgdata
+        volumes:
+          pgdata: {mount: /var/lib/postgresql/data, size: 10Gi}
+
+    ollama:
+      kind: compose
+      compose: {dir: deploy/ollama}
+      port: 11434
+      health_path: /api/tags
+      env: {KI_OLLAMA_PORT: "{port}"}
+      # pulls knowledge.embed_model (+ chat model for provider ollama) if missing
+      post_start: ["{python}", "-m", "ki_knowledge.ollama_models"]
+      k8s:
+        image: ollama/ollama:latest
+        init: false
+        secret_files: false
+        volumes:
+          models: {mount: /root/.ollama, size: 20Gi}
+
+    api:
+      port: 8090
+      health_path: /docs
+      command: ["{python}", "examples/run_knowledge_api.py"]
+      marker: run_knowledge_api
+      env: {KI_API_HOST: "{host}", KI_API_PORT: "{port}", KI_API_RELOAD: "true"}
+      k8s:
+        image: "@app"
+        secret_env: true
+        env: {KI_API_RELOAD: "false"}
+        volumes:
+          data: {mount: /data, size: 20Gi, shared: true}
+
+    django:
+      port: 8000
+      health_path: /
+      prepare: ["{python}", "manage.py", "migrate", "--no-input"]
+      # --insecure: static files also without DEBUG (runserver-only setup)
+      command: ["{python}", "manage.py", "runserver", "--insecure", "{host}:{port}"]
+      marker: manage.py runserver
+      env:
+        KNOWLEDGE_API_URL: "http://{services[api].probe_host}:{services[api].port}/api/knowledge"
+      k8s:
+        image: "@app"
+        secret_env: true
+        expose: true
+        volumes:
+          data: {mount: /data, size: 20Gi, shared: true}
+
+  k8s:
+    namespace: ki-knowledge
+    release: ki-knowledge
+    images:
+      app: {dockerfile: deploy/docker/Dockerfile}   # sibling repos come in as build contexts
+    secret_env:                                     # defaults, deploy/postgres/.env overrides
+      KI_PG_DB: ki_knowledge
+      KI_PG_USER: ki_knowledge
+    secret_env_files: [deploy/postgres/.env]
+    secret_files: [creds.yaml]                      # mounted to /app/creds.yaml if present
+    env:
+      KI_CFG_APPS__KI_KNOWLEDGE__DISTRIBUTED__POSTGRES_DSN: postgresql://$(KI_PG_USER):$(KI_PG_PASSWORD)@{services[postgres].probe_host}:{services[postgres].port}/$(KI_PG_DB)
+      KI_CFG_LLM__PROVIDERS__OLLAMA__BASE_URL: http://{services[ollama].probe_host}:{services[ollama].port}
+      KI_CFG_KNOWLEDGE__DATA_ROOT: /data
+    minikube: {profile: ki-knowledge, cpus: 4, memory: 8192, driver: docker}
+
+  targets:
+    minikube:
+      services:
+        django: &cluster_django
+          k8s:
+            command: ["{python}", manage.py, runserver, --insecure, --noreload, "{host}:{port}"]
+        ollama: {k8s: null}   # dev-mk uses the host's native Ollama (must listen on 0.0.0.0)
+      k8s:
+        env:
+          KI_STAGE: dev-mk
+          KI_CFG_LLM__PROVIDERS__OLLAMA__BASE_URL: http://host.minikube.internal:11434
+    k8s:
+      services:
+        django: *cluster_django
+      k8s:
+        env: {KI_STAGE: prod-k8s}
+        # registry: registry.firma.intern/ki     # required for k8s (images are pushed)
+        # context: prod-cluster
+        # ingress: {host: ki.firma.intern, class_name: nginx}

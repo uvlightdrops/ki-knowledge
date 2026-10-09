@@ -1,0 +1,26 @@
+# Local Ollama for hosts without a native installation (e.g. prod): embeddings
+# (knowledge.embed_model, default nomic-embed-text) and optionally chat.
+# `./kistack start ollama` starts it when llm.providers.ollama.base_url is not
+# reachable and pulls the missing models; port = port of that URL.
+# Manual: KI_OLLAMA_PORT=11434 docker compose up -d
+name: ki-knowledge-ollama
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "${KI_OLLAMA_BIND:-127.0.0.1}:${KI_OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    # NVIDIA GPU (needs nvidia-container-toolkit): uncomment
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  ollama-models:

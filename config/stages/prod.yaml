@@ -1,0 +1,17 @@
+# Prod host (Ubuntu, runserver + docker compose): company KI for chat,
+# Ollama container for embeddings. Host-specific values (ki base_url, DSN,
+# secret_key, allowed_hosts) in ki.yaml, api_key in creds.yaml.
+llm:
+  default_provider: ki
+http:
+  request_timeout: 120
+apps:
+  ki_knowledge:
+    django:
+      debug: false
+stack:
+  services:
+    api:
+      env: {KI_API_RELOAD: "false"}
+    django:
+      host: 0.0.0.0

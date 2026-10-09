@@ -221,17 +221,32 @@ Bisherige Varianten im Workspace:
 Festgelegt für ki-knowledge (2026-10-09):
 - Keine absoluten Pfade in `pyproject.toml`; Geschwister-Repos nur per Name
   (`ki-core`, `widgetkit-django`, `yaml-cfg-wizard`).
-- Ein Einstieg: `./kistack install|status|start|stop|restart|logs` → `deploy/devstack.py`.
-  Install: `.venv`, Geschwister aus `KI_SRC_DIR` (Standard: Nachbarverzeichnis) editierbar,
-  fehlende werden geklont (Branch in `SIBLINGS`).
-- Host-spezifisches nur in `deploy/stack.env` (Vorlage `stack.env.example`, nicht in git);
-  Umgebungsvariablen haben Vorrang. Dev und Prod (beide Ubuntu 24) unterscheiden sich nur dort.
-- Start prüft erst den Port; `stop` beendet nur Prozesse aus diesem Projekt.
+- Ein Einstieg: `./kistack [-t local|minikube|k8s] install|status|start|stop|restart|logs|delete|spec`.
+  `kistack` ist nur ein sh-Wrapper um **stackctl** (Geschwister-Repo, projektneutral, mit
+  generischem Helm-Chart). Projektwissen steht **nur** in `config/defaults/stack.yaml`, Code in
+  ki-knowledge ist dafür nicht nötig. `[tool.stackctl]` in `pyproject.toml` nennt den
+  Loader (`ki_core:load_config`) und die Geschwister-Repos.
+- Install: `.venv`, Geschwister aus `STACKCTL_SRC_DIR` (Standard: Nachbarverzeichnis)
+  editierbar. Fehlende werden geklont (Branch in `[[tool.stackctl.siblings]]`).
+- Konfig-Linie wie ki-core / kicli-code-assist: alles über ki-core, also defaults → `ki.yaml` →
+  **eine** Stage (`KI_STAGE` bzw. `config/stages/.active_stage`) → `runtime.yaml` → `KI_CFG_*`
+  → `creds.yaml`. Stages: `dev-lokal`, `prod` (Hosts), `dev-mk`, `prod-k8s` (Pods).
+  Keine Env-Dateien mit Duplikaten. `DJANGO_*`/`KI_CFG_*` dienen nur als Override.
+- Chat immer über `ki_knowledge.llm_provider` (`llm.default_provider`: ki|ollama|openai|mock),
+  nie `OllamaClient` direkt. Embeddings bleiben bewusst Ollama (`nomic-embed-text`) auf allen
+  Hosts. Prod startet dafür `deploy/ollama` (Docker); dev-mk nutzt das Host-Ollama
+  (`host.minikube.internal`, Host muss auf 0.0.0.0 lauschen).
+- Start prüft erst den Port; `stop` beendet nur Prozesse aus diesem Projekt (Marker + cwd).
+- k8s: Image-Kontext = git-Dateien, Geschwister als `--build-context`; `stop` behält PVCs.
+  Die DSN wird im Cluster aus `$(KI_PG_*)` (Secret) gebaut und darf nicht in `creds.yaml` stehen.
 - Prod bewusst ohne gunicorn/nginx/systemd (runserver `--insecure`); erst bei Bedarf erweitern.
-- Neues Geschwister-Repo → in `SIBLINGS` (devstack.py) und `pyproject.toml` eintragen.
+- Neues Geschwister-Repo → `[[tool.stackctl.siblings]]` + Dependency in `pyproject.toml` +
+  `COPY --from=<name>` im Dockerfile.
+- Weitere Projekte (ia3simworld, pie_elastic) sollen dieselbe Linie nutzen: stackctl-Spec im
+  Konfigbaum statt eigener ctl-Skripte und Charts.
 
 ---
 
-**Last Updated:** 2026-10-09
+**Last Updated:** 2026-10-10
 **Project:** ki-knowledge
 **Version:** 1.0

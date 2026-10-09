@@ -70,15 +70,22 @@ Ubuntu 24 (dev or prod host), any directory:
 sudo apt install python3-venv git
 git clone https://github.com/uvlightdrops/ki-knowledge.git
 cd ki-knowledge
-./kistack install            # creates .venv, installs siblings + this project editable
-cp deploy/stack.env.example deploy/stack.env   # optional: hosts/ports per host
-./kistack start              # postgres, ollama check, API, Django
+./kistack install            # creates .venv, installs stackctl, siblings + this project editable
+echo dev-lokal > config/stages/.active_stage   # stage of this host: dev-lokal | prod
+./kistack start              # postgres, ollama, API, Django
 ```
 
-`./kistack install` uses `ki-core`, `widgetkit-django` and `yaml_cfg_wizard` from the
-directory next to this repo (`KI_SRC_DIR` to change) and clones them there if they are
-missing. Existing checkouts are used as they are, so a `git pull` in a sibling is picked
-up immediately. Re-run `install` after dependency changes in `pyproject.toml`.
+`kistack` is a thin wrapper around [stackctl](https://github.com/uvlightdrops/stackctl), a
+project-agnostic start/deploy tool. The stack (services, ports, k8s settings) is described
+in `config/defaults/stack.yaml` and goes through the normal ki-core configuration, so
+stages and `KI_CFG_*` env overrides apply to it as well. `./kistack install` uses
+`stackctl`, `ki-core`, `widgetkit-django` and `yaml_cfg_wizard` from the directory next to
+this repo (`STACKCTL_SRC_DIR` to change) and clones them there if they are missing.
+Existing checkouts are used as they are, so a `git pull` in a sibling is picked up
+immediately. Re-run `install` after dependency changes in `pyproject.toml`.
+
+Kubernetes: `./kistack -t minikube start` (local cluster, profile `ki-knowledge`) or
+`./kistack -t k8s start` (registry + context in `stack.k8s`).
 Details: [doc/DJANGO_DEV.md](doc/DJANGO_DEV.md).
 
 ## Chrome DevTools workspace

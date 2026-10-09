@@ -1,0 +1,10 @@
+# Inside minikube (pods get KI_STAGE=dev-mk). DSN, Ollama URL and data root
+# come from stack.k8s.env; chat + embeddings via the host's native Ollama
+# (host.minikube.internal:11434, Ollama must listen on 0.0.0.0).
+llm:
+  default_provider: ollama
+apps:
+  ki_knowledge:
+    django:
+      debug: false
+      allowed_hosts: ["*"]

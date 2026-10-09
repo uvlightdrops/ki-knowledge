@@ -1,0 +1,8 @@
+# Developer host: everything local, chat via local Ollama.
+llm:
+  default_provider: ollama
+apps:
+  ki_knowledge:
+    django:
+      debug: true
+      allowed_hosts: ["*"]

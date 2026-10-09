@@ -49,3 +49,24 @@ kictl = "ki_knowledge.cli.main:main"
 
 [tool.setuptools]
 packages = ["ki_knowledge"]
+
+[tool.stackctl]
+# ./kistack -> stackctl: stack spec = section "stack" of the ki-core config
+# (config/defaults/stack.yaml + active stage), see doc/DJANGO_DEV.md
+config_loader = "ki_core:load_config"
+config_key = "stack"
+
+[[tool.stackctl.siblings]]
+name = "yaml_cfg_wizard"
+url = "https://github.com/uvlightdrops/yaml-cfg-wizard.git"
+branch = "devel"
+
+[[tool.stackctl.siblings]]
+name = "ki-core"
+url = "https://github.com/uvlightdrops/ki-core.git"
+branch = "master"
+
+[[tool.stackctl.siblings]]
+name = "widgetkit-django"
+url = "https://github.com/uvlightdrops/widgetkit-django.git"
+branch = "devel"

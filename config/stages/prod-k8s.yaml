@@ -1,0 +1,11 @@
+# Inside a production Kubernetes cluster (pods get KI_STAGE=prod-k8s).
+# ki base_url/model: here or via stack.k8s.env (KI_CFG_LLM__PROVIDERS__KI__BASE_URL);
+# api_key: creds.yaml (mounted as secret).
+llm:
+  default_provider: ki
+http:
+  request_timeout: 120
+apps:
+  ki_knowledge:
+    django:
+      debug: false

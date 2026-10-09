@@ -1,10 +1,18 @@
 #!/bin/sh
-# ki-knowledge stack: ./kistack [install|status|start|stop|restart|logs] [postgres|ollama|api|django] [-f]
+# ki-knowledge stack via stackctl (generic sibling tool):
+#   ./kistack [-t local|minikube|k8s] [install|status|start|stop|restart|logs|delete|spec] [dienst …] [-f]
+# Target/ports/hosts come from config (config/defaults/stack.yaml + active stage).
 set -e
 ROOT=$(dirname "$(readlink -f "$0")")
 PY="$ROOT/.venv/bin/python"
+SRC=${STACKCTL_SRC_DIR:-$(dirname "$ROOT")}
 if [ ! -x "$PY" ]; then
-    [ "$1" = install ] || { echo "Keine .venv – zuerst: $0 install" >&2; exit 1; }
+    case " $* " in *" install "*) ;; *) echo "Keine .venv – zuerst: $0 install" >&2; exit 1 ;; esac
     python3 -m venv "$ROOT/.venv"
 fi
-exec "$PY" "$ROOT/deploy/devstack.py" "$@"
+if ! "$PY" -c "import stackctl" 2>/dev/null; then
+    [ -d "$SRC/stackctl" ] || git clone --quiet --branch devel https://github.com/uvlightdrops/stackctl.git "$SRC/stackctl"
+    "$PY" -m pip install --quiet -e "$SRC/stackctl"
+fi
+cd "$ROOT"
+exec "$PY" -m stackctl "$@"

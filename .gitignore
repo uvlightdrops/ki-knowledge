@@ -59,4 +59,8 @@ tmp_*
 ki.yaml
 
 # per-host stack config (kistack)
-deploy/stack.env
+
+# per host: active stage, host-local overrides
+config/stages/.active_stage
+config/profiles/.active_profile
+config/runtime/
