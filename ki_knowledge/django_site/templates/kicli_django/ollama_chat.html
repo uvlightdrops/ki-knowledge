@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Ollama Chat · KICLI{% endblock %}
+{% block title %}KI Chat · KICLI{% endblock %}
 {% block content %}
-<h1>Ollama Chat</h1>
+<h1>KI Chat <span class="muted">({{ chat_provider|default:"ollama" }})</span></h1>
 <p class="muted">Gespeichert wird in: <span class="mono">{{ saved_path|default:"dev_data/md/&lt;domain&gt;/ollama-chat/" }}</span></p>
 
 {% if notice %}
@@ -39,7 +39,7 @@
       </div>
       <div class="section">
         <label for="question">Frage</label><br>
-        <textarea id="question" name="question" rows="8" style="width:100%;" placeholder="Was soll Ollama ausarbeiten?"></textarea>
+        <textarea id="question" name="question" rows="8" style="width:100%;" placeholder="Was soll die KI ausarbeiten?"></textarea>
       </div>
       <div class="section">
         <label>Weiterer Workflow</label>
@@ -61,7 +61,7 @@
   <div class="card">
     <h3>Workflow</h3>
     <ol class="muted" style="padding-left: 1.2rem; margin: 0;">
-      <li>Ollama beantwortet die Frage.</li>
+      <li>Die KI ({{ chat_provider|default:"ollama" }}) beantwortet die Frage.</li>
       <li>Du entscheidest explizit: nur Antwort, speichern, einlesen oder semantisch verarbeiten.</li>
       <li>Der Status wird im Verlauf sofort sichtbar.</li>
     </ol>
@@ -96,7 +96,7 @@
         </div>
         <p><strong>{{ item.title }}</strong></p>
         <p><strong>Du:</strong> {{ item.question }}</p>
-        <p><strong>Ollama ({{ item.model }}):</strong> {{ item.answer }}</p>
+        <p><strong>KI ({{ item.model }}):</strong> {{ item.answer }}</p>
         {% if item.saved_path %}
           <p class="muted">Gespeichert: <span class="mono">{{ item.saved_path }}</span></p>
         {% endif %}

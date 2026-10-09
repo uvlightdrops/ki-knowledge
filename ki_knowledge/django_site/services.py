@@ -19,7 +19,7 @@ from typing import Any
 import markdown
 from django.conf import settings
 import networkx as nx
-from ki_core.adapters.ollama import OllamaClient
+from ki_knowledge.llm_provider import chat_client, chat_models, chat_settings
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.data_layout import DataLayout
 from ki_core.core.models import ChatRequest, Message, Role
@@ -255,11 +255,8 @@ def artifact_content_preview(artifact_type: str, content: str, *, limit: int = 2
 
 
 def ollama_runtime_settings() -> dict[str, str]:
-    config = Config.from_env()
-    return {
-        "base_url": (config.ollama_base_url or "http://localhost:11434").strip(),
-        "model": (config.ollama_model or "llama3.2").strip(),
-    }
+    """Chat provider settings (``provider``, ``base_url``, ``model``) from ``llm.default_provider``."""
+    return chat_settings()
 
 
 def ollama_chat_dir(domain: str | None = None) -> Path:
@@ -267,12 +264,10 @@ def ollama_chat_dir(domain: str | None = None) -> Path:
 
 
 def ollama_available_models(base_url: str | None = None) -> list[str]:
-    config = Config.from_env()
-    resolved_base_url = (base_url or config.ollama_base_url or "http://localhost:11434").strip()
-    try:
-        return OllamaClient.get_available_models(resolved_base_url)
-    except Exception:
-        return []
+    settings = chat_settings()
+    if base_url:
+        settings = {**settings, "base_url": base_url}
+    return chat_models(settings)
 
 
 def ollama_chat_answer(
@@ -287,11 +282,7 @@ def ollama_chat_answer(
     if not prompt:
         raise ValueError("question missing")
 
-    config = Config.from_env()
-    provider = OllamaClient(
-        base_url=(base_url or config.ollama_base_url or "http://localhost:11434").strip(),
-        model=(model or config.ollama_model or "llama3.2").strip(),
-    )
+    provider = chat_client(model=model, base_url=base_url)
     messages: list[dict[str, str]] = []
     if system_prompt and system_prompt.strip():
         messages.append({"role": "system", "content": system_prompt.strip()})
@@ -310,7 +301,7 @@ def ollama_chat_answer(
         "question": prompt,
         "answer": response.message.content,
         "model": response.model,
-        "base_url": provider.base_url,
+        "base_url": getattr(provider, "base_url", ""),
         "messages": [*messages, {"role": "assistant", "content": response.message.content}],
     }
 
@@ -1779,11 +1770,7 @@ def support_chat_answer(
         f"{context_block}\n\n"
         "Antworte kurz, konkret und nenne die relevanten Quellen/Dateien mit Typ und Titel."
     )
-    config = Config.from_env()
-    provider = OllamaClient(
-        base_url=(base_url or config.ollama_base_url or "http://localhost:11434").strip(),
-        model=(model or config.ollama_model or "llama3.2").strip(),
-    )
+    provider = chat_client(model=model, base_url=base_url)
     answer = provider.chat(
         ChatRequest(messages=[Message(role=Role.USER, content=user_prompt)])
     ).message.content.strip()

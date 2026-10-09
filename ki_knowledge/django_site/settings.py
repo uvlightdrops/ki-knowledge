@@ -23,9 +23,16 @@ POSTGRES_DSN = (
     or getattr(_CONFIG, "distributed_postgres_dsn", "").strip()
 )
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-ki-knowledge-site")
-DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes"}
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+# apps.ki_knowledge.django.* from ki.yaml; DJANGO_* env vars override per process.
+_DJANGO_CFG = _CONFIG.raw.get_path("apps.ki_knowledge.django", {}) or {}
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY") or _DJANGO_CFG.get("secret_key") or "django-insecure-ki-knowledge-site"
+_debug_env = os.getenv("DJANGO_DEBUG")
+DEBUG = (
+    _debug_env.lower() in {"1", "true", "yes"} if _debug_env is not None else bool(_DJANGO_CFG.get("debug", False))
+)
+ALLOWED_HOSTS = (
+    os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if os.getenv("DJANGO_ALLOWED_HOSTS") else None
+) or list(_DJANGO_CFG.get("allowed_hosts") or ["*"])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -154,7 +161,9 @@ LOGOUT_REDIRECT_URL = "/"
 
 # Wagtail settings (parallel CMS/workflow layer)
 WAGTAIL_SITE_NAME = "ki-knowledge CMS"
-WAGTAILADMIN_BASE_URL = os.getenv("WAGTAILADMIN_BASE_URL", "http://localhost:8000")
+WAGTAILADMIN_BASE_URL = (
+    os.getenv("WAGTAILADMIN_BASE_URL") or _DJANGO_CFG.get("wagtail_admin_base_url") or "http://localhost:8000"
+)
 WAGTAIL_ENABLE_UPDATE_CHECK = False
 
 # Ki-core configuration for services

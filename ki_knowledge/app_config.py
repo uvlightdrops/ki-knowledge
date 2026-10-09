@@ -117,7 +117,8 @@ def clear_config_cache() -> None:
 class AppConfig:
     """Resolved ki-knowledge configuration."""
 
-    # LLM providers (ki-core base schema: llm.providers.*)
+    # LLM providers (ki-core base schema: llm.default_provider, llm.providers.*)
+    llm_default_provider: str = "mock"
     ki_base_url: str = ""
     ki_api_key: str = ""
     ki_model: str = "google/gemma-4-26B-A4B-it"
@@ -196,6 +197,7 @@ class AppConfig:
         distributed_cfg = ki_knowledge_cfg.get("distributed", {}) or {}
 
         return cls(
+            llm_default_provider=str(payload.get_path("llm.default_provider", "mock") or "mock").strip().lower(),
             ki_base_url=ki_cfg.get("base_url", ""),
             ki_api_key=ki_cfg.get("api_key", ""),
             ki_model=ki_cfg.get("model", "google/gemma-4-26B-A4B-it"),

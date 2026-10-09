@@ -13,6 +13,7 @@ class KIClient:
             api_key=config.ki_api_key,
             model=getattr(config, "ki_model", None),
             timeout=getattr(config, "request_timeout", 30),
+            verify=getattr(config, "http_verify_ssl", True),
         )
         self.model = getattr(config, "ki_model", None)
 

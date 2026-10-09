@@ -887,11 +887,10 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
         return redirect("infosite:ai_refine", project_id=project.id)
     
     try:
-        from ki_core.client import AIClient
-        from ki_knowledge.app_config import AppConfig as CoreConfig
-        
-        core_config = CoreConfig.from_yaml()
-        client = AIClient(core_config)
+        from ki_core.core.models import ChatRequest, Message, Role
+        from ki_knowledge.llm_provider import chat_client
+
+        client = chat_client()
         
         refined_count = 0
         for file_path in selected_files:
@@ -914,8 +913,8 @@ def infosite_ai_refine_apply(request: HttpRequest, project_id: int):
                 prompt = f"Improve, restructure, and enhance the following markdown content:\n\n{original_content}"
             
             # Call AI service
-            response = client.complete(prompt)
-            refined_content = response.get("text", original_content)
+            response = client.chat(ChatRequest(messages=[Message(role=Role.USER, content=prompt)]))
+            refined_content = response.message.content.strip() or original_content
             
             # Save refined version
             with open(md_path, "w", encoding="utf-8") as f:
