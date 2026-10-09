@@ -1,0 +1,10 @@
+#!/bin/sh
+# ki-knowledge stack: ./kistack [install|status|start|stop|restart|logs] [postgres|ollama|api|django] [-f]
+set -e
+ROOT=$(dirname "$(readlink -f "$0")")
+PY="$ROOT/.venv/bin/python"
+if [ ! -x "$PY" ]; then
+    [ "$1" = install ] || { echo "Keine .venv – zuerst: $0 install" >&2; exit 1; }
+    python3 -m venv "$ROOT/.venv"
+fi
+exec "$PY" "$ROOT/deploy/devstack.py" "$@"

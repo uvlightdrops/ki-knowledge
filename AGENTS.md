@@ -211,8 +211,27 @@ If an agent fails or returns nothing:
 - `ki_knowledge/integrations/knowledge_store.py` — storage layer
 - `ki_knowledge/django_site/infosite_*.py` — all InfoSite views, models, URLs
 
+### Install & Deployment (Erfahrungen aus den Parallelprojekten)
+Bisherige Varianten im Workspace:
+- `kicli`: `setup.sh` + `requirements.txt`, eigene venv `kicli_venv`, `.env` aus `.env.example`.
+- `kicli-code-assist`: `install_local.py`, venv `venv`, ki-core fest unter `~/dev_flow/ki-core`.
+- `ia3simworld`: `pip install -r requirements.txt`, Makefile + Minikube/Helm.
+- ki-knowledge früher: `file:///home/flow/...` in `pyproject.toml` → auf anderen Hosts nicht installierbar.
+
+Festgelegt für ki-knowledge (2026-10-09):
+- Keine absoluten Pfade in `pyproject.toml`; Geschwister-Repos nur per Name
+  (`ki-core`, `widgetkit-django`, `yaml-cfg-wizard`).
+- Ein Einstieg: `./kistack install|status|start|stop|restart|logs` → `deploy/devstack.py`.
+  Install: `.venv`, Geschwister aus `KI_SRC_DIR` (Standard: Nachbarverzeichnis) editierbar,
+  fehlende werden geklont (Branch in `SIBLINGS`).
+- Host-spezifisches nur in `deploy/stack.env` (Vorlage `stack.env.example`, nicht in git);
+  Umgebungsvariablen haben Vorrang. Dev und Prod (beide Ubuntu 24) unterscheiden sich nur dort.
+- Start prüft erst den Port; `stop` beendet nur Prozesse aus diesem Projekt.
+- Prod bewusst ohne gunicorn/nginx/systemd (runserver `--insecure`); erst bei Bedarf erweitern.
+- Neues Geschwister-Repo → in `SIBLINGS` (devstack.py) und `pyproject.toml` eintragen.
+
 ---
 
-**Last Updated:** 2026-09-03
+**Last Updated:** 2026-10-09
 **Project:** ki-knowledge
 **Version:** 1.0

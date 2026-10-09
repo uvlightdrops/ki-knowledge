@@ -3,13 +3,34 @@
 ## ⚡ SCHNELLSTART
 
 ```bash
-# Option 1: EMPFOHLEN - Ein Befehl mit Migrations
+# Option 1: EMPFOHLEN - ganzer Stack (Postgres, Ollama-Check, API :8090, Django :8000)
+./kistack start          # startet nur, was noch nicht läuft (Django: migrate + runserver)
+./kistack status         # was läuft, PIDs, URLs
+./kistack stop           # API + Django stoppen (Postgres/Ollama bleiben)
+./kistack restart django # einzelne Dienste: postgres | ollama | api | django
+./kistack logs django -f # Logs unter var/log/, PIDs unter var/run/
+./kistack install        # .venv + Geschwister-Repos + Projekt (siehe README)
+
+# Option 2: Nur Django, im Vordergrund
 python examples/run_knowledge_django.py
 
-# Option 2: Manuell
+# Option 3: Manuell
 python manage.py migrate
 python manage.py runserver
 ```
+
+`kistack` ruft `deploy/devstack.py` mit `.venv/bin/python` auf (auch als Symlink, z. B.
+nach `~/bin/kistack`). Gestartete Dienste laufen losgelöst vom Terminal weiter. `stop`
+beendet auch von Hand gestartete Server, aber nur, wenn sie aus diesem Projekt stammen;
+ein fremder Prozess auf dem Port bleibt unangetastet. Postgres wird bei Bedarf per
+`docker compose up -d postgres` (deploy/postgres, `.env` nötig) gestartet, Ollama nur
+geprüft. Hosts/Ports pro Rechner in `deploy/stack.env` (Vorlage
+`deploy/stack.env.example`, nicht in git): `KI_DJANGO_HOST/PORT`, `KI_API_HOST/PORT`,
+`KI_PG_HOST/PORT`, `KI_OLLAMA_URL`; Umgebungsvariablen haben Vorrang. Alle Einträge gehen
+an die Dienste weiter, also auch `DJANGO_DEBUG=false`, `DJANGO_ALLOWED_HOSTS` usw.
+Django bekommt `KNOWLEDGE_API_URL` passend zum API-Port. Auch der Prod-Host läuft so mit
+`runserver` (mit `--insecure`, damit statische Dateien ohne DEBUG funktionieren) – bewusst
+einfach, nicht für das offene Internet gedacht.
 
 Nach Start: **http://localhost:8000**
 

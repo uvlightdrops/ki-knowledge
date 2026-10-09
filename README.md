@@ -55,7 +55,7 @@ inventory, and database-free validation commands.
 
 ## Dependencies
 
-- `ki-core` as local base library (`/home/flow/dev_flow/ki-core`)
+- `ki-core`, `widgetkit-django`, `yaml-cfg-wizard` as sibling repos (not on PyPI)
 - Django
 - Elasticsearch / Neo4j
 - PDF processing (pypdf, etc.)
@@ -64,20 +64,22 @@ inventory, and database-free validation commands.
 
 ## Installation
 
+Ubuntu 24 (dev or prod host), any directory:
+
 ```bash
+sudo apt install python3-venv git
 git clone https://github.com/uvlightdrops/ki-knowledge.git
 cd ki-knowledge
-python3.10 -m venv venv
-source venv/bin/activate
-pip install -e .
+./kistack install            # creates .venv, installs siblings + this project editable
+cp deploy/stack.env.example deploy/stack.env   # optional: hosts/ports per host
+./kistack start              # postgres, ollama check, API, Django
 ```
 
-The project now uses the local `ki-core` package directly:
-
-```bash
-pip install -e /home/flow/dev_flow/ki-core
-pip install -e .
-```
+`./kistack install` uses `ki-core`, `widgetkit-django` and `yaml_cfg_wizard` from the
+directory next to this repo (`KI_SRC_DIR` to change) and clones them there if they are
+missing. Existing checkouts are used as they are, so a `git pull` in a sibling is picked
+up immediately. Re-run `install` after dependency changes in `pyproject.toml`.
+Details: [doc/DJANGO_DEV.md](doc/DJANGO_DEV.md).
 
 ## Chrome DevTools workspace
 

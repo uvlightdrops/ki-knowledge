@@ -57,3 +57,6 @@ Thumbs.db
 
 tmp_*
 ki.yaml
+
+# per-host stack config (kistack)
+deploy/stack.env
