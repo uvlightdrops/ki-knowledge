@@ -3,13 +3,14 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-import requests
 from django.utils import timezone
 
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.django_site.knowledge_summary import _domain_scoped_sources, store
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.knowledge.models import KnowledgeArtifact, KnowledgeBlockRecord, KnowledgeRelationRecord, KnowledgeSource
+from ki_knowledge.node_sync import SyncClient, new_operation_id
+from ki_knowledge.node_sync.client import PATH_EXPORT, normalize_domains
 
 from .infosite_models import Domain, InfoSiteProject, NodeConfig, SourceDocument, SyncRun, current_node_id
 
@@ -42,6 +43,11 @@ def resolved_sync_secret() -> str:
     if node and node.sync_shared_secret:
         return str(node.sync_shared_secret).strip()
     return (Config.from_env().distributed_sync_shared_secret or "").strip()
+
+
+def sync_client(origin: str) -> SyncClient:
+    """Client for a peer node, with this node's shared secret and timeout."""
+    return SyncClient(origin, secret=resolved_sync_secret(), timeout=Config.from_env().request_timeout)
 
 
 def local_node_snapshot() -> LocalNodeSnapshot:
@@ -97,11 +103,13 @@ def record_sync_run_finished(run: SyncRun, *, status: str, summary: dict[str, An
     return run
 
 
-def domain_metadata_snapshot(domain: Domain) -> dict[str, Any]:
-    projects = [
-        project_metadata_snapshot(project)
-        for project in InfoSiteProject.objects.filter(domain=domain.slug).order_by("id")
-    ]
+def domain_metadata_snapshot(domain: Domain, *, include_projects: bool = True, include_documents: bool = True) -> dict[str, Any]:
+    project_qs = InfoSiteProject.objects.filter(domain=domain.slug).order_by("id")
+    projects = (
+        [project_metadata_snapshot(project, include_documents=include_documents) for project in project_qs]
+        if include_projects
+        else []
+    )
     return {
         "slug": domain.slug,
         "display_name": domain.display_name,
@@ -110,12 +118,12 @@ def domain_metadata_snapshot(domain: Domain) -> dict[str, Any]:
         "sync_mode": domain.sync_mode,
         "visibility": domain.visibility,
         "last_sync_at": domain.last_sync_at.isoformat() if domain.last_sync_at else None,
-        "project_count": len(projects),
+        "project_count": len(projects) if include_projects else project_qs.count(),
         "projects": projects,
     }
 
 
-def project_metadata_snapshot(project: InfoSiteProject) -> dict[str, Any]:
+def project_metadata_snapshot(project: InfoSiteProject, *, include_documents: bool = True) -> dict[str, Any]:
     return {
         "remote_id": project.id,
         "title": project.title,
@@ -140,7 +148,9 @@ def project_metadata_snapshot(project: InfoSiteProject) -> dict[str, Any]:
         "documents": [
             source_document_metadata_snapshot(document)
             for document in project.documents.order_by("file_path")
-        ],
+        ]
+        if include_documents
+        else [],
     }
 
 
@@ -161,7 +171,14 @@ def source_document_metadata_snapshot(document: SourceDocument) -> dict[str, Any
     }
 
 
-def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
+def local_sync_payload(
+    domains: list[str] | None = None,
+    *,
+    include_projects: bool = True,
+    include_documents: bool = True,
+    include_knowledge: bool = True,
+) -> dict[str, Any]:
+    """Export payload; the include_* switches skip work instead of discarding results."""
     node = ensure_local_node_config()
     queryset = Domain.objects.all().order_by("slug")
     if domains:
@@ -175,11 +192,17 @@ def local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
             "is_enabled": node.is_enabled,
             "last_seen_at": node.last_seen_at.isoformat() if node.last_seen_at else None,
         },
-        "domains": [domain_metadata_snapshot(domain) for domain in queryset],
+        "domains": [
+            domain_metadata_snapshot(domain, include_projects=include_projects, include_documents=include_documents)
+            for domain in queryset
+        ],
         "generated_at": timezone.now().isoformat(),
     }
-    knowledge_payload = knowledge_sync_payload(domains or None)
-    by_slug = {entry["slug"]: entry for entry in knowledge_payload["domains"]}
+    by_slug = (
+        {entry["slug"]: entry for entry in knowledge_sync_payload(domains or None)["domains"]}
+        if include_knowledge
+        else {}
+    )
     for domain in payload["domains"]:
         knowledge_entry = by_slug.get(domain["slug"], {})
         domain["knowledge_sources"] = knowledge_entry.get("knowledge_sources", [])
@@ -196,26 +219,9 @@ def remote_domain_catalog(*, master_url: str | None = None) -> dict[str, Any]:
     if not target_master_url:
         raise ValueError("master_url not configured")
 
-    export_url = target_master_url.rstrip("/") + "/knowledge/sync/export/"
-    headers: dict[str, str] = {}
-    sync_secret = resolved_sync_secret()
-    if sync_secret:
-        headers["X-KI-Sync-Secret"] = sync_secret
-
-    response = requests.get(
-        export_url,
-        params={
-            "include_projects": "0",
-            "include_documents": "0",
-            "include_knowledge": "0",
-        },
-        headers=headers,
-        timeout=max(Config.from_env().request_timeout, 5),
+    payload = sync_client(target_master_url).export(
+        include_projects=False, include_documents=False, include_knowledge=False
     )
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        raise ValueError("master export payload must be an object")
     return {"master_url": target_master_url, **build_domain_catalog_from_payload(payload)}
 
 
@@ -237,31 +243,14 @@ def trigger_host_pull(*, host_node_id: str, domains: list[str] | None = None) ->
     if not host_url:
         raise ValueError("host base_url not configured")
 
-    pull_url = host_url.rstrip("/") + "/knowledge/sync/pull/"
-    headers: dict[str, str] = {}
-    sync_secret = resolved_sync_secret()
-    if sync_secret:
-        headers["X-KI-Sync-Secret"] = sync_secret
-    payload: list[tuple[str, str]] = []
-    for domain in domains or []:
-        normalized = str(domain).strip()
-        if normalized:
-            payload.append(("domain", normalized))
-
-    response = requests.post(
-        pull_url,
-        data=payload,
-        headers=headers,
-        timeout=max(Config.from_env().request_timeout, 5),
-    )
-    response.raise_for_status()
-    result = response.json()
-    if not isinstance(result, dict):
-        raise ValueError("host pull response must be an object")
+    requested = normalize_domains(domains)
+    operation_id = new_operation_id()
+    result = sync_client(host_url).trigger_pull(domains=requested, operation_id=operation_id)
     return {
         "host_node_id": host.node_id,
         "host_url": host_url,
-        "requested_domains": [value for key, value in payload if key == "domain"],
+        "requested_domains": requested,
+        "operation_id": operation_id,
         **result,
     }
 
@@ -478,6 +467,11 @@ def apply_remote_node_heartbeat(payload: dict[str, Any]) -> NodeConfig:
     node_id = str(payload.get("node_id", "")).strip()
     if not node_id:
         raise ValueError("node_id missing")
+    # additive shared-node field; older hosts do not send it
+    remote_federation = str(payload.get("federation_id", "") or "").strip()
+    local_federation = (Config.from_env().distributed_federation_id or "default").strip()
+    if remote_federation and remote_federation != local_federation:
+        raise ValueError(f"node belongs to federation {remote_federation!r}, not {local_federation!r}")
     node, _ = NodeConfig.objects.update_or_create(
         node_id=node_id,
         defaults={
@@ -624,38 +618,23 @@ def apply_remote_domain_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {"applied_domains": applied, "count": len(applied)}
 
 
-def pull_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
-    config = Config.from_env()
+def pull_from_master(*, domains: list[str] | None = None, operation_id: str = "") -> dict[str, Any]:
     master_url = resolved_master_url()
     if not master_url:
         raise ValueError("master_url not configured")
 
-    export_url = master_url.rstrip("/") + "/knowledge/sync/export/"
-    primary_domain = domains[0] if domains else None
-    run = record_sync_run_started(direction="pull", domain_slug=primary_domain, source_url=export_url)
-    headers: dict[str, str] = {}
-    sync_secret = resolved_sync_secret()
-    if sync_secret:
-        headers["X-KI-Sync-Secret"] = sync_secret
-    params: list[tuple[str, str]] = [
-        ("include_projects", "1"),
-        ("include_documents", "1"),
-        ("include_knowledge", "1"),
-    ]
-    for domain in domains or []:
-        normalized = str(domain).strip()
-        if normalized:
-            params.append(("domain", normalized))
+    client = sync_client(master_url)
+    export_url = client.url(PATH_EXPORT)
+    requested = normalize_domains(domains)
+    run = record_sync_run_started(direction="pull", domain_slug=requested[0] if requested else None, source_url=export_url)
 
     try:
-        response = requests.get(export_url, params=params, headers=headers, timeout=max(config.request_timeout, 5))
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise ValueError("master export payload must be an object")
+        payload = client.export(domains=requested)
         result = apply_remote_domain_payload(payload)
         result["pulled_from"] = export_url
-        result["requested_domains"] = [domain for key, domain in params if key == "domain"]
+        result["requested_domains"] = requested
+        if operation_id:
+            result["operation_id"] = operation_id
         record_sync_run_finished(run, status="succeeded", summary=result)
         return result
     except Exception as exc:

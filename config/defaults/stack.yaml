@@ -88,11 +88,10 @@ stack:
         django: &cluster_django
           k8s:
             command: ["{python}", manage.py, runserver, --insecure, --noreload, "{host}:{port}"]
-        ollama: {k8s: null}   # dev-mk uses the host's native Ollama (must listen on 0.0.0.0)
       k8s:
+        timeout: 30m   # first install also downloads the Ollama image
         env:
           KI_STAGE: dev-mk
-          KI_CFG_LLM__PROVIDERS__OLLAMA__BASE_URL: http://host.minikube.internal:11434
     k8s:
       services:
         django: *cluster_django

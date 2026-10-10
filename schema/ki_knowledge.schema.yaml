@@ -142,6 +142,13 @@ properties:
               sync_shared_secret:
                 type: string
                 default: ""
+              public_url:
+                type: string
+                default: ""
+                description: Own reachable URL of this node (announced in heartbeats); on hosts base_url is the master URL
+              federation_id:
+                type: string
+                default: "default"
             additionalProperties: true
           django:
             type: object

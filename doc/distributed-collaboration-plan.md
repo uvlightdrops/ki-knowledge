@@ -224,6 +224,73 @@ Für `ki-knowledge` ist der nächste pragmatische Schritt:
 - Host-Registry um Health/Capabilities erweitern
 - Remote-Kommandos als explizite Command-Typen modellieren
 
+## Gemeinsame Node-Basis mit ia3simworld (ki-node-core)
+
+Konzept: `ia3simworld/docs/ki-cooperation/shared-node-sync.md`. Die Pakete
+`ki-node-core` und `ki-node-http` liegen dort vorbereitend unter `packages/`.
+ki-knowledge ist vorbereitet (Stand 2026-10-09). Bestehende Endpoints und deren
+Verhalten bleiben gleich, alle Erweiterungen sind additiv.
+
+**Adapterschicht `ki_knowledge/node_sync/`** (frameworkfrei, ohne Django-Import):
+
+| Modul | Inhalt |
+|---|---|
+| `settings.py` | `NodeSettings`: aufgelöste Node-Einstellungen, Heartbeat-Body (alt + additive Felder) |
+| `capabilities.py` | Protokoll `0.1` (= heutige `/knowledge/sync/*`-Endpoints), Capabilities je Rolle |
+| `descriptor.py` | `describe()` als JSON; `to_descriptor()` → `ki_node_core.NodeDescriptor` (Extra `node`) |
+| `client.py` | `SyncClient`: alle ausgehenden Sync-Requests (Heartbeat, Export, Pull-Command) |
+
+Django baut über `distributed_api.get_node_settings()` die `NodeSettings`.
+`distributed_sync` nutzt nur noch `SyncClient` und baut keine Requests mehr selbst.
+
+| Capability | Rollen | Endpoint |
+|---|---|---|
+| `knowledge.node.describe@1.0` | alle | `GET /knowledge/sync/node/` (neu, ohne Secrets) |
+| `knowledge.node.heartbeat@1.0` | master | `POST /knowledge/sync/heartbeat/` |
+| `knowledge.snapshot.export@1.0` | alle | `GET /knowledge/sync/export/` |
+| `knowledge.snapshot.import@1.0` | master | `POST /knowledge/sync/push/` |
+| `knowledge.domain.pull@1.0` | host | `POST /knowledge/sync/pull/` (Remote Command) |
+
+**Abbildung auf die gemeinsamen Begriffe:**
+
+- `node_id` bleibt stabil. `instance_id` ist neu pro Prozessstart.
+- `federation_id` kommt aus `apps.ki_knowledge.distributed.federation_id` (Standard `default`).
+  Ein Heartbeat aus einer fremden Föderation wird mit 400 abgelehnt. Ältere Hosts
+  ohne das Feld werden weiter akzeptiert.
+- `NodeConfig.base_url` bedeutet auf einem **Host** die Master-URL, also den
+  `coordinator_endpoint`. Die eigene erreichbare Adresse ist neu
+  `distributed.public_url` (`endpoint`). Nur wenn sie gesetzt ist, meldet der
+  Heartbeat sie als `base_url`. Ohne sie bleibt das alte Verhalten: Der Master
+  speichert die Master-URL als Host-Adresse, und `trigger_host_pull` kann den
+  Host dann nicht erreichen. **Auf Hosts `public_url` setzen.**
+- Remote Command `knowledge.domain.pull` bekommt eine `operation_id`, als Header
+  `X-KI-Operation-Id` und als Formularfeld. Der Host gibt sie im Ergebnis zurück.
+  Deduplizierung und Leases gibt es noch nicht (siehe `CommandStore` im Konzept).
+
+**Nebenbei behoben** (Funde beim Live-Test):
+
+- Die POST-Endpoints heartbeat, push und pull lieferten 403 wegen CSRF. Zwischen
+  Maschinen funktionierten sie also nicht. Jetzt `csrf_exempt`, authentifiziert
+  über `X-KI-Sync-Secret`. Ohne Secret werden Cross-Site-Browser-Requests abgelehnt.
+- Export/Katalog: Die `include_*`-Schalter überspringen jetzt die Arbeit, statt
+  Ergebnisse zu verwerfen. Das Wissen wurde vorher doppelt berechnet. Der Katalog
+  braucht damit 0,05 s statt 49 s, `sync/status` ebenso.
+
+**Hinweise für ki-node-http / ia3simworld:**
+
+- `HttpConfig` erlaubt http nur für Loopback. Bestehende ki-knowledge-Föderationen
+  laufen per http im LAN, deshalb nutzt `SyncClient` vorerst weiter `requests`.
+  Vorschlag: eine explizite Option für private Netze oder TLS-Pflicht ab Protokoll 1.0.
+- Das Secret ist heute ein geteiltes Secret im Header (`X-KI-Sync-Secret`). Die
+  Abbildung auf `CredentialProvider` und node-spezifische Credentials ist offen.
+- Für den Pilot (freigegebenes Wissens- oder Profilartefakt nach SimWorld) fehlen
+  noch: Wire-Schema für `TransferEnvelope`, Digest-Profil, Revisionen je Ressource
+  und eine Inbox mit Deduplizierung.
+
+Lokal (Extra `node`, noch nicht auf PyPI):
+`.venv/bin/pip install -e ../ia3simworld/packages/ki-node-core`. Ohne das Paket
+läuft alles weiter, nur `to_descriptor()` fehlt dann. Tests: `tests/test_node_sync.py`.
+
 ## PostgreSQL-Umstellung
 
 ### Stufe 1 – Django-/Wagtail-DB (umgesetzt)

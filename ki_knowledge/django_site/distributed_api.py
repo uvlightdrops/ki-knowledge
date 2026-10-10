@@ -7,6 +7,8 @@ import requests
 from django.conf import settings
 
 from ki_knowledge.app_config import AppConfig as Config
+from ki_knowledge.node_sync import INSTANCE_ID, NodeSettings, describe
+from ki_knowledge.node_sync.client import PATH_HEARTBEAT
 from .infosite_models import Domain, NodeConfig, current_node_id
 
 from .distributed_sync import (
@@ -23,6 +25,7 @@ from .distributed_sync import (
     remote_domain_catalog,
     resolved_master_url,
     resolved_sync_secret,
+    sync_client,
     trigger_host_pull,
 )
 
@@ -47,8 +50,9 @@ def get_sync_secret() -> str:
     return resolved_sync_secret()
 
 
-def export_local_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
-    return local_sync_payload(domains)
+def export_local_sync_payload(domains: list[str] | None = None, **include: bool) -> dict[str, Any]:
+    """include_projects / include_documents / include_knowledge, all default True."""
+    return local_sync_payload(domains, **include)
 
 
 def export_knowledge_sync_payload(domains: list[str] | None = None) -> dict[str, Any]:
@@ -63,8 +67,10 @@ def import_remote_domain_sync(payload: dict[str, Any]) -> dict[str, Any]:
     return apply_remote_domain_payload(payload)
 
 
-def pull_domains_from_master(*, domains: list[str] | None = None) -> dict[str, Any]:
-    return pull_from_master(domains=domains)
+def pull_domains_from_master(
+    *, domains: list[str] | None = None, operation_id: str = ""
+) -> dict[str, Any]:
+    return pull_from_master(domains=domains, operation_id=operation_id)
 
 
 def export_sync_snapshot(*, domains: list[str] | None = None) -> dict[str, Any]:
@@ -195,34 +201,37 @@ def persist_local_node_settings(
     return node
 
 
-def send_master_heartbeat(*, include_status: bool = True) -> dict[str, Any]:
+def get_node_settings() -> NodeSettings:
+    """Framework-free view of the local node for the shared node/sync layer (ki_knowledge.node_sync)."""
     runtime = get_runtime_node_settings()
-    if runtime.role != "host" or not runtime.distributed_enabled or not runtime.master_url:
+    config = getattr(settings, "KI_CONFIG", None) or Config.from_env()
+    display_name = NodeConfig.objects.filter(node_id=runtime.node_id).values_list("display_name", flat=True).first()
+    return NodeSettings(
+        node_id=runtime.node_id,
+        role=runtime.role,
+        enabled=runtime.distributed_enabled,
+        sync_on_connect=runtime.sync_on_connect,
+        federation_id=str(getattr(config, "distributed_federation_id", "") or "default").strip() or "default",
+        master_url=runtime.master_url if runtime.role == "host" else "",
+        public_url=str(getattr(config, "distributed_public_url", "") or "").strip(),
+        legacy_base_url=runtime.base_url,
+        display_name=display_name or "",
+        shared_secret=runtime.sync_shared_secret,
+    )
+
+
+def describe_local_node() -> dict[str, Any]:
+    return describe(get_node_settings())
+
+
+def send_master_heartbeat(*, include_status: bool = True) -> dict[str, Any]:
+    node = get_node_settings()
+    if not node.heartbeat_ready:
         return {"status": "skipped", "reason": "heartbeat not configured"}
 
-    heartbeat_url = runtime.master_url.rstrip("/") + "/knowledge/sync/heartbeat/"
-    payload = {
-        "node_id": runtime.node_id,
-        "display_name": NodeConfig.objects.filter(node_id=runtime.node_id).values_list("display_name", flat=True).first() or "",
-        "role": runtime.role,
-        "base_url": runtime.base_url,
-        "sync_on_connect": runtime.sync_on_connect,
-        "is_enabled": runtime.distributed_enabled,
-    }
-    headers = {"Content-Type": "application/json"}
-    if runtime.sync_shared_secret:
-        headers["X-KI-Sync-Secret"] = runtime.sync_shared_secret
-    response = requests.post(
-        heartbeat_url,
-        json=payload,
-        headers=headers,
-        timeout=max(getattr(getattr(settings, "KI_CONFIG", None) or Config.from_env(), "request_timeout", 30), 5),
-    )
-    response.raise_for_status()
-    result = response.json()
-    if not isinstance(result, dict):
-        raise ValueError("heartbeat response must be an object")
-    return {"heartbeat_url": heartbeat_url, **result}
+    client = sync_client(node.master_url)
+    result = client.heartbeat(node.heartbeat_payload(instance_id=INSTANCE_ID))
+    return {"heartbeat_url": client.url(PATH_HEARTBEAT), **result}
 
 
 def safe_send_master_heartbeat(*, include_status: bool = True) -> dict[str, Any]:

@@ -57,6 +57,7 @@ urlpatterns = [
     path("knowledge/chat/jira-support/", views.jira_support_chat_view, name="jira-support-chat"),
     path("knowledge/chat/ollama/", views.ollama_chat_view, name="ollama-chat"),
     path("knowledge/sync/status/", views.sync_status_view, name="sync-status"),
+    path("knowledge/sync/node/", views.sync_node_view, name="sync-node"),
     path("knowledge/sync/heartbeat/", views.sync_heartbeat_view, name="sync-heartbeat"),
     path("knowledge/sync/export/", views.sync_export_view, name="sync-export"),
     path("knowledge/sync/push/", views.sync_push_view, name="sync-push"),

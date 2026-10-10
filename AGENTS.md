@@ -234,8 +234,8 @@ Festgelegt für ki-knowledge (2026-10-09):
   Keine Env-Dateien mit Duplikaten. `DJANGO_*`/`KI_CFG_*` dienen nur als Override.
 - Chat immer über `ki_knowledge.llm_provider` (`llm.default_provider`: ki|ollama|openai|mock),
   nie `OllamaClient` direkt. Embeddings bleiben bewusst Ollama (`nomic-embed-text`) auf allen
-  Hosts. Prod startet dafür `deploy/ollama` (Docker); dev-mk nutzt das Host-Ollama
-  (`host.minikube.internal`, Host muss auf 0.0.0.0 lauschen).
+  Hosts. Prod startet dafür `deploy/ollama` (Docker); dev-mk nutzt Ollama im Cluster
+  (`http://ollama:11434`, Modelle auf PVC, Model-Pull als Post-Start-Job).
 - Start prüft erst den Port; `stop` beendet nur Prozesse aus diesem Projekt (Marker + cwd).
 - k8s: Image-Kontext = git-Dateien, Geschwister als `--build-context`; `stop` behält PVCs.
   Die DSN wird im Cluster aus `$(KI_PG_*)` (Secret) gebaut und darf nicht in `creds.yaml` stehen.

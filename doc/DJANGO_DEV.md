@@ -74,10 +74,14 @@ KI_CFG_STACK__SERVICES__DJANGO__PORT=8011 KI_CFG_STACK__SERVICES__API__PORT=8091
 ./kistack -t minikube delete   # inkl. Namespace und Daten
 ```
 
-- **dev-mk** (Stage in den Pods): Postgres läuft im Cluster. Ollama kommt vom Host über
-  `host.minikube.internal:11434`. Dafür muss Ollama auf `0.0.0.0` lauschen (systemd-Drop-in
-  mit `[Service]` und `Environment="OLLAMA_HOST=0.0.0.0:11434"`). Port 11434 ggf. per
-  ufw auf das LAN bzw. die Docker-Netze beschränken.
+- **dev-mk** (Stage in den Pods): Postgres, Ollama, API und Django laufen im Cluster.
+  Chat und Embeddings nutzen `http://ollama:11434`, nicht das Host-Netz.
+  Der Job `ollama-post-start-<revision>` lädt die benötigten Modelle automatisch;
+  sie bleiben auf der PVC `ollama-models` erhalten. Beim ersten Start benötigt das
+  Herunterladen Internetzugang und zusätzliche Plattenkapazität. Ollama läuft
+  ohne GPU-Anbindung auf der CPU; der erste Chat kann entsprechend länger dauern.
+  `helm --wait` wartet auf die Dienste, nicht auf den Abschluss des Model-Pull-Jobs:
+  `kubectl --context ki-knowledge -n ki-knowledge get jobs` zeigt dessen Status.
 - **prod-k8s:** `stack.k8s.registry` und `context` setzen, optional `ingress`. Die
   Kommentare stehen in `stack.yaml` unter `targets.k8s`.
 - Secrets:
