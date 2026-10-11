@@ -30,6 +30,25 @@ cli:
         graph:
           help: "Visualize knowledge graph"
 
+    nextcloud:
+      help: "Nextcloud WebDAV storage (input import, create-only output upload)"
+      commands:
+        status:
+          help: "Show resolved Nextcloud settings (no network)"
+          callback: "ki_knowledge.cli.commands.nextcloud:status"
+        list:
+          help: "List a folder below the domain input root"
+          callback: "ki_knowledge.cli.commands.nextcloud:list_remote"
+        download:
+          help: "Download a file into the local input cache"
+          callback: "ki_knowledge.cli.commands.nextcloud:download"
+        import:
+          help: "Import Markdown from the domain input root"
+          callback: "ki_knowledge.cli.commands.nextcloud:import_remote"
+        upload:
+          help: "Upload a generated output file (never overwrites)"
+          callback: "ki_knowledge.cli.commands.nextcloud:upload"
+
     dev:
       help: "Development Tools"
       commands:

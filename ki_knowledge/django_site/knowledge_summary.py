@@ -57,27 +57,31 @@ def store() -> KnowledgeStore:
 
 def _domain_scoped_sources(domain: str | None = None, *, limit: int | None = None) -> list[Any]:
     resolved = normalize_semantic_domain(domain or default_semantic_domain())
-    if resolved == "default":
-        rows = store().list_sources()[:limit] if limit is not None else store().list_sources()
-        return rows
-
-    roots = domain_source_roots(resolved)
+    store_obj = store()
+    roots = [] if resolved == "default" else domain_source_roots(resolved)
     clauses: list[str] = []
     params: list[str] = []
     for root in roots:
         root_str = str(root.expanduser())
         clauses.append("(location = ? OR location LIKE ? OR location LIKE ?)")
         params.extend([root_str, f"{root_str}/%", f"{root_str}\\%"])
-    if not clauses:
-        return []
-    sql = "SELECT * FROM knowledge_sources WHERE " + " OR ".join(clauses)
-    sql += " ORDER BY updated_at DESC, source_id"
-    if limit is not None:
-        sql += " LIMIT ?"
-        params.append(str(limit))
     with connect(settings.KNOWLEDGE_STORE_TARGET) as conn:
+        contribution_tag = json_text("metadata_json", "contribution_domain", conn.dialect)
+        remote_tag = json_text("metadata_json", "domain", conn.dialect)
+        tag = (
+            f"COALESCE({contribution_tag}, "
+            f"CASE WHEN source_type = 'nextcloud_markdown' THEN {remote_tag} END)"
+        )
+        legacy_scope = "1 = 1" if resolved == "default" else (
+            "(" + " OR ".join(clauses) + ")" if clauses else "1 = 0"
+        )
+        sql = f"SELECT * FROM knowledge_sources WHERE {tag} = ? OR ({tag} IS NULL AND {legacy_scope})"
+        params = [resolved, *params]
+        sql += " ORDER BY updated_at DESC, source_id"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(str(limit))
         rows = conn.execute(sql, params).fetchall()
-    store_obj = store()
     return [store_obj._row_to_source(row) for row in rows]
 
 

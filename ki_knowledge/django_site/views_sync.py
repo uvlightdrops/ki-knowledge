@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 
 from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -15,8 +16,10 @@ from .distributed_api import (
     get_sync_secret,
     import_remote_domain_sync,
     import_remote_heartbeat,
+    import_remote_contribution,
     pull_domains_from_master,
 )
+from ki_knowledge.knowledge.contributions import ContributionConflict
 
 
 def _json_body(request: HttpRequest) -> dict:
@@ -128,6 +131,24 @@ def sync_push_view(request: HttpRequest):
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
     return JsonResponse({"status": "ok", **result})
+
+
+@csrf_exempt
+@require_POST
+def sync_contribution_view(request: HttpRequest):
+    expected = _configured_sync_secret()
+    provided = request.headers.get("X-KI-Sync-Secret", "")
+    if not expected or not secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8")):
+        return HttpResponseForbidden("contributions require a configured valid sync secret header")
+    try:
+        result = import_remote_contribution(_json_body(request))
+    except ContributionConflict as exc:
+        return JsonResponse({"status": "conflict", "error": str(exc)}, status=409)
+    except PermissionError as exc:
+        return HttpResponseForbidden(str(exc))
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+    return JsonResponse(result)
 
 
 # machine-to-machine: authenticated by X-KI-Sync-Secret, not by session/CSRF cookie

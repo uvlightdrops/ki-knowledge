@@ -251,7 +251,7 @@ def semantic_landing_view(request: HttpRequest):
     widget_widths = _load_dashboard_widget_widths(request, area_key="knowledge", subpage_key="semantic")
     quick_links = [
         ("Semantic Layer", "/knowledge/semantic/terms/", "Explore the semantic vocabulary and concept graph."),
-        ("Support Chat", "/knowledge/chat/support/", "Use a source-agnostic semantic chat across domain data."),
+        ("Chat", "/knowledge/chat/support/", "Converse with source-backed knowledge of the active domain."),
         ("Knowledge API", "/knowledge/api/", "Inspect the knowledge graph and browser context."),
         ("Data Sources", "/data-sources/", "Return to the source overview and import entry points."),
     ]
@@ -281,7 +281,7 @@ def semantic_landing_view(request: HttpRequest):
 def output_landing_view(request: HttpRequest):
     """Landing page for the 'Info Output' area: formats that publish
     processed knowledge outward (currently Infosite; Quiz is a placeholder
-    for a future format, see docs/navigation-ia-proposal.md).
+    for a future format, see doc/navigation-ia-proposal.md).
 
     Also shows a per-domain overview of generated InfoSite output files
     (GeneratedDocument), analogous to the Data-Sources domain table, plus a
@@ -377,7 +377,7 @@ def output_landing_view(request: HttpRequest):
 
 def output_quiz_view(request: HttpRequest):
     """Placeholder page for the planned Quiz output format (no data model or
-    generator yet, see docs/navigation-ia-proposal.md, offene Frage 6)."""
+    generator yet, see doc/navigation-ia-proposal.md, offene Frage 6)."""
     active_domain = _active_semantic_domain(request)
     widget_ids = _load_dashboard_widget_ids(
         request,

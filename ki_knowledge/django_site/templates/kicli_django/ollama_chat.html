@@ -1,7 +1,8 @@
 {% extends "base.html" %}
-{% block title %}KI Chat · KICLI{% endblock %}
+{% block title %}Frühere freie Chat-Ausgaben · KICLI{% endblock %}
 {% block content %}
-<h1>KI Chat <span class="muted">({{ chat_provider|default:"ollama" }})</span></h1>
+<h1>Frühere freie Chat-Ausgaben (Kompatibilität)</h1>
+<p>Dieser alte POST-Workflow ist nicht quellenbasiert. Zum <a href="{% url 'support-chat' %}">Domain Chat</a>.</p>
 <p class="muted">Gespeichert wird in: <span class="mono">{{ saved_path|default:"dev_data/md/&lt;domain&gt;/ollama-chat/" }}</span></p>
 
 {% if notice %}
@@ -61,7 +62,7 @@
   <div class="card">
     <h3>Workflow</h3>
     <ol class="muted" style="padding-left: 1.2rem; margin: 0;">
-      <li>Die KI ({{ chat_provider|default:"ollama" }}) beantwortet die Frage.</li>
+      <li>Der konfigurierte Provider ({{ chat_provider }}) beantwortet die freie Frage ohne Quellenabruf.</li>
       <li>Du entscheidest explizit: nur Antwort, speichern, einlesen oder semantisch verarbeiten.</li>
       <li>Der Status wird im Verlauf sofort sichtbar.</li>
     </ol>
@@ -111,7 +112,7 @@
             <form method="post" style="display:inline; margin:0;">
               {% csrf_token %}
               <input type="hidden" name="action" value="save_entry">
-              <input type="hidden" name="entry_index" value="{{ forloop.counter0 }}">
+              <input type="hidden" name="entry_index" value="{{ item.entry_index }}">
               <button type="submit">Speichern</button>
             </form>
           {% endif %}
@@ -119,7 +120,7 @@
             <form method="post" style="display:inline; margin:0;">
               {% csrf_token %}
               <input type="hidden" name="action" value="import_entry">
-              <input type="hidden" name="entry_index" value="{{ forloop.counter0 }}">
+              <input type="hidden" name="entry_index" value="{{ item.entry_index }}">
               <button type="submit">Einlesen</button>
             </form>
           {% endif %}
@@ -127,7 +128,7 @@
             <form method="post" style="display:inline; margin:0;">
               {% csrf_token %}
               <input type="hidden" name="action" value="semantic_entry">
-              <input type="hidden" name="entry_index" value="{{ forloop.counter0 }}">
+              <input type="hidden" name="entry_index" value="{{ item.entry_index }}">
               <button type="submit">Semantisch</button>
             </form>
           {% endif %}

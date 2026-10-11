@@ -54,6 +54,15 @@ ki infosite list          # Projekte auflisten (mit Django)
 ki infosite discover      # Dokumentquellen scannen
 ```
 
+**Nextcloud (WebDAV, siehe [NEXTCLOUD.md](NEXTCLOUD.md)):**
+```bash
+kictl nextcloud status                         # Konfig (Passwort maskiert), kein Netz
+kictl nextcloud list -d <domain> [ordner]      # Eingangsordner auflisten
+kictl nextcloud download -d <domain> <datei>   # in den lokalen Eingangs-Cache
+kictl nextcloud import -d <domain> <datei.md>  # Markdown importieren (--all: Ordner)
+kictl nextcloud upload -d <domain> <ausgabe>   # erzeugte Datei hochladen, nie überschreiben
+```
+
 **Knowledge Base:**
 ```bash
 ki knowledge import       # Dokumente importieren

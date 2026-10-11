@@ -7,9 +7,10 @@ from wagtail.documents import urls as wagtaildocs_urls
 
 from . import views
 from .views_devtools import chrome_devtools_workspace
+from .node_connectivity import node_connectivity_view
 
 # URL layout follows the navigation IA documented in
-# docs/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
+# doc/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
 # Knowledge | Info Output | CMS Catalog | Settings. View names (the `name=`
 # kwarg) are unchanged from the pre-reorganization layout so all internal
 # reverse()/{% url %} usages keep working; only the URL *paths* moved under
@@ -58,8 +59,10 @@ urlpatterns = [
     path("knowledge/chat/ollama/", views.ollama_chat_view, name="ollama-chat"),
     path("knowledge/sync/status/", views.sync_status_view, name="sync-status"),
     path("knowledge/sync/node/", views.sync_node_view, name="sync-node"),
+    path("knowledge/sync/connectivity/", node_connectivity_view, name="node-connectivity"),
     path("knowledge/sync/heartbeat/", views.sync_heartbeat_view, name="sync-heartbeat"),
     path("knowledge/sync/export/", views.sync_export_view, name="sync-export"),
+    path("knowledge/sync/contribute/", views.sync_contribution_view, name="sync-contribute"),
     path("knowledge/sync/push/", views.sync_push_view, name="sync-push"),
     path("knowledge/sync/pull/", views.sync_pull_view, name="sync-pull"),
     # Semantic sub-area (term extraction, domain analysis, graph/hybrid search)

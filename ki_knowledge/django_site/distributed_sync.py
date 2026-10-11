@@ -417,7 +417,7 @@ def _upsert_knowledge_record(store_obj: KnowledgeStore, payload: dict[str, Any])
             block_type=str(payload.get("block_type", "")).strip(),
             title=str(payload.get("title", "")).strip(),
             content=str(payload.get("content", "")).strip(),
-            parent_block_id=str(payload.get("parent_block_id", "")).strip() or None,
+            parent_block_id=str(payload.get("parent_block_id") or "").strip() or None,
             path=str(payload.get("path", "")).strip(),
             order_index=int(payload.get("order_index", 0) or 0),
             tags=[str(tag) for tag in payload.get("tags", []) if str(tag).strip()],

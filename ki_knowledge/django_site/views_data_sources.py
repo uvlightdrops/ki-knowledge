@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+import sqlite3
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -14,6 +16,9 @@ from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from requests.exceptions import RequestException
+from ki_knowledge.llm_provider import chat_settings
+from ki_knowledge.integrations.sql_backend import psycopg
 
 from widgetkit_django.table import (
     ChoiceFilter, SortOption, TablePreset, TableSpec, TextFilter,
@@ -56,7 +61,8 @@ from .services import (
     jira_graph_explorer,
     jira_hybrid_search,
     jira_issue_count,
-    jira_support_chat_answer,
+    support_chat_answer,
+    support_chat_index_status,
     knowledge_api_browser_context,
     knowledge_api_default_url,
     load_prompt_library_context,
@@ -104,10 +110,14 @@ from .views_common import (
 )
 
 _JIRA_CHAT_SESSION_KEY = "jira_support_chat_history"
+_DOMAIN_CHAT_SESSION_KEY = "domain_chat_history"
 _OLLAMA_CHAT_SESSION_KEY = "ollama_chat_history"
 _KNOWLEDGE_API_URL_SESSION_KEY = "knowledge_api_url"
 _SEMANTIC_DOMAIN_SESSION_KEY = "semantic_active_domain"
 _DASHBOARD_BUILDER_SESSION_KEY = "dashboard_builder_widgets"
+_CHAT_ERRORS = (RuntimeError, ValueError, OSError, RequestException, sqlite3.DatabaseError)
+if psycopg is not None:
+    _CHAT_ERRORS += (psycopg.Error,)
 
 def data_sources_view(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
@@ -1063,49 +1073,86 @@ def jira_exclusions_view(request: HttpRequest):
 @require_http_methods(["GET", "POST"])
 
 def jira_support_chat_view(request: HttpRequest):
-    domain = _active_semantic_domain(request)
-    history = request.session.get(_JIRA_CHAT_SESSION_KEY, [])
-    source_types = request.GET.get("source_types", "").strip() or request.POST.get("source_types", "").strip()
-    parsed_source_types = None if not source_types else [part.strip() for part in source_types.split(",") if part.strip()]
+    if request.method == "GET":
+        return _domain_chat_redirect(request)
+    return support_chat_view(request)
+
+
+def _domain_chat_redirect(request: HttpRequest):
+    params = {
+        key: request.GET[key] for key in ("domain", "notice", "source_types")
+        if request.GET.get(key)
+    }
+    query = f"?{urlencode(params)}" if params else ""
+    return HttpResponseRedirect(f"{reverse('support-chat')}{query}")
+
+
+@require_http_methods(["GET", "POST"])
+def support_chat_view(request: HttpRequest):
+    domain = _active_semantic_domain(
+        request, domain=request.POST.get("domain"), heartbeat=False,
+    )
+    histories = request.session.get(_DOMAIN_CHAT_SESSION_KEY, {})
+    history = histories.get(domain, [])
+    source_types = request.POST.get("source_types", "") if request.method == "POST" else request.GET.get("source_types", "")
+    error_message = ""
+    status_code = 200
+    question = ""
+    limit = _int_post_param(request, "limit", default=8, minimum=1, maximum=20)
+    canonical_url = f"{reverse('support-chat')}?{urlencode({'domain': domain})}"
     if request.method == "POST":
         if request.POST.get("action", "").strip() == "clear":
-            request.session[_JIRA_CHAT_SESSION_KEY] = []
+            request.session[_DOMAIN_CHAT_SESSION_KEY] = {**histories, domain: []}
             request.session.modified = True
-            return HttpResponseRedirect(reverse("jira-support-chat"))
+            return HttpResponseRedirect(canonical_url)
         question = request.POST.get("question", "").strip()
         if not question:
             return HttpResponseBadRequest("question missing")
-        limit = _int_post_param(request, "limit", default=8, minimum=1, maximum=20)
-        result = jira_support_chat_answer(question, limit=limit, domain=domain, source_types=parsed_source_types)
-        entry = {
-            "question": question,
-            "answer": result["answer"],
-            "sources": result["sources"],
-            "graph_expanded": result["graph_expanded"],
-            "prompt": result["prompt"],
-            "hits": result.get("hits", []),
-            "source_details": result.get("source_details", []),
-        }
-        history = [entry, *history][:20]
-        request.session[_JIRA_CHAT_SESSION_KEY] = history
-        request.session.modified = True
-        return HttpResponseRedirect(reverse("jira-support-chat"))
+        conversation = []
+        for item in reversed(history[:6]):
+            conversation.extend([
+                {"role": "user", "content": item["question"]},
+                {"role": "assistant", "content": item["answer"]},
+            ])
+        try:
+            result = support_chat_answer(
+                question, limit=limit, domain=domain, source_types=source_types, history=conversation,
+            )
+        except _CHAT_ERRORS as exc:
+            logging.getLogger(__name__).warning("Domain chat failed for %s: %s", domain, exc)
+            error_message = f"Chat fehlgeschlagen: {exc}"
+            status_code = 503
+        else:
+            entry = {"question": question, **result}
+            history = [entry, *history][:20]
+            request.session[_DOMAIN_CHAT_SESSION_KEY] = {**histories, domain: history}
+            request.session.modified = True
+            return HttpResponseRedirect(canonical_url)
+    index_status = {}
+    provider_settings = {}
+    try:
+        index_status = support_chat_index_status(domain, source_types)
+        provider_settings = chat_settings()
+    except _CHAT_ERRORS as exc:
+        logging.getLogger(__name__).warning("Domain chat status failed for %s: %s", domain, exc)
+        error_message = error_message or f"Chat-Status nicht verfügbar: {exc}"
+        status_code = 503
     return render(
         request,
         "kicli_django/jira_support_chat.html",
         {
             "history": history,
-            "cache_db": jira_cache_db_path(domain),
             "active_domain": domain,
-            "source_types": parsed_source_types or ["markdown", "pdf", "jira", "owl"],
+            "source_types": source_types,
+            "index_status": index_status,
+            "chat_settings": provider_settings,
+            "error_message": error_message,
+            "question": question,
+            "context_limit": limit,
+            "notice": request.GET.get("notice", ""),
         },
+        status=status_code,
     )
-
-
-@require_http_methods(["GET", "POST"])
-
-def support_chat_view(request: HttpRequest):
-    return jira_support_chat_view(request)
 
 
 @require_http_methods(["GET", "POST"])
@@ -1204,14 +1251,16 @@ def prompt_backlog_view(request: HttpRequest):
 @require_http_methods(["GET", "POST"])
 
 def ollama_chat_view(request: HttpRequest):
+    if request.method == "GET":
+        return _domain_chat_redirect(request)
     domain = _active_semantic_domain(request)
     history = request.session.get(_OLLAMA_CHAT_SESSION_KEY, [])
     display_history = [
-        {**item, "saved_path": display_data_path(item.get("saved_path", "") or None)}
-        for item in history
+        {**item, "entry_index": index, "saved_path": display_data_path(item.get("saved_path", "") or None)}
+        for index, item in enumerate(history) if item.get("domain") == domain
     ]
     ollama_settings = ollama_runtime_settings()
-    available_models = ollama_available_models(ollama_settings["base_url"])
+    available_models = [ollama_settings["model"]] if ollama_settings["model"] else []
     default_model = ollama_settings["model"]
     error_message = ""
     notice = request.GET.get("notice", "").strip()
@@ -1231,6 +1280,8 @@ def ollama_chat_view(request: HttpRequest):
                 return HttpResponseBadRequest("entry not found")
 
             entry = history[entry_index]
+            if entry.get("domain") and entry["domain"] != domain:
+                return HttpResponseBadRequest("entry belongs to another domain")
             saved_path_value = str(entry.get("saved_path", "")).strip()
             saved_file = Path(saved_path_value) if saved_path_value else None
 
@@ -1291,7 +1342,7 @@ def ollama_chat_view(request: HttpRequest):
         system_prompt = request.POST.get("system_prompt", "").strip()
         title = request.POST.get("title", "").strip() or question[:80]
         history_messages: list[dict[str, str]] = []
-        for item in reversed(history[:6]):
+        for item in reversed([item for item in history if item.get("domain") == domain][:6]):
             user_question = str(item.get("question", "")).strip()
             user_answer = str(item.get("answer", "")).strip()
             if user_question:
@@ -1307,6 +1358,7 @@ def ollama_chat_view(request: HttpRequest):
                 system_prompt=system_prompt,
             )
             entry = {
+                "domain": domain,
                 "title": title,
                 "question": result["question"],
                 "answer": result["answer"],
@@ -1348,8 +1400,8 @@ def ollama_chat_view(request: HttpRequest):
                 error_message = str(exc)
                 history = [entry, *history][:20]
                 display_history = [
-                    {**item, "saved_path": display_data_path(item.get("saved_path", "") or None)}
-                    for item in history
+                    {**item, "entry_index": index, "saved_path": display_data_path(item.get("saved_path", "") or None)}
+                    for index, item in enumerate(history) if item.get("domain") == domain
                 ]
                 request.session[_OLLAMA_CHAT_SESSION_KEY] = history
                 request.session.modified = True
@@ -1371,8 +1423,8 @@ def ollama_chat_view(request: HttpRequest):
                 )
             history = [entry, *history][:20]
             display_history = [
-                {**item, "saved_path": display_data_path(item.get("saved_path", "") or None)}
-                for item in history
+                {**item, "entry_index": index, "saved_path": display_data_path(item.get("saved_path", "") or None)}
+                for index, item in enumerate(history) if item.get("domain") == domain
             ]
             request.session[_OLLAMA_CHAT_SESSION_KEY] = history
             request.session.modified = True

@@ -5,7 +5,7 @@ Status: **Umgesetzt** (URL-Reorganisation abgeschlossen: `/data-sources/`,
 etc.). Die Wagtail-Spiegel-Ebene (Zeile "🗂️ CMS Catalog", unten) ist seither
 kein reines Read-only-Mirror mehr, sondern besitzt echte Snippet-Editing- und
 Freigabe-Workflows für `SourceDocument`/`GeneratedDocument` (siehe
-`docs/content-model-matrix.md`, Abschnitte 2, 2a, 4). Dieses Dokument bleibt
+`doc/content-model-matrix-from-docs.md`, Abschnitte 2, 2a, 4). Dieses Dokument bleibt
 als historischer Ist-Zustand/Vorschlag zum Zeitpunkt der Reorg erhalten.
 Datum: 2026-09-03
 

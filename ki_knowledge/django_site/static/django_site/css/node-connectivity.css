@@ -1,0 +1,28 @@
+.node-connectivity {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.node-connectivity-peer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.node-connectivity-label {
+  max-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.node-connectivity-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--kicli-text-soft);
+}
+.node-connectivity-dot[data-status="reachable"] { background: var(--kicli-success); }
+.node-connectivity-dot[data-status="error"] { background: var(--kicli-danger); }

@@ -16,6 +16,7 @@ CAPABILITIES: dict[str, tuple[Version, tuple[str, ...], str]] = {
     "knowledge.node.heartbeat": ((1, 0), ("master",), "POST /knowledge/sync/heartbeat/"),
     "knowledge.snapshot.export": ((1, 0), ("master", "host", "standalone"), "GET /knowledge/sync/export/"),
     "knowledge.snapshot.import": ((1, 0), ("master",), "POST /knowledge/sync/push/"),
+    "knowledge.contribution.import": ((1, 0), ("master",), "POST /knowledge/sync/contribute/"),
     # remote command: master asks a host to pull from the master
     "knowledge.domain.pull": ((1, 0), ("host",), "POST /knowledge/sync/pull/"),
 }

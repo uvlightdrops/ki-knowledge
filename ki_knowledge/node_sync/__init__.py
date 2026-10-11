@@ -7,7 +7,7 @@ See doc/distributed-collaboration-plan.md, section "Gemeinsame Node-Basis".
 """
 
 from .capabilities import CAPABILITIES, PROTOCOL_VERSIONS, capabilities_for_role
-from .client import SyncClient
+from .client import PATH_CONTRIBUTE, SyncClient
 from .descriptor import INSTANCE_ID, describe, node_core_available, to_descriptor
 from .settings import NodeSettings, new_operation_id
 
@@ -15,6 +15,7 @@ __all__ = [
     "CAPABILITIES",
     "INSTANCE_ID",
     "PROTOCOL_VERSIONS",
+    "PATH_CONTRIBUTE",
     "NodeSettings",
     "SyncClient",
     "capabilities_for_role",

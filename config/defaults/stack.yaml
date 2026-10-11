@@ -100,3 +100,8 @@ stack:
         # registry: registry.firma.intern/ki     # required for k8s (images are pushed)
         # context: prod-cluster
         # ingress: {host: ki.firma.intern, class_name: nginx}
+
+  #services:
+  #  django:
+  #    host: 192.168.50.2
+  #    port: 8000

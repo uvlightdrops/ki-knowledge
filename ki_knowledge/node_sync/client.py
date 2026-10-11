@@ -11,6 +11,7 @@ PATH_NODE = "/knowledge/sync/node/"
 PATH_HEARTBEAT = "/knowledge/sync/heartbeat/"
 PATH_EXPORT = "/knowledge/sync/export/"
 PATH_PULL = "/knowledge/sync/pull/"
+PATH_CONTRIBUTE = "/knowledge/sync/contribute/"
 
 
 class SyncClient:
@@ -56,6 +57,14 @@ class SyncClient:
     def heartbeat(self, payload: dict[str, Any]) -> dict[str, Any]:
         response = requests.post(self.url(PATH_HEARTBEAT), json=payload, headers=self._headers(), timeout=self.timeout)
         return self._object(response, "heartbeat response")
+
+    def contribute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Submit an explicit immutable revision; no retry or legacy snapshot push."""
+        if not self._secret:
+            raise ValueError("contributions require a configured sync secret")
+        response = requests.post(self.url(PATH_CONTRIBUTE), json=payload,
+                                 headers=self._headers(), timeout=self.timeout)
+        return self._object(response, "contribution response")
 
     def export(
         self,

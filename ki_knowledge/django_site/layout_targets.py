@@ -45,8 +45,7 @@ _AREAS = [
             ("Artifacts", "/knowledge/artifacts/", "Generierte Artefakte und Zusammenfassungen."),
             ("Jobs", "/knowledge/jobs/", "Hintergrund-Jobs und Sync-Verlauf."),
             ("Knowledge API", "/knowledge/api/", "Knowledge-API-Browser und Health-Checks."),
-            ("Support Chat", "/knowledge/chat/support/", "Domänen-übergreifender Support-Chat."),
-            ("Ollama Chat", "/knowledge/chat/ollama/", "Lokaler LLM-Chat für Ad-hoc-Fragen."),
+            ("Chat", "/knowledge/chat/support/", "Quellenbasierter Chat mit dem Wissen der aktiven Domain."),
         ],
         "targets": [
             ("overview", "Übersicht", "/knowledge/"),
@@ -59,8 +58,7 @@ _AREAS = [
             ("artifacts", "Artifacts", "/knowledge/artifacts/"),
             ("jobs", "Jobs", "/knowledge/jobs/"),
             ("api", "Knowledge API", "/knowledge/api/"),
-            ("support-chat", "Support Chat", "/knowledge/chat/support/"),
-            ("ollama-chat", "Ollama Chat", "/knowledge/chat/ollama/"),
+            ("support-chat", "Chat", "/knowledge/chat/support/"),
         ],
     },
     {

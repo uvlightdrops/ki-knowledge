@@ -148,7 +148,7 @@ class DataSourceDetailPage(Page):
 class KnowledgeBlockIndexPage(Page):
     """Editorial landing page listing InfoSite projects that have extracted
     knowledge blocks (semantic sections/paragraphs published via the
-    knowledge-extraction pipeline, see docs/content-model-matrix.md Section 3).
+    knowledge-extraction pipeline, see doc/content-model-matrix-from-docs.md Section 3).
 
     Like DataSourceIndexPage, this is a read-only mirror: the underlying
     KnowledgeSource/KnowledgeBlockRecord data keeps living in KnowledgeStore

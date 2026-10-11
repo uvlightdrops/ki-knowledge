@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -54,10 +55,75 @@ class KnowledgeStore:
         self._init_schema()
 
     def _connect(self):
+        if getattr(self, "_transaction_connection", None) is not None:
+            return nullcontext(self._transaction_connection)
         return connect(self.target)
+
+    def ingest_contribution(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Commit the closed graph and its immutable receipt in one local transaction."""
+        from ki_knowledge.knowledge.contributions import ContributionConflict, prepare_contribution
+
+        contribution = prepare_contribution(payload)
+        counts = {kind: len(getattr(contribution, kind)) for kind in ("sources", "records", "artifacts", "relations")}
+        key = (contribution.domain, contribution.origin_node_id, contribution.revision)
+        with self._connect() as conn:
+            if conn.dialect == "sqlite":
+                conn.execute("BEGIN IMMEDIATE")
+            else:
+                conn.execute(
+                    "LOCK TABLE knowledge_sources, knowledge_blocks, knowledge_artifacts, "
+                    "knowledge_relations, knowledge_contributions IN EXCLUSIVE MODE"
+                )
+            receipt = conn.execute(
+                "SELECT digest FROM knowledge_contributions WHERE domain = ? AND origin_node_id = ? AND revision = ?",
+                key,
+            ).fetchone()
+            if receipt is not None:
+                if receipt["digest"] != contribution.digest:
+                    raise ContributionConflict("revision already accepted with a different digest")
+                result = {"status": "replayed", "accepted": counts, "imported": dict.fromkeys(counts, 0)}
+            else:
+                scoped = object.__new__(KnowledgeStore)
+                scoped.target, scoped.db_path = self.target, self.db_path
+                scoped._transaction_connection = conn
+                for table, field, items in (
+                    ("knowledge_sources", "source_id", contribution.sources),
+                    ("knowledge_blocks", "id", contribution.records),
+                    ("knowledge_artifacts", "artifact_id", contribution.artifacts),
+                ):
+                    for item in items:
+                        item_id = getattr(item, "block_id" if field == "id" else field)
+                        if conn.execute(f"SELECT 1 FROM {table} WHERE {field} = ?", (item_id,)).fetchone():
+                            raise ContributionConflict("destination identity already exists; refusing overwrite")
+                for item in contribution.relations:
+                    relation_id = f"{item.source_block_id}:{item.target_block_id}:{item.relation}"
+                    if conn.execute("SELECT 1 FROM knowledge_relations WHERE id = ?", (relation_id,)).fetchone():
+                        raise ContributionConflict("destination relation already exists; refusing overwrite")
+                for item in contribution.sources:
+                    scoped.upsert_source(item)
+                for item in contribution.records:
+                    scoped.upsert_record(item)
+                for item in contribution.artifacts:
+                    scoped.upsert_artifact(item)
+                for item in contribution.relations:
+                    scoped.add_relation(item.source_block_id, item.target_block_id, item.relation, item.weight, item.metadata)
+                conn.execute(
+                    "INSERT INTO knowledge_contributions (domain, origin_node_id, revision, digest, accepted_at) "
+                    "VALUES (?, ?, ?, ?, ?)", (*key, contribution.digest, self._now()),
+                )
+                result = {"status": "accepted", "accepted": counts, "imported": counts}
+        return {**result, "domain": contribution.domain, "origin_node_id": contribution.origin_node_id,
+                "revision": contribution.revision, "digest": contribution.digest}
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS knowledge_contributions (
+                    domain TEXT NOT NULL, origin_node_id TEXT NOT NULL, revision TEXT NOT NULL,
+                    digest TEXT NOT NULL, accepted_at TEXT NOT NULL,
+                    PRIMARY KEY (domain, origin_node_id, revision)
+                )"""
+            )
             metadata_type = "jsonb" if conn.dialect == "postgres" else "TEXT"
             metadata_default = "'{}'::jsonb" if conn.dialect == "postgres" else "'{}'"
             embedding_type = "vector" if conn.dialect == "postgres" else "TEXT"
@@ -884,16 +950,19 @@ class KnowledgeStore:
         model: str,
         source_ids: Iterable[str] | None = None,
         limit: int = 10,
+        current_only: bool = False,
     ) -> list[tuple[KnowledgeBlockRecord, float]]:
         """Nearest blocks by cosine similarity (pgvector in PostgreSQL, Python scan in SQLite)."""
         ids = sorted({str(item) for item in source_ids or [] if item})
         with self._connect() as conn:
             scope = ""
+            if current_only:
+                scope = " AND b.block_type <> 'heading' AND e.created_at >= b.updated_at"
             params: list[Any] = []
             if source_ids is not None:
                 if not ids:
                     return []
-                scope = f" AND {json_text('b.metadata_json', 'source_id', conn.dialect)} IN ({','.join('?' for _ in ids)})"
+                scope += f" AND {json_text('b.metadata_json', 'source_id', conn.dialect)} IN ({','.join('?' for _ in ids)})"
                 params.extend(ids)
             if conn.dialect == "postgres":
                 rows = conn.execute(

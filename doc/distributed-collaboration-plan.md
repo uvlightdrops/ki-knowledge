@@ -70,6 +70,19 @@
   - Host-seitigem Master-Domain-Katalog
   - Sync-Historie und Job-Steuerung
   - Master-seitiger **Host-Registry** mit Remote-Pull-Trigger für die aktive Domain
+- Die Top-Navigation zeigt andere konfigurierte Nodes als Statuspunkt mit **HTTP
+  Descriptor-RTT in ms** (kein ICMP-Ping und kein Sync-Erfolgsnachweis) und verlinkt
+  das Sync-Center; ohne Peers erscheint `Nodes –` mit Link zu Settings.
+  Nach dem Laden fragt JavaScript bei sichtbarer Seite alle 30 Sekunden den
+  sessiongeschützten Same-Origin-Endpunkt `/knowledge/sync/connectivity/` ab.
+  Dieser liest nur aktivierte Registry-Peers bzw. die konfigurierte Host-Master-URL
+  (lokale Node-ID und eigene Origin ausgeschlossen), ohne Registry-Schreibzugriffe.
+  Maximal vier parallele GETs auf `/knowledge/sync/node/`, drei sichtbare Peers plus
+  expliziter Überlauf, 1 s Probe-Budget/1,1 s Wartebudget und 30 s Cache mit
+  `cache.add`-Sperre begrenzen die Last (prozesslokal beim LocMem-Cache).
+  Keine Secrets, Auth-Weiterleitung oder Redirects; maximal 16 KiB JSON mit Node-ID
+  und Protokollversionen. HTTP-Fehler, ungültige Deskriptoren und Timeouts gelten
+  nicht als erreichbar; Tooltip und zugängliche Labels nennen Fehler und Frische.
 
 ## Laufender Mechanismus
 
@@ -226,7 +239,7 @@ Für `ki-knowledge` ist der nächste pragmatische Schritt:
 
 ## Gemeinsame Node-Basis mit ia3simworld (ki-node-core)
 
-Konzept: `ia3simworld/docs/ki-cooperation/shared-node-sync.md`. Die Pakete
+Konzept: `ia3simworld/doc/ki-cooperation/shared-node-sync.md`. Die Pakete
 `ki-node-core` und `ki-node-http` liegen dort vorbereitend unter `packages/`.
 ki-knowledge ist vorbereitet (Stand 2026-10-09). Bestehende Endpoints und deren
 Verhalten bleiben gleich, alle Erweiterungen sind additiv.
@@ -291,7 +304,130 @@ Lokal (Extra `node`, noch nicht auf PyPI):
 `.venv/bin/pip install -e ../ia3simworld/packages/ki-node-core`. Ohne das Paket
 läuft alles weiter, nur `to_descriptor()` fehlt dann. Tests: `tests/test_node_sync.py`.
 
-## PostgreSQL-Umstellung
+Die Sync-Client-/View-Grenze wird zusätzlich mit echten Loopback-HTTP-Verbindungen
+abgedeckt: `tests/test_node_sync_http.py` startet isolierte WSGI-Server mit den
+registrierten Django-Routen und prüft Beschreibung, Secret-Prüfung, Federation-
+Ablehnung sowie den Master-Trigger → Host-Pull → Master-Export-Weg einschließlich
+`operation_id`. Import-/Export- und Sync-Run-Persistenzgrenzen sind in diesen
+Integrationstests gefälscht; sie belegen weder Datenbank-Persistenz noch LAN-/
+Produktionsbetrieb. Separate lokale HTTP-Server decken HTTP-Fehler, ungültige
+JSON-Antworten, Verbindungsabbruch/-verweigerung, begrenzte Lese-Timeouts ohne
+impliziten Retry sowie einen nach einem Fehler explizit wiederholten Request ab.
+Ausführen: `python -m pytest tests/test_node_sync.py tests/test_node_sync_http.py tests/test_distributed_ui_failures.py`.
+
+## Kleine zentrale Contribution-Slice (2026-10-11)
+
+Implementiert ist ein **separater, manueller Beitragsweg** fuer mehrere Hosts in
+einer gemeinsamen Domain, nicht gemeinsames Editieren eines Records und nicht
+automatisches Snapshot-Pushen:
+
+- `POST /knowledge/sync/contribute/` (`knowledge.contribution.import@1.0`) nimmt
+  ausschliesslich `knowledge.contribution/1` an. Die bisherigen Heartbeat-/Push-/
+  Pull-/Export-Endpunkte behalten ihre Policy. Ein eng gekoppelter Importfehler
+  wurde korrigiert: JSON `null` als Parent bleibt `None`, nicht die ID `"None"`.
+- Nur `role=master`, ein **konfiguriertes** vorhandenes Sync-Secret im Header
+  `X-KI-Sync-Secret`, eine bereits registrierte Domain mit `home_node` gleich der
+  zentralen `node_id` und **exakt** `visibility=shared` erlauben den Beitrag.
+  `private`, `public`, unbekannte/ownerlose/fremde Domains werden abgelehnt.
+  `sync_mode` wird nicht umgestellt; Domain-Einstellungen und `last_sync_at`
+  werden durch Contributions nicht geaendert. Die Registry muss bewusst vorab
+  passend eingerichtet werden, es gibt hier keine Domain-Claims.
+- `distributed_api.export_local_contribution(domain=..., revision=...,
+  source_ids=[...])` waehlt Quellen explizit aus der lokalen Domain-Sicht aus.
+  `contribute_to_master(...)` sendet sie als Host mit stabiler lokaler `node_id`;
+  `SyncClient.contribute(payload)` ist der HTTP-Transport. Keine Timer, neue
+  UI-Automatik, impliziten Retries oder globalen Snapshot-Schreibvorgaenge.
+
+Das versionierte JSON-Envelope hat exakt `version`, `domain`, `origin_node_id`,
+`revision`, `digest`, `sources`, `records`, `artifacts`, `relations`. Die vier
+Listen verwenden die bestehenden Knowledge-Snapshot-/Dataclass-Felder,
+einschliesslich `metadata`, und bilden einen **geschlossenen Graphen**: jede
+Quelle sowie Parent-, Artefakt- und Relations-Referenz muss im Beitrag vorhanden
+sein. Leere Listen ausser `sources` sind erlaubt. Auch der Export verlangt eine
+geschlossene Auswahl: externe Parent-/Artefakt-/Relations-Referenzen fuehren zu
+einem expliziten Fehler; die betroffenen Quellen muessen mit ausgewaehlt werden,
+statt Graph-Kanten still zu verlieren oder weitere Quellen implizit zu senden.
+`object_type` ist in v1 explizit
+auf `text`, `image`, `table`, `audio`, `video`, `document`, `code`, `quiz` begrenzt;
+legacy `paragraph`/`list_item`/`code_block` werden beim Export zu `text`.
+Typen, doppelte IDs/Relationen, unbekannte Felder, inkonsistente Domain-/Owner-
+Metadaten und Digest werden vollstaendig vor dem ersten Write validiert.
+`digest` ist SHA-256 des gesamten Envelopes **ohne** das Feld `digest`, als
+UTF-8-JSON mit sortierten Keys, `ensure_ascii=False`, kompakten Separatoren
+`(",", ":")` und ohne NaN/Infinity. Listenreihenfolge ist Teil des Digests.
+
+**Immutable Revisionen statt stiller Updates:** Der Host vergibt `revision`
+bewusst und behaelt dasselbe Envelope fuer Retries. Dieselbe Kombination aus
+Domain, Original-Node und Revision mit identischem Digest liefert `status=replayed`,
+`accepted`-Counts und `imported`-Counts von Null. Ein anderer Digest derselben
+Revision liefert HTTP **409** (`status=conflict`). Eine neue Revision erzeugt
+eine **weitere unveraenderliche Graph-Version**, keine Ueberschreibung und keine
+automatische Auswahl einer aktuellen Version. HTTP 200 `status=accepted` liefert
+die akzeptierten/importierten Counts fuer Quellen, Records, Artefakte, Relationen.
+Ungueltige Payloads liefern 400, fehlende Berechtigung 403.
+
+Import-IDs sind `contrib-v1-` plus SHA-256 der JSON-Liste
+`[domain, origin_node_id, revision, kind, original_id]` (kind:
+`sources`/`records`/`artifacts`). Alle Graph-Referenzen werden konsistent umgebogen.
+`metadata.contribution` behaelt Original-Node, Domain, Revision, Envelope-Digest,
+Original-ID und Original-Referenzen; vorhandene Quell-Provenienz bleibt erhalten.
+Quell-Locations werden zu eindeutigen virtuellen `contribution:<source_id>`-URIs;
+`metadata.contribution.original_location` bewahrt den Original-Pfad. Das verhindert
+Aliasing bei vorhandenen Store-Joins/Domain-Resets, wenn zwei Hosts denselben
+Dateipfad benutzen, und behauptet nicht, dass eine importierte Datei lokal liegt.
+Bereits importierte Contributions duerfen nicht als eigene neu eingereicht werden.
+Jede belegte Ziel-ID ohne passende Receipt wird als Konflikt behandelt, auch wenn
+sie von Legacy-/lokalen Writes stammt. Quellen tragen `metadata.contribution_domain`;
+`_domain_scoped_sources` nutzt dies explizit statt fremde Dateipfade als lokale
+Domain-Pfade auszugeben. Die bisherige Sonder-Sicht `default` bleibt fuer
+**ungetaggte Legacy-Quellen** global; Contributions anderer Domains bleiben
+auch dort ausgeschlossen.
+
+**Persistenz und Verteilung:** `KnowledgeStore.ingest_contribution` schreibt
+Graph und `knowledge_contributions`-Receipt in **einer** lokalen SQL-Transaktion.
+Die vorhandenen Upsert-Helper verwenden dafuer einen separaten, connection-
+gebundenen Store, nicht veraenderlichen Zustand am gemeinsam genutzten Store.
+SQLite verwendet `BEGIN IMMEDIATE`; PostgreSQL sperrt die betroffenen Knowledge-
+Tabellen exklusiv fuer die kurze Import-Transaktion (bewusst einfache Pilot-Policy).
+Storage-Fehler rollen alles zurueck, Erfolg wird erst nach Commit gemeldet.
+Die Receipt-Tabelle ist auch im PostgreSQL-Migrationskommando enthalten.
+Es ist **keine Exactly-once-Zustellung**: nach einem verlorenen HTTP-Ergebnis
+kann der Aufrufer dasselbe Envelope explizit wiederholen. Receipts muessen mit
+dem Graphen gesichert/restauriert werden. Ein nachtraeglich durch andere APIs
+geloeschter oder geaenderter Graph wird durch Replay nicht repariert. Legacy-
+Snapshot-Writes sind weiterhin mutable und werden hier nicht allgemein gesperrt.
+
+Der vorhandene Domain-Export enthaelt die Contributions fuer anschliessendes
+selektives Pull/Verteilen. Dessen vorhandener Import behaelt IDs und verschachtelte
+Original-Provenienz: der zentrale **Transport-Node** wird nicht zum Original-Node.
+Receipts werden nicht mit Snapshot-Export repliziert; der Beitragsweg ist kein
+allgemeines Inbox-/Replikationsprotokoll.
+
+**Trust Boundary / offene Luecken:** Das gemeinsame Secret authentifiziert nur
+den Besitz eines geteilten Credentials, **keinen einzelnen Node und keinen Autor**.
+Ein Secret-Inhaber kann eine andere nicht-zentrale Original-Node-ID behaupten.
+Provenienz ist deshalb eine gepruefte Behauptung, keine signierte Identitaet.
+Individuelle Credentials, Autorenzuordnung/ACLs, Moderation, Same-Record-Merge,
+Revision-Auswahl/Supersession, Loeschungen und echte File-Bytes-Uebertragung fehlen.
+Quell-Locations/Record-Inhalte/Artefakt-Inhalte sind Metadaten bzw. eingebetteter
+Text, keine Garantie, dass Dateien auf dem zentralen oder empfangenden Host
+existieren. Legacy-Export-Zugriff bleibt durch dessen bisherige Policy geregelt,
+`visibility` ist dort keine neue allgemeine Lese-ACL.
+
+`tests/test_contributions.py` deckt echte Loopback-HTTP-Requests ueber registrierte
+Django-Routen, zwei unabhaengige Contributor-SQLite-Stores, einen zentralen Store,
+eine isolierte echte Django-Domain-Registry sowie anschliessenden Snapshot-Import
+in einen vierten Store ab. Node-Konfiguration/InfoSite-Projektzaehlung und die
+empfangende Domain-Registry sind an den Grenzen isoliert; Knowledge-Persistenz,
+Contribution-Policy und HTTP-Transport sind echt. Getestet werden Graph-Referenzen,
+Original-Provenienz, Replay/neue Revision/Konflikt, lokale ID-Kollisionen, Auth/
+Master-/Domain-Policy, vollstaendige Validierung, Rollback bei Storage-Fehler und
+konkurrierende identische Submissions. Kein LAN-/Produktionsnachweis. PostgreSQL-Checks werden nur bei gesetzter
+`KI_TEST_POSTGRES_DSN` ausgefuehrt, sonst explizit uebersprungen.
+Ausfuehren:
+`python -m pytest tests/test_contributions.py tests/test_node_sync.py tests/test_node_sync_http.py tests/test_distributed_ui_failures.py tests/test_knowledge_phase_b.py tests/test_knowledge_store_postgres.py`.
+
+## PostgreSQL-Umstellung (Bestand)
 
 ### Stufe 1 – Django-/Wagtail-DB (umgesetzt)
 

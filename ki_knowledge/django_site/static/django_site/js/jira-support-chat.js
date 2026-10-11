@@ -1,5 +1,5 @@
 (() => {
-  const form = document.getElementById("jira-support-chat-form");
+  const form = document.getElementById("domain-chat-form");
   const question = document.getElementById("chat-question");
   const limit = document.getElementById("chat-limit");
   const status = document.getElementById("chat-status");
@@ -16,7 +16,7 @@
   limit?.addEventListener("input", updatePreview);
   form?.addEventListener("submit", () => {
     const text = (question?.value || "").trim();
-    status.textContent = text ? `Sende an KI: "${text}"` : "Sende an KI...";
+    status.textContent = text ? `Suche Domain-Quellen und erzeuge Antwort: "${text}"` : "Suche Domain-Quellen...";
     if (submit) {
       submit.disabled = true;
       submit.textContent = "Sende...";

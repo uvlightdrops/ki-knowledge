@@ -1,0 +1,5 @@
+knowledge:
+  observation:
+    source_url: "http://127.0.0.1:17081/state?compact=true"
+    interval_seconds: 10
+    timeout_seconds: 5

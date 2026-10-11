@@ -30,6 +30,7 @@ KNOWLEDGE_TABLES = {
     "knowledge_graph_nodes": ["node_id", "node_type", "label", "props_json"],
     "knowledge_graph_edges": ["src_id", "dst_id", "relation", "weight", "props_json"],
     "knowledge_store_migrations": ["name", "applied_at"],
+    "knowledge_contributions": ["domain", "origin_node_id", "revision", "digest", "accepted_at"],
 }
 SEMANTIC_TABLES = {
     "semantic_terms": ["term_id", "canonical_label", "normalized_label", "language", "status", "created_at", "updated_at"],

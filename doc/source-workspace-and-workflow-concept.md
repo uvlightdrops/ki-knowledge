@@ -63,7 +63,7 @@ understood, reviewed, or published. The UI must not imply otherwise.
   historical architecture plan.
 - [Content model matrix](content-model-matrix.md): source, record, output and
   editorial ownership.
-- [Widget preview audit](../docs/widget-catalog-preview-audit.md): rendering
+- [Widget preview audit](widget-catalog-preview-audit.md): rendering
   inventory, subordinate to the interaction model defined here.
 
 ## Purpose

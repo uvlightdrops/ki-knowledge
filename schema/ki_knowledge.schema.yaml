@@ -150,6 +150,70 @@ properties:
                 type: string
                 default: "default"
             additionalProperties: true
+          nextcloud:
+            type: object
+            title: "Nextcloud WebDAV Storage"
+            description: >-
+              Direct WebDAV access to one Nextcloud user. Input roots are listed/downloaded/imported,
+              output roots receive generated files (create-only). app_password belongs in creds.yaml.
+            properties:
+              enabled:
+                type: boolean
+                default: false
+              base_url:
+                type: string
+                default: ""
+                description: "https://cloud.example.org (optionally with sub path, no credentials)"
+              username:
+                type: string
+                default: ""
+              app_password:
+                type: string
+                default: ""
+                description: Nextcloud app password; set only in creds.yaml
+              user_id:
+                type: string
+                default: ""
+                description: Nextcloud user id in DAV URLs if it differs from the login name
+              dav_path:
+                type: string
+                default: "remote.php/dav/files/{user_id}"
+              timeout_seconds:
+                type: number
+                default: 30
+              max_download_bytes:
+                type: integer
+                default: 52428800
+              max_download_seconds:
+                type: number
+                default: 300
+              max_listing_bytes:
+                type: integer
+                default: 5242880
+              max_upload_bytes:
+                type: integer
+                default: 52428800
+              allow_insecure_http_loopback:
+                type: boolean
+                default: false
+                description: Allow plain http only for loopback hosts (tests)
+              ca_bundle:
+                type: string
+                default: ""
+                description: Optional CA bundle file; TLS verification is always on
+              domains:
+                type: object
+                default: {}
+                description: "<domain>: {input_root, output_root} paths below the user's files root; must not overlap"
+                additionalProperties:
+                  type: object
+                  properties:
+                    input_root:
+                      type: string
+                    output_root:
+                      type: string
+                  additionalProperties: false
+            additionalProperties: false
           django:
             type: object
             properties:

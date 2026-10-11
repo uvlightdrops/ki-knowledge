@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import math
 from typing import Any
 
 from django.conf import settings
+from requests.exceptions import RequestException
 
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.integrations.block_embedder import DEFAULT_EMBED_MODEL, model_key, query_text
@@ -29,11 +31,14 @@ def domain_source_ids(domain: str) -> list[str]:
     return [source.source_id for source in _domain_scoped_sources(normalize_semantic_domain(domain))]
 
 
-def semantic_block_search(domain: str, query: str, *, limit: int = 20) -> dict[str, Any]:
+def semantic_block_search(
+    domain: str, query: str, *, limit: int = 20,
+    source_ids: list[str] | None = None, current_only: bool = False,
+) -> dict[str, Any]:
     """Blocks of the domain most similar to ``query``; ``error`` is set when Ollama is unavailable."""
     base_url, model = embedding_settings()
     store = KnowledgeStore(settings.KNOWLEDGE_STORE_TARGET)
-    source_ids = domain_source_ids(domain)
+    source_ids = domain_source_ids(domain) if source_ids is None else source_ids
     counts = store.embedding_counts(source_ids, model)
     result: dict[str, Any] = {"model": model, "hits": [], "error": "", **counts}
     if not query.strip() or not counts["embedded"]:
@@ -42,8 +47,12 @@ def semantic_block_search(domain: str, query: str, *, limit: int = 20) -> dict[s
         vector = OllamaEmbeddingProvider(base_url=base_url, model=model, timeout=60).embed_many(
             [query_text(query, model)]
         )[0]
-    except Exception as exc:
+        if not vector or not all(math.isfinite(value) for value in vector) or not any(vector):
+            raise ValueError("Ungültiger Query-Vektor")
+    except (RuntimeError, ValueError, RequestException, IndexError) as exc:
         result["error"] = f"Ollama nicht erreichbar ({base_url}, {model}): {exc}"
         return result
-    result["hits"] = store.similar_blocks(vector, model=model, source_ids=source_ids, limit=limit)
+    result["hits"] = store.similar_blocks(
+        vector, model=model, source_ids=source_ids, limit=limit, current_only=current_only,
+    )
     return result

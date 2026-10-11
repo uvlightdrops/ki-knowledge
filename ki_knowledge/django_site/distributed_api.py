@@ -67,6 +67,53 @@ def import_remote_domain_sync(payload: dict[str, Any]) -> dict[str, Any]:
     return apply_remote_domain_payload(payload)
 
 
+def import_remote_contribution(payload: dict[str, Any]) -> dict[str, Any]:
+    """Separate central contribution policy; never creates or updates a domain."""
+    from django.db import transaction
+    from ki_knowledge.knowledge.contributions import prepare_contribution
+    from .knowledge_summary import invalidate_domain_summary_cache, store
+
+    node = get_node_settings()
+    if node.role != "master":
+        raise PermissionError("contributions require a master node")
+    if not get_sync_secret():
+        raise PermissionError("contributions require a configured sync secret")
+    contribution = prepare_contribution(payload)
+    if contribution.origin_node_id == node.node_id:
+        raise ValueError("remote contribution must not claim the central node identity")
+    with transaction.atomic(using=Domain.objects.db):
+        domain = Domain.objects.select_for_update().filter(slug=contribution.domain).first()
+        if domain is None:
+            raise ValueError("unknown contribution domain")
+        if domain.home_node != node.node_id or domain.visibility != "shared":
+            raise PermissionError("contribution domain must be shared and owned by this central node")
+        result = store().ingest_contribution(payload)
+    invalidate_domain_summary_cache(contribution.domain)
+    return result
+
+
+def export_local_contribution(*, domain: str, revision: str, source_ids: list[str]) -> dict[str, Any]:
+    from ki_knowledge.knowledge.contributions import export_contribution
+    from .knowledge_summary import _domain_scoped_sources, store
+
+    if not Domain.objects.filter(slug=domain).exists():
+        raise ValueError("unknown contribution domain")
+    allowed = {source.source_id for source in _domain_scoped_sources(domain)}
+    if not set(source_ids) <= allowed:
+        raise ValueError("selected source outside contribution domain scope")
+    return export_contribution(store(), domain=domain, origin_node_id=get_node_settings().node_id,
+                               revision=revision, source_ids=source_ids)
+
+
+def contribute_to_master(*, domain: str, revision: str, source_ids: list[str]) -> dict[str, Any]:
+    """Manual explicit submission only; no periodic snapshot collaboration."""
+    node = get_node_settings()
+    if node.role != "host" or not get_sync_secret():
+        raise ValueError("contribution submission requires a host and configured sync secret")
+    payload = export_local_contribution(domain=domain, revision=revision, source_ids=source_ids)
+    return sync_client(get_master_url()).contribute(payload)
+
+
 def pull_domains_from_master(
     *, domains: list[str] | None = None, operation_id: str = ""
 ) -> dict[str, Any]:

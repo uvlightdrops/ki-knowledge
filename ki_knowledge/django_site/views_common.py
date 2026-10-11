@@ -34,9 +34,12 @@ _SHELL_BUILDER_SESSION_KEY = "shell_builder_state"
 _LAYOUT_STORE = DjangoDashboardLayoutStore()
 
 
-def _active_semantic_domain(request: HttpRequest) -> str:
-    maybe_send_automatic_heartbeat()
-    query_domain = request.GET.get("domain", "").strip()
+def _active_semantic_domain(
+    request: HttpRequest, *, domain: str | None = None, heartbeat: bool = True,
+) -> str:
+    if heartbeat:
+        maybe_send_automatic_heartbeat()
+    query_domain = (domain or request.GET.get("domain", "")).strip()
     if query_domain:
         domain = normalize_semantic_domain(query_domain)
         request.session[_SEMANTIC_DOMAIN_SESSION_KEY] = domain

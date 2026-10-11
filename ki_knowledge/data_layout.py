@@ -107,6 +107,7 @@ _ARCHIVE_DIR = "archive"
 _SOURCES_DIR = "sources"
 _DERIVED_DIR = "derived"
 _DOMAIN_OUTPUT_DIR = "output"
+_REMOTE_DIR = "remote"
 _V3_RESERVED_ROOT_DIRS = frozenset({
     _DOMAINS_DIR, _SYSTEM_DIR, _ARCHIVE_DIR, _V1_OUTPUT_DIR,
     *_SOURCE_TYPE_DIRS.values(), _SOURCES_DIR, _DERIVED_DIR, _DOMAIN_OUTPUT_DIR, "rdf",
@@ -115,6 +116,7 @@ _V3_RESERVED_ROOT_DIRS = frozenset({
 # Global state files as (v1 path relative to the root, v2 name inside system/).
 _GLOBAL_FILES: dict[str, tuple[str, str]] = {
     "knowledge_db": ("knowledge.db", "knowledge.db"),
+    "observation_db": ("observation.sqlite", "observation.sqlite"),
     "django_db": ("django.sqlite3", "django.sqlite3"),
     "pdf_jobs_db": (".pdf_import_jobs.sqlite", "pdf_import_jobs.sqlite"),
     "jira_cache_db": (".jira_cache.sqlite", "jira_cache.sqlite"),
@@ -425,12 +427,55 @@ class DataLayout:
         parts = _relative_parts(candidate, self.root / _V1_OUTPUT_DIR)
         return Path(*parts) if parts else None
 
+    def require_output_file(self, domain: str, path: str | Path) -> tuple[Path, Path]:
+        """Resolve a generated file of ``domain`` for export.
+
+        Relative paths are taken relative to :meth:`output_dir`. The resolved
+        file (symlinks followed) must be a regular file inside the domain's
+        output tree; anything else raises :class:`LayoutError`. Returns
+        ``(resolved_file, path_relative_to_output_dir)``.
+        """
+        base = self.output_dir(domain)
+        try:
+            resolved_base = base.resolve(strict=True)
+        except (OSError, RuntimeError):
+            raise LayoutError(f"output directory of domain {domain!r} does not exist: {base}") from None
+        candidate = Path(path).expanduser()
+        if not candidate.is_absolute():
+            candidate = base / candidate
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            raise LayoutError(f"generated file not found: {candidate}") from None
+        relative = _relative_parts(resolved, resolved_base)
+        if not relative:
+            raise LayoutError(f"{candidate} is not a generated file in the output tree of domain {domain!r} ({base})")
+        if not resolved.is_file():
+            raise LayoutError(f"{candidate} is not a regular file")
+        return resolved, Path(*relative)
+
+    # --- remote storage caches -----------------------------------------------------
+
+    def remote_input_cache_dir(self, domain: str, provider: str) -> Path:
+        """Local cache of files downloaded from a remote storage (input only).
+
+        Lives in the domain's derived state, separate from local sources and
+        from generated output, so downloads never overwrite local imports.
+        """
+        if not provider or "/" in provider or provider in {".", ".."}:
+            raise LayoutError(f"invalid remote provider name: {provider!r}")
+        return self.domain_state_dir(domain) / _REMOTE_DIR / provider / "input"
+
     # --- global state ------------------------------------------------------------
 
     def system_dir(self) -> Path:
         """``<root>/system`` (v2 only)."""
         self._require_domain_first("system_dir")
         return self.root / _SYSTEM_DIR
+
+    def observation_db_path(self) -> Path:
+        """Durable local observation samples and completed-import outbox."""
+        return self._global_file("observation_db")
 
     def archive_dir(self) -> Path:
         return self.root / _ARCHIVE_DIR

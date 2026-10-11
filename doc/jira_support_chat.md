@@ -7,7 +7,11 @@ The older Jira-specific name remains only for compatibility. The canonical docum
 
 ## Status
 
-Support chat is built on retrieved context from the active knowledge layer. It can answer questions grounded in Markdown, PDF, OWL, Jira, or any other source that has been ingested into the cache or vector store.
+Domain Chat is built on current embedded KnowledgeStore records scoped to the
+active domain, including Nextcloud and contributions. Import alone is not enough:
+records also need current vectors. The legacy Jira GET redirects to the single
+Chat page; Jira POSTs use that same grounded answering path. See
+[support_chat.md](support_chat.md) for coverage, conversation and compatibility limits.
 
 ## Example
 
@@ -16,4 +20,3 @@ python examples/jira_support_chat.py
 ```
 
 The call still works, but the feature is no longer specific to Jira data.
-

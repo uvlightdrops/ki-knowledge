@@ -232,7 +232,7 @@ class DashboardWidgetPlacement(models.Model):
 def _workflow_status_display(instance) -> str:
     """Human-readable label for a WorkflowMixin instance's most recent Wagtail
     workflow state, to show side-by-side with the plain ``review_status``
-    field (see docs/content-model-matrix.md - the two are independent:
+    field (see doc/content-model-matrix-from-docs.md - the two are independent:
     review_status is a simple always-editable field, while this reflects an
     actual Wagtail moderation workflow run, if any - including finished ones,
     since ``current_workflow_state`` only exposes active (in-progress) runs).
@@ -590,7 +590,7 @@ class GeneratedDocument(EditorialWorkflowMixin, index.Indexed, WorkflowMixin, Dr
     ki_knowledge.services.output_registry whenever InfoSiteGeneratorService
     or the AI-refinement view writes a markdown file to the configured output directory, so
     Wagtail always knows about output files right after they are produced
-    (see docs/content-model-matrix.md and the CMS-workflow rollout plan).
+    (see doc/content-model-matrix-from-docs.md and the CMS-workflow rollout plan).
     """
 
     AI_REFINEMENT_MODES = [

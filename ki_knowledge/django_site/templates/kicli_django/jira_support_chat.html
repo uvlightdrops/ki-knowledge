@@ -1,38 +1,58 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Domain Support Chat · KICLI{% endblock %}
+{% block title %}Domain Chat · KICLI{% endblock %}
 {% block content %}
-<h1>Domain Support Chat</h1>
-<p class="muted">Cache DB: <span class="mono">{{ cache_db }}</span></p>
+<h1>Domain Chat</h1>
+<p class="muted">Wissen der aktiven Domain: <strong>{{ active_domain }}</strong>.
+  Provider: {{ chat_settings.provider }} · Modell: {{ chat_settings.model }}.
+  Auswahl über <a href="{% url 'settings-config' %}">Settings</a>, nicht über einen separaten Chat.</p>
+{% if error_message %}<div class="alert alert-error" role="alert">{{ error_message }}</div>{% endif %}
+{% if notice %}<p role="status">{{ notice }}</p>{% endif %}
 
 <div class="card" style="margin-bottom: 16px;">
   <strong>Status:</strong> <span id="chat-status">Bereit</span>
   <p class="muted" style="margin-bottom: 0;">Aktuelle Kommunikation:</p>
   <p><strong>Frage:</strong> <span id="chat-live-question" class="mono">—</span></p>
-  <p class="muted" style="margin-bottom: 0;">Der Server sucht zusammenhängend über Markdown, PDF, CSV/Jira-Daten und OWL/Knowledge-Quellen in der aktuellen Domain.</p>
+  <p class="muted">Vektorindex ({{ index_status.model }}): {{ index_status.embedded|default:0 }}/{{ index_status.blocks|default:0 }}
+    Text-/Wissensblöcke aus {{ index_status.sources|default:0 }} importierten Quellen aktuell eingebettet.</p>
+  {% if not index_status.embedded %}
+    <p role="status">Kein nutzbarer Vektorindex. Quellen importieren und Embeddings erzeugen; ohne Kontext wird keine KI-Antwort erzeugt.</p>
+  {% elif index_status.embedded < index_status.blocks %}
+    <p role="status">Index unvollständig: Blöcke ohne aktuelle Embeddings sind nicht durchsuchbar.</p>
+  {% endif %}
+  <p class="muted" style="margin-bottom: 0;">Suche über alle importierten Quellen der aktiven Domain, einschließlich Nextcloud und Contributions.
+    Nur die relevantesten Blöcke (Kontext-Limit, maximal 20, je bis zu 2000 Zeichen) gehen an den konfigurierten Provider, nicht der gesamte Korpus.
+    Nicht importierte Dateien und separat gespeicherte Artefakte ohne eingebettete Records fehlen.
+    Antworten nutzen Quellenverweise [1], [2] mit Belegen unten. Ähnlichkeit ist kein Beweis für Vollständigkeit.</p>
 </div>
 
 <div class="card" style="margin-bottom: 16px;">
-  <form id="jira-support-chat-form" method="post" action="">
+  <form id="domain-chat-form" method="post" action="{% url 'support-chat' %}">
     {% csrf_token %}
+    <input type="hidden" name="domain" value="{{ active_domain }}">
     <label>Frage</label>
-    <textarea id="chat-question" name="question" rows="4" style="width:100%;" placeholder="Was ist der Stand zu Thema X?"></textarea>
+    <textarea id="chat-question" name="question" rows="4" style="width:100%;" placeholder="Was ist der Stand zu Thema X?" required>{{ question }}</textarea>
     <label style="margin-top: 10px; display:block;">Kontext-Limit</label>
-    <input id="chat-limit" type="number" name="limit" value="8" min="1" max="20">
+    <input id="chat-limit" type="number" name="limit" value="{{ context_limit|default:8 }}" min="1" max="20">
     <label style="margin-top: 10px; display:block;">Quellen</label>
     <select name="source_types" style="width:100%;">
-      <option value="markdown,pdf,jira,owl">alle Quellen</option>
-      <option value="markdown">nur Markdown</option>
-      <option value="pdf">nur PDF</option>
-      <option value="jira">nur Issue/CSV</option>
-      <option value="owl">nur OWL</option>
+      <option value=""{% if not source_types %} selected{% endif %}>alle importierten Quellen</option>
+      <option value="markdown"{% if source_types == "markdown" %} selected{% endif %}>nur Markdown</option>
+      <option value="nextcloud_markdown"{% if source_types == "nextcloud_markdown" %} selected{% endif %}>nur Nextcloud</option>
+      <option value="pdf"{% if source_types == "pdf" %} selected{% endif %}>nur PDF</option>
+      <option value="jira"{% if source_types == "jira" %} selected{% endif %}>nur Issue/CSV</option>
+      <option value="owl"{% if source_types == "owl" %} selected{% endif %}>nur OWL</option>
+      {% if source_types and source_types != "markdown" and source_types != "nextcloud_markdown" and source_types != "pdf" and source_types != "jira" and source_types != "owl" %}
+        <option value="{{ source_types }}" selected>{{ source_types }}</option>
+      {% endif %}
     </select>
     <button id="chat-submit" type="submit">Fragen</button>
   </form>
-  <form method="post" action="" style="margin-top:8px;">
+  <form method="post" action="{% url 'support-chat' %}" style="margin-top:8px;">
     {% csrf_token %}
+    <input type="hidden" name="domain" value="{{ active_domain }}">
     <input type="hidden" name="action" value="clear">
-    <button type="submit">Chat leeren</button>
+    <button type="submit">Chat dieser Domain leeren</button>
   </form>
 </div>
 
@@ -54,9 +74,10 @@
               {% for detail in item.source_details %}
                 <li>
                   <span class="chip">{{ detail.source_type }}</span>
-                  <strong>{{ detail.title }}</strong>
+                  <strong>[{{ detail.citation }}] <a href="{% url 'source-detail' detail.source_id %}?domain={{ active_domain|urlencode }}">{{ detail.title }}</a></strong>
                   {% if detail.score %}<span class="hint">(score {{ detail.score }})</span>{% endif %}
                   <div class="mono hint">{{ detail.path }}</div>
+                  <div class="mono hint">Source: {{ detail.source_id }} · Block: {{ detail.block_id }}</div>
                   {% if detail.snippet %}
                     <div class="muted">{{ detail.snippet|truncatechars:220 }}</div>
                   {% endif %}

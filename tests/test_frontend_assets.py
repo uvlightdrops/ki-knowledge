@@ -131,6 +131,86 @@ def test_catalog_payload_is_a_list_not_a_json_string():
         assert selector in css
 
 
+def test_header_connectivity_static_and_no_render_probe():
+    html = render_to_string("base.html", {})
+    page = PageData(html)
+    attrs = page.elements["node-connectivity"]
+    assert attrs["href"] == reverse("settings")
+    assert attrs["data-endpoint"] == reverse("node-connectivity")
+    assert attrs["data-sync-url"] == reverse("admin-sync")
+    for asset in ("js/node-connectivity.js", "css/node-connectivity.css"):
+        assert "django_site/" + asset in html
+        assert (STATIC / "django_site" / asset).is_file()
+
+
+def test_header_connectivity_polling_rendering_and_errors():
+    source = (STATIC / "django_site/js/node-connectivity.js").read_text()
+    run_node("""
+const assert = require('node:assert/strict');
+class Element {
+  constructor() { this.children = []; this.attrs = {}; this.dataset = {}; this.textContent = ''; }
+  append(...items) { this.children.push(...items); }
+  replaceChildren() { this.children = []; this.textContent = ''; }
+  setAttribute(key, value) { this.attrs[key] = value; }
+}
+const indicator = new Element();
+indicator.dataset = {endpoint: '/knowledge/sync/connectivity/', settingsUrl: '/settings/', syncUrl: '/admin-overview/sync/'};
+let load, visibility, interval, fetches = 0, options, resolveFetch;
+global.window = {addEventListener: (event, callback) => { assert.equal(event, 'load'); load = callback; }};
+global.document = {
+  readyState: 'loading', hidden: false,
+  getElementById: () => indicator, createElement: () => new Element(),
+  addEventListener: (event, callback) => { assert.equal(event, 'visibilitychange'); visibility = callback; }
+};
+global.setInterval = (callback, ms) => { assert.equal(ms, 30000); interval = callback; return 1; };
+global.clearInterval = () => {};
+global.setTimeout = (callback, ms) => { assert.equal(ms, 4000); return 2; };
+global.clearTimeout = () => {};
+global.fetch = (url, opts) => {
+  assert.equal(url, indicator.dataset.endpoint); fetches++; options = opts;
+  return new Promise(resolve => { resolveFetch = resolve; });
+};
+""" + source + """
+async function settle(data, ok = true) {
+  resolveFetch({ok, json: async () => data});
+  await new Promise(resolve => setImmediate(resolve));
+}
+(async () => {
+  assert.equal(fetches, 0);
+  load();
+  assert.equal(fetches, 1);
+  assert.equal(options.mode, 'same-origin');
+  assert.equal(options.credentials, 'same-origin');
+  assert.equal(options.redirect, 'error');
+  interval(); assert.equal(fetches, 1); // no overlap
+  await settle({status: 'ok', cache_seconds: 30, timeout_ms: 1000, overflow: 2, unprobed: 1,
+    peers: [
+      {label: '<img onerror=bad()>', status: 'reachable', rtt_ms: 12, checked_at: Date.now()/1000},
+      {label: 'Blocked', status: 'error', rtt_ms: null, error: 'HTTP 403', checked_at: Date.now()/1000},
+      {label: 'Missing', status: 'not_configured', rtt_ms: null, error: 'No URL', checked_at: Date.now()/1000},
+      {label: 'Overflow', status: 'reachable', rtt_ms: 4}
+    ]});
+  assert.equal(indicator.children.length, 4);
+  assert.equal(indicator.children[0].children[1].textContent, '<img onerror=bad()>');
+  assert.equal(indicator.children[0].children[2].textContent, '12 ms');
+  assert.equal(indicator.children[1].children[2].textContent, '!');
+  assert.equal(indicator.children[2].children[2].textContent, '–');
+  assert.equal(indicator.children[3].textContent, '+2');
+  assert.ok(indicator.title.includes('HTTP 403'));
+  assert.ok(indicator.title.includes('checked'));
+  assert.ok(indicator.attrs['aria-label'].includes('not ICMP'));
+  assert.equal(indicator.href, '/admin-overview/sync/');
+  document.hidden = true; visibility(); interval(); assert.equal(fetches, 1);
+  document.hidden = false; visibility(); assert.equal(fetches, 2);
+  await settle({status: 'not_configured', peers: []});
+  assert.equal(indicator.textContent, 'Nodes –'); assert.equal(indicator.href, '/settings/');
+  interval(); await settle({}, false);
+  assert.equal(indicator.textContent, 'Nodes !');
+  assert.ok(indicator.title.includes('unavailable'));
+})().catch(error => { console.error(error); process.exitCode = 1; });
+""")
+
+
 def test_document_and_hierarchy_json_round_trip_without_double_encoding():
     documents = [{"id": "a", "name": PROJECT.title, "path": "a.md",
                   "type": "markdown", "size_display": "1 KB", "url": "/api/a"}]
