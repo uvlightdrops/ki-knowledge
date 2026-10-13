@@ -15,6 +15,7 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
+from ki_knowledge.node_sync.netlog import log_probe
 from .distributed_api import get_runtime_node_settings
 from .infosite_models import NodeConfig
 
@@ -71,6 +72,13 @@ def _result(peer: Peer, status: str, error: str = "", rtt_ms: int | None = None)
 
 
 def probe_peer(peer: Peer, local_id: str) -> dict:
+    result = _probe_peer(peer, local_id)
+    if result["status"] in {"reachable", "error"}:
+        log_probe(peer.url, result["status"], result["error"], result["rtt_ms"])
+    return result
+
+
+def _probe_peer(peer: Peer, local_id: str) -> dict:
     if not peer.url:
         return _result(peer, "not_configured", "No descriptor URL configured")
     if _origin(peer.url) is None:

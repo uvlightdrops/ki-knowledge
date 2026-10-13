@@ -73,6 +73,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "wagtail.contrib.redirects.middleware.RedirectMiddleware",
+    "ki_knowledge.django_site.middleware_netlog.NodeSyncLogMiddleware",
 ]
 
 ROOT_URLCONF = "ki_knowledge.django_site.urls"

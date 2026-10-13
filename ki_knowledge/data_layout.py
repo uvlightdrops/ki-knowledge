@@ -117,6 +117,7 @@ _V3_RESERVED_ROOT_DIRS = frozenset({
 _GLOBAL_FILES: dict[str, tuple[str, str]] = {
     "knowledge_db": ("knowledge.db", "knowledge.db"),
     "observation_db": ("observation.sqlite", "observation.sqlite"),
+    "node_network_log": ("node-network.log", "node-network.log"),
     "django_db": ("django.sqlite3", "django.sqlite3"),
     "pdf_jobs_db": (".pdf_import_jobs.sqlite", "pdf_import_jobs.sqlite"),
     "jira_cache_db": (".jira_cache.sqlite", "jira_cache.sqlite"),
@@ -476,6 +477,10 @@ class DataLayout:
     def observation_db_path(self) -> Path:
         """Durable local observation samples and completed-import outbox."""
         return self._global_file("observation_db")
+
+    def node_network_log_path(self) -> Path:
+        """Connections to/from other ki-knowledge instances only."""
+        return self._global_file("node_network_log")
 
     def archive_dir(self) -> Path:
         return self.root / _ARCHIVE_DIR

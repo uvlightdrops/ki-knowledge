@@ -64,3 +64,5 @@ ki.yaml
 config/stages/.active_stage
 config/profiles/.active_profile
 config/runtime/
+
+*/link

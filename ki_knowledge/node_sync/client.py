@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import time
+
 import requests
+
+from .netlog import log_event
 
 SECRET_HEADER = "X-KI-Sync-Secret"
 OPERATION_HEADER = "X-KI-Operation-Id"
@@ -42,6 +46,26 @@ class SyncClient:
             headers[OPERATION_HEADER] = operation_id
         return headers
 
+    def _send(self, method: str, path: str, operation_id: str = "", **kwargs: Any) -> requests.Response:
+        started = time.monotonic()
+        outcome = "error"
+        try:
+            response = requests.request(method, self.url(path), timeout=self.timeout, **kwargs)
+            outcome = str(response.status_code)
+            return response
+        except requests.exceptions.Timeout:
+            outcome = "timeout"
+            raise
+        except requests.exceptions.ConnectionError:
+            outcome = "connection_failed"
+            raise
+        except requests.exceptions.RequestException as exc:
+            outcome = type(exc).__name__
+            raise
+        finally:
+            log_event("out", self.origin, method, path, outcome,
+                      round((time.monotonic() - started) * 1000), operation_id)
+
     @staticmethod
     def _object(response: requests.Response, what: str) -> dict[str, Any]:
         response.raise_for_status()
@@ -51,19 +75,18 @@ class SyncClient:
         return payload
 
     def describe(self) -> dict[str, Any]:
-        response = requests.get(self.url(PATH_NODE), headers=self._headers(), timeout=self.timeout)
+        response = self._send("GET", PATH_NODE, headers=self._headers())
         return self._object(response, "node description")
 
     def heartbeat(self, payload: dict[str, Any]) -> dict[str, Any]:
-        response = requests.post(self.url(PATH_HEARTBEAT), json=payload, headers=self._headers(), timeout=self.timeout)
+        response = self._send("POST", PATH_HEARTBEAT, json=payload, headers=self._headers())
         return self._object(response, "heartbeat response")
 
     def contribute(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Submit an explicit immutable revision; no retry or legacy snapshot push."""
         if not self._secret:
             raise ValueError("contributions require a configured sync secret")
-        response = requests.post(self.url(PATH_CONTRIBUTE), json=payload,
-                                 headers=self._headers(), timeout=self.timeout)
+        response = self._send("POST", PATH_CONTRIBUTE, json=payload, headers=self._headers())
         return self._object(response, "contribution response")
 
     def export(
@@ -80,16 +103,14 @@ class SyncClient:
             ("include_knowledge", "1" if include_knowledge else "0"),
         ]
         params += [("domain", domain) for domain in normalize_domains(domains)]
-        response = requests.get(self.url(PATH_EXPORT), params=params, headers=self._headers(), timeout=self.timeout)
+        response = self._send("GET", PATH_EXPORT, params=params, headers=self._headers())
         return self._object(response, "master export payload")
 
     def trigger_pull(self, *, domains: list[str] | None = None, operation_id: str) -> dict[str, Any]:
         """Remote command ``knowledge.domain.pull``: acceptance by the host, not a data push."""
         data = [("domain", domain) for domain in normalize_domains(domains)]
         data.append(("operation_id", operation_id))
-        response = requests.post(
-            self.url(PATH_PULL), data=data, headers=self._headers(operation_id), timeout=self.timeout
-        )
+        response = self._send("POST", PATH_PULL, operation_id, data=data, headers=self._headers(operation_id))
         return self._object(response, "host pull response")
 
 
