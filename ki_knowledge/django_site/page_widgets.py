@@ -285,8 +285,19 @@ def _render_infooutput_quiz_status(ctx: dict[str, Any]) -> str:
     return render_to_string("kicli_django/widgets/output_quiz_status.html", {"active_domain": ctx["active_domain"]})
 
 
+def _domain_overview(ctx: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    if "domain_overview" in ctx:
+        return ctx["domain_overview"], ctx.get("domain_overview_error", "")
+    if ctx["runtime_node"].role == "master":
+        from .distributed_api import local_domain_catalog
+
+        return {**local_domain_catalog(), "master_url": ""}, ""
+    return ctx["master_domain_catalog"], ctx["master_domain_catalog_error"]
+
+
 def _sync_widget_context(ctx: dict[str, Any]) -> dict[str, Any]:
     local_node = ctx["local_node"]
+    domain_overview, domain_overview_error = _domain_overview(ctx)
     return {
         "local_node": local_node,
         "runtime_node": ctx["runtime_node"],
@@ -294,6 +305,8 @@ def _sync_widget_context(ctx: dict[str, Any]) -> dict[str, Any]:
         "sync_jobs": ctx["sync_jobs"],
         "master_domain_catalog": ctx["master_domain_catalog"],
         "master_domain_catalog_error": ctx["master_domain_catalog_error"],
+        "domain_overview": domain_overview,
+        "domain_overview_error": domain_overview_error,
         "known_hosts": ctx.get("known_hosts", []),
         "sync_admin_url": ctx["sync_admin_url"],
         "domain_management_url": ctx["domain_management_url"],
@@ -362,6 +375,7 @@ def _widget_fragment_handlers() -> dict[str, Any]:
         "admin.sync.overview.v1": lambda ctx: render_to_string("kicli_django/admin_sync_overview.html", _sync_widget_context(ctx)),
         "admin.sync.history.v1": lambda ctx: render_to_string("kicli_django/admin_sync_history.html", _sync_widget_context(ctx)),
         "admin.sync.catalog.v1": lambda ctx: render_to_string("kicli_django/admin_sync_catalog.html", _sync_widget_context(ctx)),
+        "admin.sync.master_domains.v1": lambda ctx: render_to_string("kicli_django/admin_sync_master_domains.html", _sync_widget_context(ctx)),
         "admin.sync.hosts.v1": lambda ctx: render_to_string("kicli_django/admin_sync_hosts.html", _sync_widget_context(ctx)),
         "infooutput.overview.summary.v1": _render_infooutput_overview,
         "infooutput.formats.summary.v1": _render_infooutput_formats,
@@ -859,7 +873,8 @@ def build_admin_widget_cards(
                 "layout": layout,
                 "status_url": status_url,
             })
-        elif widget_id in {"admin.sync.overview.v1", "admin.sync.history.v1", "admin.sync.catalog.v1", "admin.sync.hosts.v1"}:
+        elif widget_id in {"admin.sync.overview.v1", "admin.sync.history.v1", "admin.sync.catalog.v1",
+                           "admin.sync.master_domains.v1", "admin.sync.hosts.v1"}:
             body = handler({
                 "active_domain": active_domain,
                 "local_node": local_node,

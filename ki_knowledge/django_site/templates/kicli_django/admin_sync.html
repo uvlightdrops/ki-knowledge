@@ -35,6 +35,11 @@
   {% include "kicli_django/admin_sync_catalog.html" %}
 </div>
 
+<div class="card" style="margin-top:16px;">
+  <h3>Master-Domains: Quellen &amp; Output</h3>
+  {% include "kicli_django/admin_sync_master_domains.html" %}
+</div>
+
 {% if runtime_node.role == "master" %}
 <div class="card" style="margin-top:16px;">
   <h3>Known Hosts</h3>

@@ -140,6 +140,30 @@ def import_remote_sync_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return apply_remote_domain_payload(payload)
 
 
+STAT_KEYS = ("knowledge_sources", "knowledge_records", "knowledge_artifacts", "projects",
+             "source_documents", "generated_projects", "output_files", "output_bytes")
+
+
+def _clean_stats(raw: Any) -> dict[str, int]:
+    raw = raw if isinstance(raw, dict) else {}
+    stats = {}
+    for key in STAT_KEYS:
+        try:
+            stats[key] = max(0, int(raw.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            stats[key] = 0
+    return stats
+
+
+def local_domain_catalog() -> dict[str, Any]:
+    """Same shape as the master catalog, computed from this node's own domains."""
+    from .distributed_sync import local_sync_payload
+
+    return build_domain_catalog_from_payload(
+        local_sync_payload(None, include_projects=False, include_documents=False, include_knowledge=False)
+    )
+
+
 def build_domain_catalog_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     domains_payload = payload.get("domains")
     if not isinstance(domains_payload, list):
@@ -162,6 +186,7 @@ def build_domain_catalog_from_payload(payload: dict[str, Any]) -> dict[str, Any]
                 "visibility": str(item.get("visibility", "")).strip() or "private",
                 "project_count": int(item.get("project_count", 0) or 0),
                 "available_locally": slug in local_domains,
+                "stats": _clean_stats(item.get("stats")),
             }
         )
     return {"domain_count": len(catalog), "domains": catalog}

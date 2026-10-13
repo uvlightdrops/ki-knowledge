@@ -49,3 +49,11 @@ def test_probe_logs_only_state_changes(tmp_path, monkeypatch):
 def test_logging_failure_is_swallowed(monkeypatch):
     monkeypatch.setenv(netlog.ENV_PATH, "/proc/nope/x.log")
     netlog.log_event("out", "http://h", "GET", "/p", "200")
+
+
+def test_catalog_stats_are_sanitised():
+    from ki_knowledge.django_site.distributed_api import _clean_stats
+
+    stats = _clean_stats({"output_files": "7", "knowledge_sources": "x", "projects": -3})
+    assert stats["output_files"] == 7 and stats["knowledge_sources"] == 0 and stats["projects"] == 0
+    assert set(_clean_stats(None)) == set(stats)

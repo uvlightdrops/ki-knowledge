@@ -103,6 +103,40 @@ def record_sync_run_finished(run: SyncRun, *, status: str, summary: dict[str, An
     return run
 
 
+OUTPUT_SCAN_LIMIT = 20000
+
+
+def domain_stats(domain_slug: str) -> dict[str, int]:
+    """Cheap extent figures for the admin overview: sources and generated output."""
+    from ki_knowledge.data_layout import DataLayout
+    from ki_knowledge.django_site.knowledge_summary import domain_knowledge_summary
+
+    knowledge = domain_knowledge_summary(domain_slug)
+    projects = InfoSiteProject.objects.filter(domain=domain_slug)
+    output_files = output_bytes = 0
+    out_dir = DataLayout.from_config(Config.from_env()).output_dir(domain_slug)
+    if out_dir.is_dir():
+        for path in out_dir.rglob("*"):
+            if output_files >= OUTPUT_SCAN_LIMIT:
+                break
+            try:
+                if path.is_file():
+                    output_files += 1
+                    output_bytes += path.stat().st_size
+            except OSError:
+                continue
+    return {
+        "knowledge_sources": int(knowledge["sources"]),
+        "knowledge_records": int(knowledge["records"]),
+        "knowledge_artifacts": int(knowledge["artifacts"]),
+        "projects": projects.count(),
+        "source_documents": SourceDocument.objects.filter(project__domain=domain_slug).count(),
+        "generated_projects": projects.exclude(generated_at__isnull=True).count(),
+        "output_files": output_files,
+        "output_bytes": output_bytes,
+    }
+
+
 def domain_metadata_snapshot(domain: Domain, *, include_projects: bool = True, include_documents: bool = True) -> dict[str, Any]:
     project_qs = InfoSiteProject.objects.filter(domain=domain.slug).order_by("id")
     projects = (
@@ -119,6 +153,7 @@ def domain_metadata_snapshot(domain: Domain, *, include_projects: bool = True, i
         "visibility": domain.visibility,
         "last_sync_at": domain.last_sync_at.isoformat() if domain.last_sync_at else None,
         "project_count": len(projects) if include_projects else project_qs.count(),
+        "stats": domain_stats(domain.slug),
         "projects": projects,
     }
 

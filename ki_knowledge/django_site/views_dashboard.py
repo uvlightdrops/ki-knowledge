@@ -71,6 +71,7 @@ from .layout_store import DjangoDashboardLayoutStore
 from .distributed_api import (
     get_runtime_node_settings,
     list_known_hosts,
+    local_domain_catalog,
     persist_local_node_settings,
     safe_fetch_master_domain_catalog,
     send_host_pull_command,
@@ -778,6 +779,11 @@ def admin_sync_view(request: HttpRequest):
     if runtime_node.role == "host" and runtime_node.distributed_enabled:
         master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
     known_hosts = list_known_hosts() if runtime_node.role == "master" else []
+    domain_overview, domain_overview_error = None, ""
+    if runtime_node.role == "master":
+        domain_overview = {**local_domain_catalog(), "master_url": ""}
+    else:
+        domain_overview, domain_overview_error = master_domain_catalog, master_domain_catalog_error
     return render(
         request,
         "kicli_django/admin_sync.html",
@@ -790,6 +796,8 @@ def admin_sync_view(request: HttpRequest):
             "master_domain_catalog": master_domain_catalog,
             "master_domain_catalog_error": master_domain_catalog_error,
             "known_hosts": known_hosts,
+            "domain_overview": domain_overview,
+            "domain_overview_error": domain_overview_error,
         },
     )
 
