@@ -59,7 +59,8 @@ config_loader = "ki_core:load_config"
 config_key = "stack"
 
 [[tool.stackctl.siblings]]
-name = "yaml_cfg_wizard"
+name = "yaml-cfg-wizard"
+path = "yaml_cfg_wizard"
 url = "https://github.com/uvlightdrops/yaml-cfg-wizard.git"
 branch = "devel"
 
