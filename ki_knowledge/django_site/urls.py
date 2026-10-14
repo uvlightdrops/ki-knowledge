@@ -6,8 +6,10 @@ from wagtail import urls as wagtail_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
 from . import views
+from .config_editor import settings_config_sync_view
 from .views_devtools import chrome_devtools_workspace
 from .node_connectivity import node_connectivity_view
+from .identity_views import identity_admin_view, identity_sync_api
 
 # URL layout follows the navigation IA documented in
 # doc/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
@@ -65,6 +67,7 @@ urlpatterns = [
     path("knowledge/sync/contribute/", views.sync_contribution_view, name="sync-contribute"),
     path("knowledge/sync/push/", views.sync_push_view, name="sync-push"),
     path("knowledge/sync/pull/", views.sync_pull_view, name="sync-pull"),
+    path("knowledge/sync/identities/", identity_sync_api, name="identity-sync"),
     # Semantic sub-area (term extraction, domain analysis, graph/hybrid search)
     path("knowledge/semantic/", views.semantic_landing_view, name="semantic"),
     path("knowledge/semantic/terms/", views.semantic_terms_view, name="semantic-terms"),
@@ -88,10 +91,12 @@ urlpatterns = [
     path("admin-overview/domains/", views.admin_domain_management_view, name="admin-domains"),
     path("admin-overview/sync/", views.admin_sync_view, name="admin-sync"),
     path("admin-overview/status/", views.admin_system_status_view, name="admin-status"),
+    path("admin-overview/identities/", identity_admin_view, name="admin-identities"),
 
     # --- ⚙️ Settings ----------------------------------------------------------
     path("settings/", views.settings_view, name="settings"),
     path("settings/config/", views.settings_config_view, name="settings-config"),
+    path("settings/config/sync/", settings_config_sync_view, name="settings-config-sync"),
     path("settings/layout/", views.layout_settings_view, name="settings-layout"),
     path("settings/layout/widgets/", views.widget_catalog_view, name="settings-layout-widgets"),
     path("settings/layout/builder/", views.dashboard_builder_view, name="settings-layout-builder"),

@@ -12,6 +12,11 @@
     siehe <code>doc/navigation-ia-proposal.md</code>). Secrets (API-Keys/Tokens) werden
     nie im Klartext angezeigt, nur als "gesetzt"/"nicht gesetzt".
   </p>
+  <p class="hint">
+    Sync-/Remote-Collaboration-Felder ohne DB-Vorrang (öffentliche Node-URL, Federation-ID) können
+    Superuser im <a href="{% url 'settings-config-sync' %}">Sync-Konfigurationseditor</a> im Runtime-Layer
+    pflegen; Node-Rolle, Aktivierung und Master-URL bleiben in der <a href="{% url 'admin-sync' %}">Sync-Administration</a>.
+  </p>
 
   {% for section in sections %}
     <div class="section card">

@@ -1,11 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime
 
 from django import template
+from django.utils.dateparse import parse_datetime
 from ki_knowledge.django_site.layout_targets import layout_builder_url as build_layout_builder_url
 
 register = template.Library()
+
+
+@register.filter
+def datetime_seconds(value: object) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = value if isinstance(value, datetime) else parse_datetime(str(value))
+    except ValueError:
+        return str(value)
+    return parsed.isoformat(sep=" ", timespec="seconds") if parsed else str(value)
 
 
 @register.filter

@@ -276,7 +276,9 @@ def persist_local_node_settings(
 def get_node_settings() -> NodeSettings:
     """Framework-free view of the local node for the shared node/sync layer (ki_knowledge.node_sync)."""
     runtime = get_runtime_node_settings()
-    config = getattr(settings, "KI_CONFIG", None) or Config.from_env()
+    # federation_id/public_url are YAML-only (no NodeConfig column); settings.KI_CONFIG
+    # is a defaults-only AppConfig, so read them from the resolved config layers.
+    config = Config.from_env()
     display_name = NodeConfig.objects.filter(node_id=runtime.node_id).values_list("display_name", flat=True).first()
     return NodeSettings(
         node_id=runtime.node_id,

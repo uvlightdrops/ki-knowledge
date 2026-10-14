@@ -1,5 +1,10 @@
 # 🚀 Django Dev - Quick Start Guide
 
+YAML-Schichten, Editor-Grenzen und projektuebergreifende Bedienung:
+[YAML_CONFIG_SYSADMIN.md](YAML_CONFIG_SYSADMIN.md). Der aktuelle Editor-Code ist
+kein Nachweis eines getesteten oder installierten Rollouts. Generisches
+Engineering: [yaml-cfg-wizard](../../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md).
+
 ## ⚡ SCHNELLSTART
 
 ```bash
@@ -50,8 +55,10 @@ Rangfolge in ki-core, höchste zuerst:
 2. Env `KI_CFG_*`
 3. `config/runtime/runtime.yaml`
 4. aktive Stage
-5. `ki.yaml`
-6. `config/defaults/`
+5. aktives Profil (`KI_PROFILE` oder `config/profiles/.active_profile`)
+6. `ki.yaml`
+7. `config/defaults/`
+8. Schema-Defaults
 
 Daraus folgt:
 
@@ -63,6 +70,39 @@ Daraus folgt:
 ```bash
 KI_CFG_STACK__SERVICES__DJANGO__PORT=8011 KI_CFG_STACK__SERVICES__API__PORT=8091 ./kistack start
 ```
+
+#### Sync-Felder im Browser pflegen (`/settings/config/sync/`)
+
+Superuser können dort wenige Sync-/Remote-Collaboration-Felder im Runtime-Layer
+(`config/runtime/runtime.yaml`, nur unterhalb des Projektverzeichnisses, keine Symlinks) setzen
+oder entfernen. Grundlage ist `yaml_cfg_wizard.editor`; Schreibzugriff braucht den optionalen
+Django-Adapter:
+
+```bash
+pip install -e '../yaml_cfg_wizard[django]'   # Editor-Core ab Version 0.2.0
+pip install -e '.[config-editor]'
+```
+
+Ohne importierbaren Editor/Adapter bleibt die Seite read-only (POST -> 405).
+Das Extra deklariert die Abhängigkeit, ist aber kein Laufzeit-Featureflag:
+mit yaml-cfg-wizard 0.2.0 und vorhandenem Django ist der Adapter verfügbar.
+Nach dem Code-/Paketupdate Django einmal mit `./kistack restart django` neu laden;
+spätere Änderungen dieser beiden YAML-Felder brauchen keinen Neustart.
+
+- Editierbar (Allowlist): `apps.ki_knowledge.distributed.public_url` (nur `http(s)://host[:port][/pfad]`,
+  ohne Zugangsdaten/Query/Fragment) und `apps.ki_knowledge.distributed.federation_id`.
+- Gespeichert wird nur, wenn die **vollständig** neu aufgelöste Config (Runtime-Layer ersetzt,
+  Env und `creds.yaml` weiterhin darüber) gegen das gemergte Schema valide ist; parallele
+  Änderungen ergeben einen Konflikt (409). „Entfernen“ löscht den Override, `""` setzt einen leeren String.
+- Nicht editierbar: `node_role`, `enabled`, `sync_on_connect`, `master_url`, `sync_shared_secret`.
+  Sobald ein `NodeConfig`-Eintrag für den lokalen Node existiert, hat die DB Vorrang; diese Werte
+  pflegt die Sync-Administration (`/admin-overview/sync/`). `node_id`, DSN und Secrets werden nie
+  angezeigt oder geändert.
+- Wirkung ohne Neustart: `public_url`/`federation_id` werden pro Aufruf aus der aufgelösten Config
+  gelesen (Descriptor, Heartbeat, Federation-Prüfung).
+- YAML-Werte außerhalb der Allowlist bleiben erhalten; Kommentare und Formatierung werden
+  beim atomaren Speichern neu geschrieben. Die `.editor.lock`-Datei ist ein dauerhaftes
+  Advisory-Lock; externe Schreiber müssen sie ebenfalls beachten.
 
 ### minikube / Kubernetes
 

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load config_editor_tags %}
+{% block title %}Sync-Konfiguration · Settings · KICLI{% endblock %}
+{% block content %}
+  <h1>🔄 Sync / Remote Collaboration · YAML</h1>
+  <p class="muted">
+    <a href="{% url 'settings-config' %}">← Konfigurationsübersicht</a>
+  </p>
+  {% if target_path %}
+    <p class="muted">Zieldatei (Runtime-Layer, host-lokal): <code>{{ target_path }}</code></p>
+  {% else %}
+    <p class="muted">Keine projekteigene Runtime-Datei verfügbar — nur Anzeige.</p>
+  {% endif %}
+
+  {% if editable %}
+    <p class="hint">
+      Änderungen werden in den Runtime-Layer geschrieben. Darüber liegen nur noch
+      <code>KI_CFG_*</code>-Umgebungsvariablen und <code>creds.yaml</code>; „Wirksam“ zeigt den
+      vollständig aufgelösten Wert. „Entfernen“ löscht den Override (unterer Layer gilt wieder),
+      ein leerer String wird als <code>""</code> eingegeben.
+      YAML-Kommentare und Formatierung werden beim Speichern nicht erhalten.
+    </p>
+  {% else %}
+    <p class="hint">
+      Diese Ansicht ist <strong>read-only</strong>: der optionale Editor
+      (<code>pip install 'ki-knowledge[config-editor]'</code>) ist nicht verfügbar
+      oder die Zieldatei liegt nicht sicher im Projektverzeichnis.
+    </p>
+  {% endif %}
+  {% if env_override_hint %}
+    <p class="hint">Hinweis: <code>KI_CFG_APPS__KI_KNOWLEDGE__DISTRIBUTED__*</code> ist gesetzt und hat Vorrang vor dieser Datei.</p>
+  {% endif %}
+
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  {% if saved %}<p class="success" role="status">Gespeichert.</p>{% endif %}
+
+  <div class="section card">
+    <h3>Bearbeitbare Felder</h3>
+    <table class="table">
+      <thead>
+        <tr><th>Feld</th><th>Override (Runtime)</th><th>Wirksam</th>{% if editable %}<th>Ändern</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>
+              <strong>{{ row.label }}</strong><br><code>{{ row.path }}</code>
+              {% if row.description %}<div class="muted">{{ row.description }}</div>{% endif %}
+            </td>
+            <td>{% if row.overridden %}{{ row.override|config_value:row.path }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>
+              {{ row.effective|config_value:row.path }}
+              {% if row.overridden and row.override != row.effective %}<div class="muted">von höherem Layer überschrieben</div>{% endif %}
+            </td>
+            {% if editable %}
+              <td>
+                <form method="post" class="stack">
+                  {% csrf_token %}
+                  <input type="hidden" name="file" value="{{ file_id }}">
+                  <input type="hidden" name="revision" value="{{ snapshot.revision }}">
+                  <input type="hidden" name="path" value="{{ row.path }}">
+                  <input type="text" name="value" value="" aria-label="Neuer Wert für {{ row.label }}">
+                  <button class="button" type="submit" name="action" value="set">Setzen</button>
+                  {% if row.overridden %}<button class="button" type="submit" name="action" value="remove">Entfernen</button>{% endif %}
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="muted">Keine Felder verfügbar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section card">
+    <h3>Nicht hier editierbar (Datenbank hat Vorrang)</h3>
+    <p class="muted">
+      Sobald für den lokalen Node ein <code>NodeConfig</code>-Eintrag existiert, gelten diese Werte aus der
+      Datenbank und YAML-Änderungen wären wirkungslos. Sie werden ausschließlich in der
+      <a href="{% url 'admin-sync' %}">Sync-Administration</a> gepflegt. Secrets und DSNs werden hier nie angezeigt;
+      die Node-ID bleibt unveränderlich, weil sie die DB-Zuordnung bestimmt.
+    </p>
+    <ul>
+      {% for yaml_path, db_field in db_owned_fields %}
+        <li><code>{{ yaml_path }}</code> → <code>{{ db_field }}</code></li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endblock %}

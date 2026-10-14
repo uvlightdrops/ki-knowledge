@@ -88,6 +88,12 @@ Kubernetes: `./kistack -t minikube start` (local cluster, profile `ki-knowledge`
 `./kistack -t k8s start` (registry + context in `stack.k8s`).
 Details: [doc/DJANGO_DEV.md](doc/DJANGO_DEV.md).
 
+YAML configuration and editor operation:
+[shared sysadmin guide](doc/YAML_CONFIG_SYSADMIN.md).
+Generic design and future ideas live in
+[yaml-cfg-wizard](../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md);
+the guide distinguishes current working-tree code from verified deployment.
+
 ## Local observation pilot
 
 The opt-in worker samples running ia3simworld without modifying it:

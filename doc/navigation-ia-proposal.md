@@ -36,10 +36,11 @@ separate "Quicklinks"-Leiste mit 7 weiteren Links. Insgesamt gibt es
   Grenze zwischen "Rohdaten" und "verarbeitetes Wissen" ist in der Nav
   nicht sichtbar — genau die Trennung, die Sie mit "Data sources area" vs.
   "Internal knowledge" ansprechen.
-- Es gibt keine Fläche für Config/YAML — `ki_core.Config` (aus ki-core)
-  lädt `ki.yaml`/`config.yaml`/`creds.yaml`, aber es gibt aktuell **keine
-  GUI**, um das anzuzeigen oder zu bearbeiten. Config-Änderungen laufen
-  heute nur über manuelles YAML-Editieren + Server-Neustart.
+- YAML-Status dieses alten Vorschlags wurde ersetzt durch
+  [YAML_CONFIG_SYSADMIN.md](YAML_CONFIG_SYSADMIN.md): ki-core liefert
+  `load_config()`, und aktueller Code bietet einen optionalen Allowlist-Editor
+  für zwei Sync-Felder, keine Vollbaum-GUI. Der alte YAML-Auszug ist im
+  [zentralen Archiv](../../yaml_cfg_wizard/doc/YAML_CONFIG_ARCHIVE.md) erhalten.
 - "Infosite" (Markdown-Präsentationen) ist heute ihre eigene Top-Level-
   Sektion, obwohl sie konzeptionell nur *ein* "Output"-Format unter
   mehreren ist (Sie erwähnen Quiz als Beispiel für ein weiteres Format).
@@ -58,6 +59,8 @@ separate "Quicklinks"-Leiste mit 7 weiteren Links. Insgesamt gibt es
 - Settings-Formulare sind in Phase 1 **read-only** (Anzeige der aktiven
   Config-Werte); Schreibzugriff mit Backup+Diff-Vorschau folgt als
   separate Phase 2, erst nach Rückmeldung.
+  Dies ist die historische Planentscheidung, nicht der aktuelle YAML-Status:
+  der begrenzte Sync-Editor hat Schreibzugriff, aber keine Backup-/Diff-Vorschau.
 - ~~Alte URLs bekommen 301-Redirects~~ — **Revidiert**: Ein-User-
   Development ohne Bookmarks/externe Links, daher **harter Cutover ohne
   Redirects** (siehe Abschnitt 5).
@@ -72,6 +75,12 @@ separate "Quicklinks"-Leiste mit 7 weiteren Links. Insgesamt gibt es
 ```
 
 ### 2.1 ⚙️ Settings (neu, umfassend)
+
+Dieser Abschnitt ist ein historischer UI-Entwurf, keine aktuelle API- oder
+Routenreferenz. YAML-Engineering wird in
+[YAML_CONFIG_CONCEPTS.md](../../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md)
+gepflegt; insbesondere `ki_core.Config`, die flachen Sektionen und die
+vorgeschlagene Raw-YAML-Seite sind keine Zusage des heutigen Editors.
 
 Ziel: **Config-Werte aus `ki_core.Config` sichtbar und editierbar machen**,
 gruppiert nach den bestehenden YAML-Sektionen (`ki`, `ollama`, `openai`,

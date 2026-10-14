@@ -673,3 +673,62 @@ class GeneratedDocument(EditorialWorkflowMixin, index.Indexed, WorkflowMixin, Dr
         used = self.used_sources.count()
         total = self.project.documents.count()
         return f"{used} von {total} Quellen verwendet"
+
+
+class NodeIdentityCredential(models.Model):
+    """Dedicated, revocable bearer credential for one node's identity metadata."""
+
+    node_id = models.CharField(max_length=120, unique=True)
+    token_hash = models.CharField(max_length=64)
+    is_enabled = models.BooleanField(default=True)
+    issued_at = models.DateTimeField(auto_now=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["node_id"]
+
+    def __str__(self) -> str:
+        return self.node_id
+
+
+def _new_account_identity_uuid():
+    import uuid
+
+    return uuid.uuid4()
+
+
+class AccountIdentity(models.Model):
+    """Stable public identifier assigned to a Django account, not an auth token."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="account_identity")
+    global_id = models.UUIDField(default=_new_account_identity_uuid, unique=True, editable=False)
+
+    def __str__(self) -> str:
+        return str(self.global_id)
+
+
+class LocalIdentity(models.Model):
+    """Metadata-only view of a node-local account and an explicit optional link."""
+
+    node = models.ForeignKey(NodeIdentityCredential, on_delete=models.CASCADE, related_name="identities")
+    local_id = models.CharField(max_length=100)
+    username = models.CharField(max_length=150)
+    email = models.EmailField(max_length=254, blank=True)
+    local_active = models.BooleanField(default=True)
+    linked_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="linked_local_identities",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["node__node_id", "local_id"]
+        constraints = [
+            models.UniqueConstraint(fields=["node", "local_id"], name="uniq_node_local_identity"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.node.node_id}:{self.local_id}"
