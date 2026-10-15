@@ -76,3 +76,45 @@ cli:
         lint:
           help: "Run linter (ruff)"
           callback: "ki_knowledge.cli.commands.dev:run_lint"
+
+    config:
+      help: "Config Management (from ki-core)"
+      commands:
+        resolve:
+          help: "Resolve and display full config"
+          callback: "ki_knowledge.cli.commands.config:run_config"
+        skeleton:
+          help: "Generate config skeleton"
+          callback: "ki_knowledge.cli.commands.config:run_skeleton"
+        show:
+          help: "Show config or specific key"
+          callback: "ki_knowledge.cli.commands.config:run_show"
+        verify:
+          help: "Verify config against schema"
+          callback: "ki_knowledge.cli.commands.config:run_verify"
+
+    profile:
+      help: "Profile Management (from ki-core)"
+      commands:
+        list:
+          help: "List available profiles"
+          callback: "ki_knowledge.cli.commands.profile:run_list"
+        set:
+          help: "Set active profile"
+          callback: "ki_knowledge.cli.commands.profile:run_set"
+        active:
+          help: "Show active profile"
+          callback: "ki_knowledge.cli.commands.profile:run_active"
+
+    stage:
+      help: "Stage Management (from ki-core)"
+      commands:
+        list:
+          help: "List available stages"
+          callback: "ki_knowledge.cli.commands.stage:run_list"
+        set:
+          help: "Set active stage"
+          callback: "ki_knowledge.cli.commands.stage:run_set"
+        active:
+          help: "Show active stage"
+          callback: "ki_knowledge.cli.commands.stage:run_active"
