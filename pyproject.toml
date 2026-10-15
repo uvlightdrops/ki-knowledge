@@ -16,6 +16,7 @@ dependencies = [
     "elasticsearch>=8.0",
     "pypdf>=3.0",
     "ki-core",  # sibling repo, installed by ./kistack install
+    "widgetkit",  # Django-neutral widget rendering core, installed by ./kistack install
     "widgetkit-django",  # sibling repo, installed by ./kistack install
     "yaml-cfg-wizard>=0.1.0",
     "requests>=2.31.0",
@@ -62,14 +63,21 @@ config_key = "stack"
 name = "yaml-cfg-wizard"
 path = "yaml_cfg_wizard"
 url = "https://github.com/uvlightdrops/yaml-cfg-wizard.git"
-branch = "devel"
 
 [[tool.stackctl.siblings]]
 name = "ki-core"
 url = "https://github.com/uvlightdrops/ki-core.git"
-branch = "master"
+
+[[tool.stackctl.siblings]]
+name = "widgetkit"
+path = "widgetkit"
+url = "https://github.com/uvlightdrops/widgetkit.git"
 
 [[tool.stackctl.siblings]]
 name = "widgetkit-django"
 url = "https://github.com/uvlightdrops/widgetkit-django.git"
-branch = "devel"
+
+[[tool.stackctl.siblings]]
+name = "yaml-cfg-wizard-ui"
+path = "yaml_cfg_wizard_ui"
+url = "https://github.com/uvlightdrops/yaml-cfg-wizard-ui.git"
