@@ -66,6 +66,7 @@ url = "https://github.com/uvlightdrops/yaml-cfg-wizard.git"
 
 [[tool.stackctl.siblings]]
 name = "ki-core"
+#path = "ki_core"
 url = "https://github.com/uvlightdrops/ki-core.git"
 
 [[tool.stackctl.siblings]]
@@ -79,5 +80,5 @@ url = "https://github.com/uvlightdrops/widgetkit-django.git"
 
 [[tool.stackctl.siblings]]
 name = "yaml-cfg-wizard-ui"
-path = "yaml_cfg_wizard_ui"
+#path = "yaml_cfg_wizard_ui"
 url = "https://github.com/uvlightdrops/yaml-cfg-wizard-ui.git"
