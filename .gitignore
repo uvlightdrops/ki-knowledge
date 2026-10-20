@@ -66,3 +66,5 @@ config/profiles/.active_profile
 config/runtime/
 
 */link
+
+staticfiles/
