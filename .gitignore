@@ -71,3 +71,4 @@ staticfiles/
 node_modules/
 frontend/workbench/test-results/
 frontend/workbench/playwright-report/
+.kicli_project
