@@ -1,6 +1,6 @@
 # Developer host: everything local, chat via local Ollama.
 llm:
-  default_provider: ollama
+  provider: ollama
 apps:
   ki_knowledge:
     django:

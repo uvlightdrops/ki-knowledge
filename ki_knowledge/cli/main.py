@@ -18,28 +18,23 @@ from ki_knowledge.cli.framework import CLIBuilder
 
 def main():
     """Main CLI entry point."""
-    # Try to find cli.yaml config
     config_paths = [
         Path.cwd() / "cli.yaml",
-        Path(__file__).parent.parent.parent / "cli.yaml",  # From ki_knowledge/cli/main.py -> project root
-        Path(__file__).parent / "cli.yaml",  # From module
+        Path(__file__).parent / "cli.yaml",
     ]
 
-    cli = None
-    for config_path in config_paths:
-        try:
-            if config_path.exists():
-                builder = CLIBuilder.from_yaml_file(config_path)
-                cli = builder.build_cli()
-                break
-        except Exception as e:
-            pass
-
-    if cli is None:
+    config_path = next((path for path in config_paths if path.exists()), None)
+    if config_path is None:
         click.echo("Error: Could not find cli.yaml configuration", err=True)
         click.echo("\nSearched in:", err=True)
         for cp in config_paths:
             click.echo(f"  - {cp}", err=True)
+        sys.exit(1)
+
+    try:
+        cli = CLIBuilder.from_yaml_file(config_path).build_cli()
+    except Exception as e:
+        click.echo(f"Error loading CLI configuration {config_path}: {e}", err=True)
         sys.exit(1)
 
     try:

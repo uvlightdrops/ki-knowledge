@@ -250,9 +250,9 @@ def test_save_order_seeds_subpage_defaults_before_persisting_widths():
 
 
 def test_domain_summary_cache_avoids_repeated_store_scan(monkeypatch):
-    from ki_knowledge.django_site import services
+    from ki_knowledge.django_site import knowledge_summary, services
 
-    services._FALLBACK_CACHE.clear()
+    services.invalidate_domain_summary_cache("demo-domain")
     calls = {"count": 0}
 
     class DummyStore:
@@ -263,7 +263,12 @@ def test_domain_summary_cache_avoids_repeated_store_scan(monkeypatch):
         def list_artifacts(self):
             return []
 
-    monkeypatch.setattr(services, "store", lambda: DummyStore())
+    monkeypatch.setattr(knowledge_summary, "store", lambda: DummyStore())
+
+    def scoped_sources(domain):
+        return knowledge_summary.store().list_sources()
+
+    monkeypatch.setattr(knowledge_summary, "_domain_scoped_sources", scoped_sources)
 
     first = services.domain_knowledge_summary("demo-domain")
     second = services.domain_knowledge_summary("demo-domain")
@@ -273,4 +278,3 @@ def test_domain_summary_cache_avoids_repeated_store_scan(monkeypatch):
     assert calls["count"] == 1
 
     services.invalidate_domain_summary_cache("demo-domain")
-    services._FALLBACK_CACHE.clear()

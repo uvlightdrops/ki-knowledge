@@ -4,6 +4,7 @@ from fastapi import Query
 
 from ki_knowledge.api.knowledge_app import app as app
 import ki_knowledge.api.knowledge_app as knowledge_app
+from ki_knowledge.services.jira_retrieval import JiraRetrievalService
 
 _cache = None
 _graph = None
@@ -39,6 +40,10 @@ def _services():
     return services
 
 
+def _retrieval() -> JiraRetrievalService:
+    return JiraRetrievalService(*_get_components())
+
+
 @app.get("/api/health")
 def api_health():
     return {"status": "ok"}
@@ -46,7 +51,7 @@ def api_health():
 
 @app.get("/api/timeline")
 def api_timeline(days: int = Query(default=14, ge=1, le=365)):
-    return _services().jira_daily_timeline(days=days)["timeline"]
+    return _retrieval().daily_timeline(days=days)["timeline"]
 
 
 @app.get("/api/search")
@@ -61,7 +66,7 @@ def api_search(q: str = Query(..., min_length=1), limit: int = Query(default=8, 
             "labels": hit.issue.labels,
             "combined_score": round(hit.combined_score, 4),
         }
-        for hit in _services().jira_hybrid_search(query=q, limit=limit)["hits"]
+        for hit in _retrieval().hybrid_search(query=q, limit=limit)["hits"]
     ]
 
 
@@ -81,23 +86,7 @@ def api_ask(payload: dict):
 
 @app.get("/api/graph/{entity_id}/neighbors")
 def api_graph_neighbors(entity_id: str, limit: int = Query(default=25, ge=1, le=100)):
-    _sync_legacy_globals()
-    if _graph is not None:
-        neighbors = _graph.issue_neighbors(entity_id, limit=limit)
-        return {
-            "key": entity_id,
-            "neighbors": [
-                {
-                    "node_id": item.neighbor_id,
-                    "node_type": item.neighbor_type,
-                    "label": item.neighbor_id,
-                    "relation": item.relation,
-                    "weight": item.weight,
-                }
-                for item in neighbors
-            ],
-        }
-    result = _services().jira_graph_explorer(issue_key=entity_id, limit=limit)
+    result = _retrieval().graph_explorer(issue_key=entity_id, limit=limit)
     return {
         "key": entity_id,
         "neighbors": [
@@ -126,7 +115,7 @@ def api_domain_terms(
             "sources": item.sources,
             "sample_entity_ids": item.sample_issue_keys,
         }
-        for item in _services().jira_domain_analysis(limit_terms=limit, min_count=min_count)["terms"]
+        for item in _retrieval().domain_analysis(limit_terms=limit, min_count=min_count)["terms"]
     ]
 
 

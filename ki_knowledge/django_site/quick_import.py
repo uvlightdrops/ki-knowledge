@@ -64,7 +64,7 @@ def _imported_group(source: Any) -> str | None:
 
 def quick_import_rows(domain: str, state: dict[str, Any], sources: Iterable[Any]) -> list[dict[str, Any]]:
     """Per source folder: file count, imported count, and whether an import makes sense."""
-    from .services import display_data_path
+    from .data_display import display_data_path
 
     imported: dict[str, int] = {}
     for source in sources:
@@ -102,7 +102,7 @@ def quick_import_rows(domain: str, state: dict[str, Any], sources: Iterable[Any]
 
 
 def _queue_pdf(domain: str):
-    from .services import create_pdf_import_job
+    from .pdf_jobs import create_pdf_import_job
 
     return lambda path: create_pdf_import_job(str(path), domain=domain)
 
@@ -113,7 +113,8 @@ def run_source_import(
     image_processing: str = IMAGE_PROCESSING_OCR,
 ) -> dict[str, Any]:
     """Import one source folder of the domain. Returns ``{"ok", "message", "warnings"}``."""
-    from .services import discover_pdf_files, jira_reimport_data
+    from .source_workflow import discover_pdf_files
+    from ki_knowledge.django_site.jira_workflow import jira_reimport_data
     from .source_workflow import import_markdown_directory, import_mixed_directory, import_ontology_directory
 
     source = next((item for item in QUICK_SOURCES if item.key == key), None)

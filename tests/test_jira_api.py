@@ -147,6 +147,26 @@ def test_domain_terms_endpoint(test_client: TestClient):
     assert "auth" in values
 
 
+def test_retrieval_endpoints_do_not_use_django_services(test_client, monkeypatch):
+    import ki_knowledge.api.app as api_module
+
+    def forbidden():
+        raise AssertionError("Retrieval must not load Django services")
+
+    monkeypatch.setattr(api_module, "_services", forbidden)
+    for path in (
+        "/api/timeline?days=30", "/api/search?q=login&limit=1",
+        "/api/graph/AE-77/neighbors?limit=1", "/api/domain/terms?min_count=1",
+    ):
+        response = test_client.get(path)
+        assert response.status_code == 200, response.text
+    response = test_client.get("/api/search?q=login&limit=1").json()
+    assert len(response) == 1
+    assert set(response[0]) == {
+        "key", "id", "title", "status", "entity_type", "labels", "combined_score",
+    }
+
+
 def test_semantic_field_endpoints(test_client: TestClient):
     rebuild = test_client.post("/api/semantic/fields/rebuild")
     assert rebuild.status_code == 200

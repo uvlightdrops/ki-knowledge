@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from ki_knowledge.django_site.book_structure import DEFAULT_METHOD, analyze_domain
-from ki_knowledge.django_site.domain_paths import default_semantic_domain, normalize_semantic_domain
+from ki_knowledge.services.domain_paths import default_semantic_domain, normalize_semantic_domain
 from ki_knowledge.integrations.structure_eval import METHODS
 
 

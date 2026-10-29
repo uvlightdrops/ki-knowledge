@@ -105,6 +105,18 @@ class DocumentImportJobStore(SqliteJobStoreBase):
             },
         )
 
+    def mark_started(self, job_id: str) -> None:
+        self._update_fields(
+            job_id,
+            {
+                "status": "processing",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": None,
+                "error_message": None,
+                "documents_imported": 0,
+            },
+        )
+
     def list_jobs(self, project_id: Optional[int] = None, limit: int = 200) -> list[DocumentImportJob]:
         return self._list_jobs({"project_id": project_id}, limit=limit)
 

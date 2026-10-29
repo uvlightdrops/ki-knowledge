@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,6 +12,8 @@ license = {text = "MIT"}
 authors = [{name = "KI Team"}]
 
 dependencies = [
+    "click>=8.0",
+    "tabulate>=0.9",
     "Django>=4.2",
     "elasticsearch>=8.0",
     "pypdf>=3.0",
@@ -51,11 +53,22 @@ node = ["ki-node-core>=0.1.0a1"]
 kictl = "ki_knowledge.cli.main:main"
 
 [tool.setuptools]
-packages = ["ki_knowledge"]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ki_knowledge", "ki_knowledge.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+ki_knowledge = ["widgetkit_templates/*.html"]
+"ki_knowledge.cli" = ["cli.yaml"]
+"ki_knowledge.django_site" = ["templates/**/*.html", "static/**/*.css", "static/**/*.js", "static/**/*.ico", "static/django_site/workbench/**/*.ttf", "static/django_site/workbench/*.json", "static/django_site/workbench/*.txt"]
+"ki_knowledge.wagtail_cms" = ["templates/**/*.html"]
 
 [tool.stackctl]
-# ./kistack -> stackctl: stack spec = section "stack" of the ki-core config
-# (config/defaults/stack.yaml + active stage), see doc/DJANGO_DEV.md
+# Central stackctl: stack spec = section "stack" of the ki-core config
+# (config/defaults/stack.yaml + active stage), see doc/guides/DJANGO_DEV.md
 config_loader = "ki_core:load_config"
 config_key = "stack"
 

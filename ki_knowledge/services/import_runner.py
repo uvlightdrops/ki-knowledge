@@ -1,19 +1,10 @@
-"""Runner for the document-import step, decoupled from the Django view.
-
-Mirrors ki_knowledge.services.pipeline_runner: the view only creates a job
-record and delegates the actual "mark these documents as imported" work to
-`run_import_job`, so the same function can later be called from a management
-command or a real async worker without changing the job-record contract.
-"""
+"""Compatibility entry points for synchronous import-status jobs."""
 
 from __future__ import annotations
 
-from typing import Any
-
-from django.utils import timezone
-
 from ki_knowledge.data_layout import DataLayout
 from ki_knowledge.integrations.document_import_jobs import DocumentImportJobStore
+from ki_knowledge.services.document_import import DocumentImportService, ImportResult
 
 
 def get_job_store() -> DocumentImportJobStore:
@@ -26,42 +17,18 @@ def enqueue_import(project_id: int, document_ids: list[int]) -> str:
     return store.create_job(project_id=project_id, document_ids=document_ids)
 
 
-def run_import_job(job_id: str) -> dict[str, Any]:
-    """Execute a previously enqueued import job: mark selected documents as imported."""
-    from ki_knowledge.django_site.infosite_models import SourceDocument
+def _service() -> DocumentImportService:
+    from ki_knowledge.django_site.document_import import DjangoImportDocuments
 
-    store = get_job_store()
-    job = store.get_job(job_id)
-    if job is None:
-        raise ValueError(f"Unknown job_id: {job_id}")
-
-    store.mark_started(job_id)
-    try:
-        imported_count = 0
-        for doc_id in job.document_ids:
-            try:
-                doc = SourceDocument.objects.get(id=doc_id, project_id=job.project_id)
-            except SourceDocument.DoesNotExist:
-                continue
-            if doc.import_status != "imported":
-                doc.import_status = "imported"
-                doc.imported = True
-                doc.imported_at = timezone.now()
-                doc.save()
-                imported_count += 1
-
-        store.mark_done(job_id, documents_imported=imported_count)
-        return {
-            "job_id": job_id,
-            "documents_requested": job.documents_requested,
-            "documents_imported": imported_count,
-        }
-    except Exception as exc:  # noqa: BLE001 - persist any failure onto the job record
-        store.mark_failed(job_id, str(exc))
-        raise
+    return DocumentImportService(get_job_store(), DjangoImportDocuments())
 
 
-def enqueue_and_run_import(project_id: int, document_ids: list[int]) -> dict[str, Any]:
+def run_import_job(job_id: str) -> ImportResult:
+    """Run inline; this call returns only after completion or raises on failure."""
+    return _service().run(job_id)
+
+
+def enqueue_and_run_import(project_id: int, document_ids: list[int]) -> ImportResult:
     """Convenience helper: create + run an import job synchronously today,
     while keeping the job-record contract stable for a future async worker.
     """

@@ -249,7 +249,7 @@ def test_expired_gui_worker_reservation_can_be_replaced(tmp_path):
 
 
 def test_gui_start_launches_worker_without_shell_or_request_blocking(tmp_path, monkeypatch):
-    import ki_knowledge.django_site.services as services
+    import ki_knowledge.django_site.pdf_jobs as services
 
     processor = PDFBatchProcessor(tmp_path / "pdf-jobs.sqlite")
     pdf = _pdf(tmp_path / "queued.pdf")

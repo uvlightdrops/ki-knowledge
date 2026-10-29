@@ -1,5 +1,10 @@
 {% macro actions(row) %}
   <span class="sb-actions">
+    {% if row.workbench_url %}
+    <a href="{{ row.workbench_url }}">Textwerkstatt öffnen</a>
+    {% elif row.capture_exclusion %}
+    <span class="muted" title="{{ row.capture_exclusion }}">Textwerkstatt: {{ row.capture_exclusion }}</span>
+    {% endif %}
     {% if not row.imported|default(true) %}
     {% if row.workflow == 'jira' %}
     <a href="{{ row.workflow_url }}">Jira-Workflow öffnen</a>

@@ -10,12 +10,16 @@
 
   {% if project %}
   <p><strong>Projekt:</strong> {{ project.title }} (<code>{{ project.domain }}/{{ project.working_title }}</code>)</p>
+  {% if block_error %}
+  <p role="alert">{{ block_error }}</p>
+  {% else %}
   <p>
-    <strong>Statistik:</strong>
+    <strong>Gespeicherter Bestand:</strong>
     {{ stats.total_blocks|default:0 }} Blöcke insgesamt aus {{ stats.total_files|default:0 }} Dateien
     ({{ stats.sections|default:0 }} Sections, {{ stats.subsections|default:0 }} Subsections,
     {{ stats.paragraphs|default:0 }} Absätze)
   </p>
+  {% endif %}
   <p><a class="nav-link" href="/output/infosite/project/{{ project.id }}/knowledge-blocks/" title="Legacy-Extraktions-/Publish-Aktionen, noch nicht nach Wagtail migriert">
     ⚙️ Verwalten in Infosite (Extraktion · Publish · Job-Historie)
   </a></p>

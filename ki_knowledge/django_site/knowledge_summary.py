@@ -11,10 +11,12 @@ from django.conf import settings
 from ki_knowledge.django_site.domain_paths import (
     _cached_get,
     _cached_set,
+    invalidate_domain_summary_cache,
+)
+from ki_knowledge.services.domain_paths import (
     default_semantic_domain,
     domain_source_roots,
     domain_state_paths,
-    invalidate_domain_summary_cache,
     normalize_semantic_domain,
 )
 from ki_knowledge.config_runtime import semantic_store_target

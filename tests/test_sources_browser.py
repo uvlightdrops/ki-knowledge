@@ -79,6 +79,13 @@ def test_resolve_folder_file_allows_files_behind_symlinked_folder(domain_dirs):
     assert sources_browser.resolve_folder_file("demo", "nope", "sub/t.csv") is None
 
 
+def test_resolve_folder_file_rejects_arbitrary_outside_file_link(domain_dirs):
+    outside = domain_dirs.base.parent / "secret.md"
+    outside.write_text("private")
+    (domain_dirs.folders["markdown"] / "escape.md").symlink_to(outside)
+    assert sources_browser.resolve_folder_file("demo", "md", "escape.md") is None
+
+
 def test_source_rows_filter_and_origin(domain_dirs):
     sources = [
         SimpleNamespace(source_id="mix:t.csv", source_type="table", title="Tore", location=str(domain_dirs.folders["mix"] / "t.csv")),
@@ -207,7 +214,16 @@ def test_inventory_matches_unresolved_store_path_to_resolved_discovery(domain_di
 
 @pytest.fixture
 def no_django_database(monkeypatch):
+    import os
+    import django
+    from django.apps import apps
+    from django.conf import settings
     from django.db.backends.utils import CursorWrapper
+
+    if not apps.ready:
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ki_knowledge.django_site.settings")
+        settings.DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+        django.setup()
 
     def forbidden(*args, **kwargs):
         pytest.fail("Sources inventory must not access the configured Django database")
@@ -218,7 +234,7 @@ def no_django_database(monkeypatch):
 
 def test_pdf_states_read_existing_queue_without_initializing_it(tmp_path, monkeypatch, no_django_database):
     import sqlite3
-    from ki_knowledge.django_site import services
+    from ki_knowledge.django_site import pdf_jobs as services
 
     path = tmp_path / "queue.sqlite"
     monkeypatch.setattr(services, "pdf_batch_db_path", lambda: str(path))
@@ -269,7 +285,8 @@ def test_inventory_widget_renders_file_actions_and_preserves_preview_defaults(di
               "folder": "md", "relative": "new.pdf", "icon": "📄", "records": 0,
               "artifacts": 0, "updated_at": "", "status": "new", "can_import": True}
     rows = [
-        {**common, "title": "Fresh PDF"},
+        {**common, "title": "Fresh PDF", "capture_exclusion": "Nur lokale Markdown-Dateien."},
+        {**common, "title": "Markdown", "workbench_url": "/knowledge/workbench/?domain=demo&source_id=src_opaque"},
         {**common, "title": "Queued PDF", "status": "queued", "can_import": False},
         {**common, "title": "Failed PDF", "status": "failed", "error": "<bad PDF>"},
         {**common, "title": "Unsupported", "status": "unsupported", "can_import": False},
@@ -296,12 +313,14 @@ def test_inventory_widget_renders_file_actions_and_preserves_preview_defaults(di
     assert "Format nicht unterstützt" in html and "Jira-Workflow öffnen" in html
     assert '<a href="/detail/s:1/">Store source · Records ansehen</a>' in html
     assert "Fresh PDF · Records ansehen" not in html and 'name="action" value="delete"' in html
+    assert "Textwerkstatt öffnen" in html and "source_id=src_opaque" in html
+    assert "Nur lokale Markdown-Dateien." in html
 
 
 def test_sources_get_scans_every_time_and_never_imports(domain_dirs, monkeypatch, no_django_database):
     from django.http import HttpResponse
     from django.test import RequestFactory
-    from ki_knowledge.django_site import knowledge_summary, page_widgets, views_data_sources
+    from ki_knowledge.django_site import knowledge_summary, page_widgets, views_source_browser as views_data_sources
 
     monkeypatch.setattr(views_data_sources, "_active_semantic_domain", lambda request: "demo")
     monkeypatch.setattr(views_data_sources, "store", lambda: SimpleNamespace(source_stats=lambda: {}))
@@ -314,9 +333,16 @@ def test_sources_get_scans_every_time_and_never_imports(domain_dirs, monkeypatch
 
     for name in ("import_folder_file", "import_all_unimported", "_queue_pdf"):
         monkeypatch.setattr(sources_browser, name, forbidden)
-    for name in ("create_pdf_import_job", "start_pdf_worker", "import_mixed_file",
-                 "import_markdown_file", "generate_all_artifacts"):
-        monkeypatch.setattr(views_data_sources, name, forbidden)
+    from ki_knowledge.django_site import knowledge_browser, pdf_jobs, source_workflow
+
+    for module, name in (
+        (pdf_jobs, "create_pdf_import_job"),
+        (pdf_jobs, "start_pdf_worker"),
+        (source_workflow, "import_mixed_file"),
+        (source_workflow, "import_markdown_file"),
+        (knowledge_browser, "generate_all_artifacts"),
+    ):
+        monkeypatch.setattr(module, name, forbidden)
     contexts = []
     monkeypatch.setattr(page_widgets, "build_sources_widget_cards",
                         lambda **kwargs: contexts.append(kwargs["ctx"]) or [])
@@ -329,14 +355,20 @@ def test_sources_get_scans_every_time_and_never_imports(domain_dirs, monkeypatch
     (md / "first.pdf").write_bytes(b"%PDF")
     factory = RequestFactory()
 
-    assert views_data_sources.sources(factory.get("/data-sources/sources/")).status_code == 200
+    staff_request = factory.get("/data-sources/sources/")
+    staff_request.user = SimpleNamespace(is_authenticated=True, is_staff=True)
+    assert views_data_sources.sources(staff_request).status_code == 200
     assert contexts[-1]["total_all"] == 1
     assert contexts[-1]["rows"][0]["title"] == "first.pdf"
     assert contexts[-1]["rows"][0]["detail_url"] == ""
+    assert contexts[-1]["rows"][0]["capture_exclusion"]
     (md / "new.md").write_text("# New")
-    views_data_sources.sources(factory.get("/data-sources/sources/?kind=markdown&q=new"))
+    staff_request = factory.get("/data-sources/sources/?kind=markdown&q=new")
+    staff_request.user = SimpleNamespace(is_authenticated=True, is_staff=True)
+    views_data_sources.sources(staff_request)
     assert contexts[-1]["total_all"] == 2 and contexts[-1]["total"] == 1
     assert contexts[-1]["rows"][0]["title"] == "new.md"
+    assert "source_id=src_" in contexts[-1]["rows"][0]["workbench_url"]
     for number in range(101):
         (md / f"page-{number:03}.md").write_text("# Page")
     views_data_sources.sources(factory.get("/data-sources/sources/?q=page-&page=2"))
@@ -361,9 +393,42 @@ def test_filter_rows_status_folder_path_and_new_sorts():
     assert sources_browser.folder_counts(rows)["md"] == 2
 
 
+def test_source_detail_links_registered_markdown_to_workbench(domain_dirs, monkeypatch, no_django_database):
+    from django.http import HttpResponse
+    from django.test import RequestFactory
+    from ki_knowledge.django_site import infosite_records, views_source_detail
+
+    path = domain_dirs.folders["markdown"] / "registered.md"
+    path.write_text("# Registered")
+    source = SimpleNamespace(
+        source_id="store:markdown", source_type="markdown", title="Registered",
+        location=str(path), metadata={},
+    )
+    monkeypatch.setattr(views_source_detail, "_active_semantic_domain", lambda request: "demo")
+    monkeypatch.setattr(views_source_detail, "domain_source_ids", lambda domain: {source.source_id})
+    monkeypatch.setattr(views_source_detail, "store", lambda: SimpleNamespace(
+        get_source=lambda identifier: source,
+        browse_records=lambda *args, **kwargs: ([], 0),
+        list_artifacts=lambda **kwargs: [],
+    ))
+    monkeypatch.setattr(infosite_records, "find_source_infosite_project", lambda **kwargs: None)
+    contexts = []
+    monkeypatch.setattr(
+        views_source_detail, "render",
+        lambda request, template, context: contexts.append(context) or HttpResponse("ok"),
+    )
+    request = RequestFactory().get("/data-sources/source/store:markdown/")
+    request.user = SimpleNamespace(is_authenticated=True, is_staff=True)
+    assert views_source_detail.source_detail(request, source.source_id).status_code == 200
+    assert "domain=demo&source_id=src_" in contexts[-1]["workbench_source"]["workbench_url"]
+    request.user = SimpleNamespace(is_authenticated=True, is_staff=False)
+    views_source_detail.source_detail(request, source.source_id)
+    assert contexts[-1]["workbench_source"] == {}
+
+
 def test_sources_action_import_selected_validates_and_caps(domain_dirs, monkeypatch, no_django_database):
     from django.test import RequestFactory
-    from ki_knowledge.django_site import views_data_sources
+    from ki_knowledge.django_site import views_source_browser as views_data_sources
 
     md = domain_dirs.folders["markdown"]
     for index in range(105):
@@ -412,7 +477,7 @@ def test_source_rows_map_symlinked_subfolder_targets(domain_dirs, tmp_path):
 
 
 def test_linked_subdirectories_and_domain_roots_include_link_targets(tmp_path, monkeypatch):
-    from ki_knowledge.django_site import domain_paths
+    from ki_knowledge.services import domain_paths
 
     domain_paths._LINKED_DIRS_CACHE.clear()
     pdf_dir = tmp_path / "domain" / "pdf"

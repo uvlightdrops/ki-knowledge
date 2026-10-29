@@ -1,4 +1,4 @@
-# Service stack for stackctl (./kistack). Generic tool, project-specific spec:
+# Service stack for central stackctl (./kistack is a compatibility alias).
 # local = processes + docker compose, minikube/k8s = generic Helm chart.
 # Per stage/host: config/stages/*.yaml, host-local: config/runtime/runtime.yaml.
 stack:
@@ -7,6 +7,8 @@ stack:
   services:
     postgres:
       kind: compose
+      health_timeout: 60
+      health_retries: 120
       compose: {dir: deploy/postgres, service: postgres, requires: [deploy/postgres/.env]}
       port: 5432
       k8s:
@@ -24,6 +26,8 @@ stack:
 
     ollama:
       kind: compose
+      health_timeout: 60
+      health_retries: 120
       compose: {dir: deploy/ollama}
       port: 11434
       health_path: /api/tags
@@ -40,19 +44,23 @@ stack:
     api:
       port: 8090
       health_path: /docs
-      command: ["{python}", "examples/run_knowledge_api.py"]
-      marker: run_knowledge_api
-      env: {KI_API_HOST: "{host}", KI_API_PORT: "{port}", KI_API_RELOAD: "true"}
+      health_timeout: 60
+      health_retries: 120
+      command: ["{python}", "-m", uvicorn, "ki_knowledge.api.knowledge_app:app", --host, "{host}", --port, "{port}"]
+      marker: ki_knowledge.api.knowledge_app:app
+      env: {UVICORN_RELOAD: "true"}
       k8s:
         image: "@app"
         secret_env: true
-        env: {KI_API_RELOAD: "false"}
+        env: {UVICORN_RELOAD: "false"}
         volumes:
           data: {mount: /data, size: 20Gi, shared: true}
 
     django:
       port: 8000
       health_path: /
+      health_timeout: 60
+      health_retries: 120
       prepare: ["{python}", "manage.py", "migrate", "--no-input"]
       # --insecure: static files also without DEBUG (runserver-only setup)
       command: ["{python}", "manage.py", "runserver", "--insecure", "{host}:{port}"]

@@ -12,7 +12,7 @@ from .node_connectivity import node_connectivity_view
 from .identity_views import identity_admin_view, identity_sync_api
 
 # URL layout follows the navigation IA documented in
-# doc/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
+# doc/refactorings/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
 # Knowledge | Info Output | CMS Catalog | Settings. View names (the `name=`
 # kwarg) are unchanged from the pre-reorganization layout so all internal
 # reverse()/{% url %} usages keep working; only the URL *paths* moved under
@@ -44,6 +44,7 @@ urlpatterns = [
 
     # --- 🧠 Internal Knowledge: raw data -> processed knowledge -------------
     path("knowledge/", views.knowledge_landing_view, name="knowledge"),
+    path("knowledge/workbench/", include("ki_knowledge.django_site.workbench_urls")),
     path("knowledge/api/", views.knowledge_api_view, name="knowledge-api"),
     path("knowledge/records/", views.records, name="records"),
     path("knowledge/pipeline/", views.book_pipeline_view, name="book-pipeline"),

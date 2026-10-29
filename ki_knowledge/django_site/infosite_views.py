@@ -769,7 +769,7 @@ def infosite_import_control(request: HttpRequest, project_id: int):
 
 @require_http_methods(["POST"])
 def infosite_import_selected(request: HttpRequest, project_id: int):
-    """Start an import job for the selected documents (decoupled from the request)."""
+    """Run the selected import-status job synchronously before redirecting."""
     project = get_object_or_404(InfoSiteProject, id=project_id)
 
     # Get selected document IDs from POST
@@ -778,7 +778,8 @@ def infosite_import_selected(request: HttpRequest, project_id: int):
         try:
             selected_doc_ids.append(int(raw_id))
         except ValueError:
-            continue
+            messages.error(request, f"Invalid document ID: {raw_id}")
+            return redirect("infosite:import_control", project_id=project.id)
 
     if not selected_doc_ids:
         messages.warning(request, "No documents selected")

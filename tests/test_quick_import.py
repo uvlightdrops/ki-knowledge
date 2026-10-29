@@ -68,7 +68,7 @@ def test_uploads_are_routed_by_format_and_never_overwrite(domain_dirs, monkeypat
 
 
 def test_rows_cover_every_format_equally(domain_dirs, monkeypatch):
-    monkeypatch.setattr("ki_knowledge.django_site.services.display_data_path", lambda path: str(path))
+    monkeypatch.setattr("ki_knowledge.django_site.data_display.display_data_path", lambda path: str(path))
     state = {"markdown_files": 2, "pdf_files": 0, "ontology_files": 1, "jira_csv_files": 0, "mix_files": 23, "issues": 5}
     sources = [
         SimpleNamespace(source_type="markdown", source_id="md:a"),

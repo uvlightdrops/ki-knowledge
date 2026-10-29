@@ -7,7 +7,7 @@ from typing import Any
 from django.conf import settings
 
 from ki_knowledge.api.app import _get_components, _semantic_model_id
-from ki_knowledge.django_site.domain_paths import default_semantic_domain, normalize_semantic_domain
+from ki_knowledge.services.domain_paths import default_semantic_domain, normalize_semantic_domain
 from ki_knowledge.django_site.jira_workflow import (
     jira_cache_db_path,
     jira_domain_terms,

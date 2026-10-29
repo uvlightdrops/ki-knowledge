@@ -76,6 +76,7 @@
         <div class="project-summary-box">
             <div class="project-summary-header">Action</div>
             <div class="project-summary-actions">
+                <a href="{% url 'workbench' %}?domain={{ project.domain|urlencode }}" class="btn btn-outline-secondary">Textwerkstatt: Quellen markieren</a>
                 {% if perms.django_site.add_infositeproject %}
                 <form method="post" action="{% url 'infosite:sync' project.id %}">
                     {% csrf_token %}

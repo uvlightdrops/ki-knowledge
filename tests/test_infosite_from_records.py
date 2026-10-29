@@ -74,9 +74,9 @@ def test_source_browser_can_create_and_open_an_infosite_project(tmp_path: Path, 
 
     with (
         override_settings(KI_CONFIG=SimpleNamespace(knowledge_data_root=str(data_root))),
-        patch("ki_knowledge.django_site.views_data_sources.store", return_value=store),
+        patch("ki_knowledge.django_site.views_source_detail.store", return_value=store),
         patch(
-            "ki_knowledge.django_site.views_data_sources.domain_source_ids",
+            "ki_knowledge.django_site.views_source_detail.domain_source_ids",
             return_value={source_id},
         ),
     ):

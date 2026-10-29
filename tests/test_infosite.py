@@ -144,7 +144,7 @@ def test_display_data_path_is_relative_to_domain_data_root(monkeypatch, tmp_path
     markdown_file.parent.mkdir(parents=True)
     markdown_file.write_text("# test\n", encoding="utf-8")
 
-    monkeypatch.setattr("ki_knowledge.django_site.services.data_root", lambda: data_root)
+    monkeypatch.setattr("ki_knowledge.django_site.data_display.data_root", lambda: data_root)
 
     assert display_data_path(markdown_file) == "anthro/sstk/10_geistige_welt/anspruch-und-ziel_bak.md"
 

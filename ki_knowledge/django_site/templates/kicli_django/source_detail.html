@@ -26,6 +26,11 @@
   </div>
   <div class="card">
     <h3>Actions</h3>
+    {% if workbench_source.workbench_url %}
+      <p><a class="chip" href="{{ workbench_source.workbench_url }}">In der Textwerkstatt öffnen →</a></p>
+    {% elif workbench_source.capture_exclusion %}
+      <p class="muted">Textwerkstatt: {{ workbench_source.capture_exclusion }}</p>
+    {% endif %}
     {% if infosite_project %}
       <p><a class="chip" href="{% url 'infosite:project_detail' project_id=infosite_project.id %}">InfoSite-Projekt öffnen →</a></p>
     {% elif record_count %}

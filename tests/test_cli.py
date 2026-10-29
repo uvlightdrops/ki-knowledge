@@ -9,6 +9,7 @@ import yaml
 from click.testing import CliRunner
 
 from ki_knowledge.cli.framework import CLICommandSpec, CLIBuilder
+from ki_knowledge.cli.main import main
 
 
 @pytest.fixture
@@ -147,6 +148,37 @@ def test_command_callback_loading():
 
     callback = spec_valid.load_callback()
     assert callable(callback)
+
+
+def test_main_uses_packaged_defaults(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    with patch("sys.argv", ["kictl", "--help"]):
+        with pytest.raises(SystemExit) as result:
+            main()
+    assert result.value.code == 0
+
+
+def test_main_uses_working_directory_override(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "cli.yaml").write_text(
+        "cli:\n  commands:\n    custom:\n      help: Local override\n",
+        encoding="utf-8",
+    )
+    with patch("sys.argv", ["kictl", "--help"]):
+        with pytest.raises(SystemExit) as result:
+            main()
+    assert result.value.code == 0
+    assert "Local override" in capsys.readouterr().out
+
+
+def test_main_reports_invalid_override_without_fallback(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    config = tmp_path / "cli.yaml"
+    config.write_text("cli: [", encoding="utf-8")
+    with pytest.raises(SystemExit) as result:
+        main()
+    assert result.value.code == 1
+    assert f"Error loading CLI configuration {config}" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

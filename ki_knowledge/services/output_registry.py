@@ -16,11 +16,8 @@ from typing import Iterable, Optional
 
 
 def _hash_file(path: Path) -> str:
-    """Return a short content hash for change detection, best-effort."""
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-    except OSError:
-        return ""
+    """Hash the authoritative output; unreadable content must not look synced."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
 def register_generated_documents(
@@ -38,6 +35,7 @@ def register_generated_documents(
     """
     from ki_knowledge.django_site.infosite_models import GeneratedDocument
 
+    sources = list(used_sources) if used_sources is not None else None
     count = 0
     for md_path in sorted(Path(output_dir).glob("**/*.md")):
         if "_originals" in md_path.parts:
@@ -50,8 +48,8 @@ def register_generated_documents(
                 "ai_refinement_mode": ai_refinement_mode,
             },
         )
-        if used_sources is not None:
-            doc.used_sources.set(list(used_sources))
+        if sources is not None:
+            doc.used_sources.set(sources)
         count += 1
     return count
 

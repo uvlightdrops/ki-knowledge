@@ -255,7 +255,7 @@ def _path_keys(path: Path) -> set[str]:
 
 
 def _pdf_job_states(domain: str) -> dict[str, tuple[str, str]]:
-    from .services import pdf_batch_db_path
+    from .pdf_jobs import pdf_batch_db_path
 
     states: dict[str, tuple[str, str]] = {}
     try:
@@ -416,11 +416,14 @@ def resolve_folder_file(domain: str, folder: str, relative: str) -> Path | None:
     candidate = root.joinpath(*rel.parts)
     if not candidate.is_file():
         return None
-    # Symlinks inside the folder are allowed (that's how mix/ works), but the
-    # joined path must stay lexically inside the folder.
     try:
         candidate.relative_to(root)
-    except ValueError:
+        resolved = candidate.resolve(strict=True)
+        trusted = [root.resolve(strict=True)]
+        trusted.extend(target for _link, target in linked_subdirectories(root))
+        if not any(resolved.is_relative_to(base) for base in trusted):
+            return None
+    except (OSError, ValueError, RuntimeError):
         return None
     return candidate
 
@@ -429,7 +432,7 @@ def resolve_folder_file(domain: str, folder: str, relative: str) -> Path | None:
 
 
 def _queue_pdf(path: Path, domain: str) -> str:
-    from .services import create_pdf_import_job
+    from .pdf_jobs import create_pdf_import_job
 
     return create_pdf_import_job(str(path), domain=domain)
 
@@ -508,7 +511,7 @@ def reimport_source(
     location = str(source.location)
     try:
         if source.source_type == "pdf":
-            from .services import create_pdf_import_job
+            from .pdf_jobs import create_pdf_import_job
 
             create_pdf_import_job(location, domain=domain, force=True)
             return {"ok": True, "message": f"{source.title}: PDF-Job eingereiht"}

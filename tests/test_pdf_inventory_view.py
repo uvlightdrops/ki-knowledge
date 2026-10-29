@@ -13,7 +13,7 @@ from django.http import HttpResponse  # noqa: E402
 from django.test import RequestFactory  # noqa: E402
 from django.urls import reverse  # noqa: E402
 
-from ki_knowledge.django_site import views_data_sources  # noqa: E402
+from ki_knowledge.django_site import views_pdf  # noqa: E402
 from ki_knowledge.django_site.layout_targets import layout_targets_for_area  # noqa: E402
 from ki_knowledge.integrations.pdf_inventory import PdfInventory, PdfInventoryEntry  # noqa: E402
 
@@ -36,7 +36,7 @@ def captured(monkeypatch):
         calls.append((template, context))
         return HttpResponse("ok")
 
-    monkeypatch.setattr(views_data_sources, "render", fake_render)
+    monkeypatch.setattr(views_pdf, "render", fake_render)
     return calls
 
 
@@ -55,9 +55,9 @@ def test_inventory_route_is_discoverable():
 
 
 def test_inventory_view_does_not_scan_without_explicit_request(monkeypatch, captured):
-    monkeypatch.setattr(views_data_sources, "scan_configured_pdf_inventory", lambda **kw: pytest.fail("scanned"))
+    monkeypatch.setattr(views_pdf, "scan_configured_pdf_inventory", lambda **kw: pytest.fail("scanned"))
 
-    response = views_data_sources.pdf_inventory_view(RequestFactory().get("/data-sources/pdf/inventory/?root=/etc"))
+    response = views_pdf.pdf_inventory_view(RequestFactory().get("/data-sources/pdf/inventory/?root=/etc"))
 
     assert response.status_code == 200
     template, context = captured[0]
@@ -72,9 +72,9 @@ def test_inventory_view_scans_on_request_and_sorts_by_path(monkeypatch, captured
         calls.append(kwargs)
         return _inventory()
 
-    monkeypatch.setattr(views_data_sources, "scan_configured_pdf_inventory", fake_scan)
+    monkeypatch.setattr(views_pdf, "scan_configured_pdf_inventory", fake_scan)
 
-    views_data_sources.pdf_inventory_view(RequestFactory().get("/x/?scan=1&text=1&sort=path"))
+    views_pdf.pdf_inventory_view(RequestFactory().get("/x/?scan=1&text=1&sort=path"))
 
     _, context = captured[0]
     assert calls == [{"domain": "anthro", "include_first_page_text": True}]
@@ -88,7 +88,7 @@ def test_inventory_template_renders_provenance_and_errors():
     inventory = _inventory()
     inventory.entries[0].error = "encrypted: password required"
     template = engines["django"].from_string(
-        open(os.path.join(os.path.dirname(views_data_sources.__file__), "templates", "kicli_django", "pdf_inventory.html"))
+        open(os.path.join(os.path.dirname(views_pdf.__file__), "templates", "kicli_django", "pdf_inventory.html"))
         .read()
         .replace('{% extends "base.html" %}', "")
     )

@@ -377,7 +377,7 @@ def test_catalog_domain_selection_is_readonly_and_has_no_heartbeat(
 
 
 def test_audit_document_covers_every_canonical_registration():
-    document = (Path(__file__).resolve().parents[1] / "doc/widget-catalog-preview-audit.md").read_text()
+    document = (Path(__file__).resolve().parents[1] / "doc/tracking/widget-catalog-preview-audit.md").read_text()
     for widget_id in widget_registry():
         assert f"| `{widget_id}` |" in document
 

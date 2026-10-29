@@ -15,8 +15,8 @@ from django.test import RequestFactory
 from django.urls import resolve, reverse
 from ki_core.core.models import Role
 
-from ki_knowledge.django_site import block_search, knowledge_summary, services, views_common
-from ki_knowledge.django_site import views_data_sources as views
+from ki_knowledge.django_site import block_search, knowledge_summary, domain_registry, support_chat as services, views_common
+from ki_knowledge.django_site import views_chat as views
 from ki_knowledge.django_site.layout_targets import layout_targets_for_area, nav_areas_config
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
 from ki_knowledge.integrations.sql_backend import connect
@@ -41,7 +41,7 @@ def corpus(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "KNOWLEDGE_STORE_TARGET", target)
     roots = lambda domain: [tmp_path / domain]
     monkeypatch.setattr(knowledge_summary, "domain_source_roots", roots)
-    monkeypatch.setattr(services, "domain_source_roots", roots)
+    monkeypatch.setattr(domain_registry, "domain_source_roots", roots)
     monkeypatch.setattr(block_search, "embedding_settings", lambda: ("http://unused", "nomic-embed-text"))
     monkeypatch.setattr(views, "chat_settings", lambda: {"provider": "mock", "model": "mock-1"})
     db = KnowledgeStore(target)

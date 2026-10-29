@@ -11,6 +11,9 @@
 <div class="section">
   <h1>📥 Import Control</h1>
   <p class="muted">{{ project.title }} ({{ project.domain }}/{{ project.working_title }})</p>
+  <p class="muted">Der Import-Job markiert die Auswahl synchron als importiert.
+    Er liest keine Inhalte ein und erzeugt keine Knowledge Blocks. Die Antwort
+    erfolgt nach Abschluss; es wird kein Hintergrundworker gestartet.</p>
 
   {% if messages %}
     {% for message in messages %}

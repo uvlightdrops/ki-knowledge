@@ -31,7 +31,7 @@ class JiraSupportAssistant:
 
     def __init__(
         self,
-        backend: ChatBackend,
+        backend: ChatBackend | None,
         cache: JiraIssueCache,
         embedding_backend: EmbeddingBackend | None = None,
         embedding_model: str | None = None,

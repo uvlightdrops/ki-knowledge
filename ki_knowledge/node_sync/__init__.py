@@ -3,7 +3,7 @@
 Nothing here imports Django or knowledge models: Django code builds a
 :class:`NodeSettings` and uses :class:`SyncClient` for all outgoing sync requests.
 ``ki-node-core`` is optional (extra ``node``); only :func:`to_descriptor` needs it.
-See doc/distributed-collaboration-plan.md, section "Gemeinsame Node-Basis".
+See doc/refactorings/distributed-collaboration-plan.md, section "Gemeinsame Node-Basis".
 """
 
 from .capabilities import CAPABILITIES, PROTOCOL_VERSIONS, capabilities_for_role

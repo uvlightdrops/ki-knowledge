@@ -36,6 +36,7 @@ _AREAS = [
         "key": "knowledge", "nav_key": "internal-knowledge", "prefixes": ["/knowledge/"],
         "submenu": [
             ("Übersicht", "/knowledge/", "Verarbeitungs-Hub: Sources, Records, Artifacts."),
+            ("Textwerkstatt", "/knowledge/workbench/", "Markdown-Snapshots markieren, Metadaten speichern und verbinden."),
             ("Semantic Layer", "/knowledge/semantic/", "Semantische Begriffe, Domain-Analyse und Konzeptgraph."),
             ("Domain Terms", "/knowledge/semantic/terms/", "Interne Begriffsliste zur Wissensmodellierung und Domain-Analyse."),
             ("Exclusion List", "/knowledge/semantic/", "Generische Stopword-/Ausschlussliste für Vorverarbeitung und Filterung."),

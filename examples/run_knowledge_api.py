@@ -1,19 +1,15 @@
-"""Launch the knowledge block FastAPI app."""
+"""Legacy alias for the central ``stackctl -t local run api`` command."""
 
 from pathlib import Path
 import os
-import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-import uvicorn
-
 if __name__ == "__main__":
-    uvicorn.run(
-        "ki_knowledge.api.knowledge_app:app",
-        host=os.getenv("KI_API_HOST", "0.0.0.0"),
-        port=int(os.getenv("KI_API_PORT", "8090")),
-        reload=os.getenv("KI_API_RELOAD", "true").lower() in {"1", "true", "yes"},
-    )
+    for old, new in {
+        "KI_API_HOST": "KI_CFG_STACK__SERVICES__API__HOST",
+        "KI_API_PORT": "KI_CFG_STACK__SERVICES__API__PORT",
+        "KI_API_RELOAD": "KI_CFG_STACK__SERVICES__API__ENV__UVICORN_RELOAD",
+    }.items():
+        if old in os.environ:
+            os.environ.setdefault(new, os.environ[old])
+    os.execv(str(PROJECT_ROOT / "kistack"), [str(PROJECT_ROOT / "kistack"), "-t", "local", "run", "api"])

@@ -13,13 +13,12 @@ from ki_knowledge.data_layout import DataLayout
 
 from ki_knowledge.integrations.knowledge_graph import KnowledgeGraph
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
-from ki_knowledge.integrations.embeddings import TFIDFEmbeddingProvider
 from ki_knowledge.integrations.jira_assistant import JiraSupportAssistant
 from ki_knowledge.integrations.jira_cache import JiraIssueCache
-from ki_knowledge.integrations.jira_graph import JiraKnowledgeGraph
 from ki_knowledge.knowledge.generate import KnowledgeArtifactGenerator
 from ki_knowledge.knowledge.ingest import KnowledgeIngestService
 from ki_knowledge.knowledge.ontology_ingest import import_ontology_to_store
+from ki_knowledge.services.jira_retrieval import JiraRetrievalService, field_embedding_backend
 
 _CONFIG = Config.from_env()
 _STORE_TARGET = knowledge_store_target(_CONFIG)
@@ -92,33 +91,13 @@ def _get_components():
     if _cache is None:
         cache_db = str(jira_cache_db_path(_CONFIG))
         graph_db = str(jira_graph_db_path(_CONFIG))
-        _cache = JiraIssueCache(cache_db)
-        _graph_runtime = JiraKnowledgeGraph(graph_db)
-        tfidf = TFIDFEmbeddingProvider()
-        corpus = [issue.full_text for issue in _cache.list_issues(limit=5000)]
-        if corpus:
-            tfidf.fit(corpus)
-            _assistant = JiraSupportAssistant(
-                backend=None,  # pragma: no cover - compatibility only
-                cache=_cache,
-                embedding_backend=tfidf,
-                embedding_model="tfidf",
-                graph=_graph_runtime,
-            )
-        else:
-            _assistant = JiraSupportAssistant(backend=None, cache=_cache, graph=_graph_runtime)
+        retrieval = JiraRetrievalService.from_paths(cache_db, graph_db)
+        _cache, _graph_runtime, _assistant = retrieval.cache, retrieval.graph, retrieval.assistant
     return _cache, _graph_runtime, _assistant
 
 
 def _field_embedding_backend(cache: JiraIssueCache, assistant: JiraSupportAssistant, issue_limit: int = 5000):
-    if assistant.embedding_backend and assistant.embedding_model:
-        return assistant.embedding_backend, assistant.embedding_model
-    tfidf = TFIDFEmbeddingProvider()
-    corpus = cache.semantic_text_corpus(issue_limit=issue_limit)
-    if not corpus:
-        return tfidf, "tfidf-fields-empty"
-    tfidf.fit(corpus)
-    return tfidf, "tfidf-fields"
+    return field_embedding_backend(cache, assistant, issue_limit=issue_limit)
 
 
 def _semantic_model_id(assistant: JiraSupportAssistant) -> str:

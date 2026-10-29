@@ -518,7 +518,9 @@ def test_cli_list_import_upload(storage, monkeypatch, tmp_path, layout):
 def test_cli_yaml_registers_nextcloud_group():
     from ki_knowledge.cli.framework import CLIBuilder
 
-    cli = CLIBuilder.from_yaml_file(Path(__file__).resolve().parents[1] / "cli.yaml").build_cli()
+    cli = CLIBuilder.from_yaml_file(
+        Path(__file__).resolve().parents[1] / "ki_knowledge/cli/cli.yaml"
+    ).build_cli()
     group = cli.commands["nextcloud"]
     assert set(group.commands) == {"status", "list", "download", "import", "upload"}
 

@@ -49,15 +49,17 @@ def _json_loads(value: Any) -> Any:
 class KnowledgeStore:
     """Persistent store for shared knowledge-core entities."""
 
-    def __init__(self, db_path: str | Path | StoreTarget):
+    def __init__(self, db_path: str | Path | StoreTarget, *, read_only: bool = False):
         self.target = db_path if isinstance(db_path, StoreTarget) else StoreTarget.parse(db_path, schema="knowledge")
         self.db_path = str(self.target.sqlite_path) if self.target.is_sqlite else self.target.safe_label()
-        self._init_schema()
+        self.read_only = read_only
+        if not read_only:
+            self._init_schema()
 
     def _connect(self):
         if getattr(self, "_transaction_connection", None) is not None:
             return nullcontext(self._transaction_connection)
-        return connect(self.target)
+        return connect(self.target, read_only=getattr(self, "read_only", False))
 
     def ingest_contribution(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Commit the closed graph and its immutable receipt in one local transaction."""

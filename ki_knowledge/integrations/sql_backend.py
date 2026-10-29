@@ -160,12 +160,15 @@ class ConnectionWrapper:
 
 
 @contextmanager
-def connect(target: StoreTarget | str | Path):
+def connect(target: StoreTarget | str | Path, *, read_only: bool = False):
     resolved = StoreTarget.parse(target)
     if resolved.is_sqlite:
         assert resolved.sqlite_path is not None
-        resolved.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        raw = sqlite3.connect(str(resolved.sqlite_path))
+        if read_only:
+            raw = sqlite3.connect(resolved.sqlite_path.resolve().as_uri() + "?mode=ro", uri=True)
+        else:
+            resolved.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+            raw = sqlite3.connect(str(resolved.sqlite_path))
         raw.row_factory = sqlite3.Row
         wrapper = ConnectionWrapper(raw, resolved)
     else:
@@ -175,7 +178,10 @@ def connect(target: StoreTarget | str | Path):
         raw = psycopg.connect(resolved.postgres_dsn, autocommit=False)  # type: ignore[union-attr]
         wrapper = ConnectionWrapper(raw, resolved)
         with raw.cursor() as cur:
-            cur.execute(f"CREATE SCHEMA IF NOT EXISTS {quote_ident(schema)}")
+            if read_only:
+                cur.execute("SET TRANSACTION READ ONLY")
+            else:
+                cur.execute(f"CREATE SCHEMA IF NOT EXISTS {quote_ident(schema)}")
             cur.execute(f"SET search_path TO {quote_ident(schema)}, public")
     try:
         yield wrapper

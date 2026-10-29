@@ -146,7 +146,7 @@ class Command(BaseCommand):
         layout = DataLayout.from_config(cfg)
         knowledge_path = knowledge_db_path(cfg)
         from ki_knowledge.django_site.knowledge_summary import jira_cache_db_path
-        from ki_knowledge.django_site.domain_paths import normalize_semantic_domain
+        from ki_knowledge.services.domain_paths import normalize_semantic_domain
 
         if not knowledge_path.is_file():
             raise CommandError(f"Knowledge store not found: {knowledge_path}")

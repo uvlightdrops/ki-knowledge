@@ -1,10 +1,10 @@
 """Idempotent bootstrap for the Wagtail CMS/workflow layer.
 
-Creates the DataSourceIndexPage and KnowledgeBlockIndexPage as children of the
-Wagtail root page if they don't already exist. Safe to re-run.
+Creates missing catalog and project detail pages, publishing newly created
+pages only. Existing content and publication state are preserved on rerun.
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from wagtail.models import Page, Site
 
 from ki_knowledge.django_site.infosite_models import InfoSiteProject
@@ -18,15 +18,14 @@ from ki_knowledge.wagtail_cms.models import (
 
 
 class Command(BaseCommand):
-    help = "Bootstrap the Wagtail CMS layer: create the catalog pages under root."
+    help = "Create and publish missing catalog and enabled-project detail pages."
 
     def handle(self, *args, **options):
         site = Site.objects.filter(is_default_site=True).first()
         if site is None:
-            self.stderr.write(self.style.ERROR(
+            raise CommandError(
                 "No default Wagtail Site found. Run 'python manage.py migrate' first."
-            ))
-            return
+            )
         root_page = site.root_page
 
         data_index = self._create_data_source_index(root_page)

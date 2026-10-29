@@ -1,13 +1,14 @@
 """Wagtail page models that surface the canonical data-source layer.
 
-These pages are read-mostly views into existing core data (InfoSiteProject /
-SourceDocument, normalized through InfoSiteSourceAdapter). The goal of Phase 3
-is to prove that editorial workflow (draft/review/publish, moderation,
-revisions) can run on top of the canonical DataSourceDescriptor /
-SourceDocumentRecord contracts without duplicating the underlying models.
+Rendering reads the existing core data; page creation/publication belongs to
+explicit CMS editing or setup_wagtail_cms. Editorial metadata and workflow
+remain separate from pipeline status and canonical files/stored blocks.
 """
 
 from __future__ import annotations
+
+import logging
+import sqlite3
 
 from django.db import models
 from django.utils.text import slugify
@@ -15,6 +16,24 @@ from django.utils.text import slugify
 from wagtail.admin.panels import FieldPanel
 from wagtail.fields import RichTextField
 from wagtail.models import Page
+
+from ki_knowledge.data_layout import DataLayout
+from ki_knowledge.services.infosite_catalog import InfoSiteBlockReader
+
+
+logger = logging.getLogger(__name__)
+
+
+def _read_project_blocks(reader: InfoSiteBlockReader, project: object) -> dict:
+    try:
+        return {**reader.read(project), "block_error": ""}
+    except (OSError, sqlite3.Error):
+        logger.exception("Cannot read InfoSite block catalog for project %s", project.id)
+        return {
+            "blocks": [],
+            "stats": {},
+            "block_error": "Der InfoSite-Blockspeicher ist nicht lesbar. Bitte Extraktionsstatus und Serverprotokoll pruefen.",
+        }
 
 
 def ensure_project_detail_page(index_page: Page, project: object, page_model: type[Page], *, title: str, slug_prefix: str) -> Page:
@@ -75,13 +94,9 @@ class DataSourceIndexPage(Page):
         projects = InfoSiteProject.objects.filter(enabled=True).order_by("title")
         context["data_sources"] = []
         for project in projects:
-            detail_page = ensure_project_detail_page(
-                self,
-                project,
-                DataSourceDetailPage,
-                title=f"{project.title} — Data Sources",
-                slug_prefix="data-source",
-            )
+            detail_page = DataSourceDetailPage.objects.child_of(self).live().filter(
+                infosite_project_id=project.id,
+            ).first()
             context["data_sources"].append(
                 {
                     "project": project,
@@ -148,11 +163,11 @@ class DataSourceDetailPage(Page):
 class KnowledgeBlockIndexPage(Page):
     """Editorial landing page listing InfoSite projects that have extracted
     knowledge blocks (semantic sections/paragraphs published via the
-    knowledge-extraction pipeline, see doc/content-model-matrix-from-docs.md Section 3).
+    knowledge-extraction pipeline, see doc/architecture/content-model-matrix-from-docs.md Section 3).
 
     Like DataSourceIndexPage, this is a read-only mirror: the underlying
-    KnowledgeSource/KnowledgeBlockRecord data keeps living in KnowledgeStore
-    (SQLite), managed by InfoSiteBlockStorage. Wagtail only owns the
+    KnowledgeSource/KnowledgeBlockRecord data keeps living in the InfoSite
+    block store, managed by InfoSiteBlockStorage. Wagtail only owns the
     editorial *catalog page* around it, not the blocks themselves.
     """
 
@@ -171,34 +186,28 @@ class KnowledgeBlockIndexPage(Page):
 
     def get_context(self, request, *args, **kwargs):
         from ki_knowledge.django_site.infosite_models import InfoSiteProject
-        from ki_knowledge.services.block_storage import InfoSiteBlockStorage
-
         context = super().get_context(request, *args, **kwargs)
         entries = []
+        reader = InfoSiteBlockReader(DataLayout.from_config())
         for project in InfoSiteProject.objects.filter(enabled=True).order_by("title"):
-            detail_page = ensure_project_detail_page(
-                self,
-                project,
-                KnowledgeBlockDetailPage,
-                title=f"{project.title} — Knowledge Blocks",
-                slug_prefix="knowledge-blocks",
-            )
-            storage = InfoSiteBlockStorage(project)
-            try:
-                block_count = len(storage.get_stored_blocks())
-            except Exception:
-                block_count = 0
-            entries.append({"project": project, "block_count": block_count, "detail_page": detail_page})
+            detail_page = KnowledgeBlockDetailPage.objects.child_of(self).live().filter(
+                infosite_project_id=project.id,
+            ).first()
+            snapshot = _read_project_blocks(reader, project)
+            entries.append({
+                "project": project,
+                "block_count": None if snapshot["block_error"] else snapshot["stats"]["total_blocks"],
+                "block_error": snapshot["block_error"],
+                "detail_page": detail_page,
+            })
         context["knowledge_projects"] = entries
         return context
 
 
 class KnowledgeBlockDetailPage(Page):
     """Editorial detail page rendering the extracted knowledge blocks for a
-    single InfoSite project, read live from InfoSiteBlockStorage/KnowledgeStore
-    (no duplication - closes the gap noted in content-model-matrix.md Section 3,
-    where KnowledgeSource/KnowledgeBlockRecord previously had no Wagtail
-    representation at all).
+    single InfoSite project through InfoSiteBlockReader. Both records and
+    statistics come from the persisted block store, without re-extraction.
     """
 
     infosite_project_id = models.PositiveIntegerField(
@@ -221,22 +230,18 @@ class KnowledgeBlockDetailPage(Page):
 
     def get_context(self, request, *args, **kwargs):
         from ki_knowledge.django_site.infosite_models import InfoSiteProject
-        from ki_knowledge.services.block_storage import InfoSiteBlockStorage
-
         context = super().get_context(request, *args, **kwargs)
         project = None
         blocks = []
         stats = {}
+        block_error = ""
         if self.infosite_project_id:
             project = InfoSiteProject.objects.filter(id=self.infosite_project_id).first()
             if project:
-                storage = InfoSiteBlockStorage(project)
-                blocks = storage.get_stored_blocks()
-                try:
-                    stats = storage.get_statistics()
-                except Exception:
-                    stats = {}
+                snapshot = _read_project_blocks(InfoSiteBlockReader(DataLayout.from_config()), project)
+                blocks, stats, block_error = snapshot["blocks"], snapshot["stats"], snapshot["block_error"]
         context["project"] = project
         context["blocks"] = blocks
         context["stats"] = stats
+        context["block_error"] = block_error
         return context

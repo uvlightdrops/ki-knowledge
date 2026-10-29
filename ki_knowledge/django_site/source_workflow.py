@@ -9,13 +9,13 @@ import markdown
 from django.conf import settings
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.django_site.domain_paths import (
+from ki_knowledge.django_site.domain_paths import invalidate_domain_summary_cache
+from ki_knowledge.services.domain_paths import (
     default_semantic_domain,
     domain_markdown_dir,
     domain_mix_dir,
     domain_ontology_dir,
     infer_domain_from_path,
-    invalidate_domain_summary_cache,
 )
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf as pdf_extract_text
 from ki_knowledge.integrations.mixed_ingest import (

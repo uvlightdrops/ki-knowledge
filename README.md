@@ -5,13 +5,29 @@ Knowledge Base System with Graph, Ingestion, and Django UI.
 **Status:** 🔄 Under Development
 **Purpose:** Extract knowledge from PDFs, JIRA, Ontologies and build a queryable knowledge graph
 
-## Features (Planned)
+## Documentation
+
+Start with the [documentation guide](doc/README.md) or
+[full index](doc/INDEX.md). The
+[2026-10-28 inventory](doc/tracking/project-inventory-2026-10-28.md) distinguishes
+the current structure, architectural bottlenecks and proposed cleanup.
+Historical plans are kept separately from operating instructions.
+For the canonical source tree, wheel contents and checkout requirements, see
+the [packaging contract](doc/guides/packaging.md).
+
+## Functional areas
+
+These areas exist in the source tree; this list does not imply that every
+planned workflow is complete or deployed.
 
 - 📚 Multi-source Ingestion (PDF, JIRA, CSV, Web, Ontologies)
-- 🔗 Knowledge Graph (Neo4j or similar)
+- 🔗 Knowledge records, relations and graph exploration
 - 🔍 Hybrid Search (Semantic + Full-text)
 - 💬 Knowledge-based Chat
 - 🌐 Django Web UI
+- Textwerkstatt: Markdown-Snapshots, eigene Texte mit Revisionen, persistente
+  Markierungen und Relationen sowie KI-Gespräch mit explizitem Kontext.
+  [Bedienung und Einführung](doc/guides/text-workbench.md).
 - 📊 Graph Visualization & Exploration
 
 ## Structure
@@ -26,70 +42,84 @@ ki-knowledge/
 │   │   └── ...
 │   ├── integrations/        # JIRA, PDF, etc.
 │   ├── django_site/         # Web UI
-│   └── utils/
-├── examples/
-│   ├── pdf_import.py
-│   ├── jira_integration.py
-│   └── ...
-└── tests/
+│   ├── services/            # Discovery, import and generation
+│   ├── api/                 # FastAPI adapters
+│   ├── cli/                 # kictl commands
+│   └── wagtail_cms/         # Editorial presentation adapter
+├── config/                  # Defaults, stages and stack definition
+├── examples/                # Examples and compatibility launchers
+├── doc/                     # Categorized documentation; start at doc/README.md
+└── tests/                   # Regression and integration tests
 ```
 
 ## widgetkit-django
 
-The reusable dashboard/layout builder extraction now lives in:
-
-- `ki_knowledge/widgetkit_django/`
+The reusable dashboard/layout builder is supplied by the sibling packages
+`widgetkit` and `widgetkit-django`, not by an in-repository
+`ki_knowledge/widgetkit_django/` package. This application provides concrete
+registries, views and persistence adapters.
 
 Documentation:
 
-- extraction log: `doc/widgetkit-django-extraction.md`
-- host integration guide: `doc/widgetkit-django-host-integration.md`
-- packaging roadmap: `doc/widgetkit-django-packaging-roadmap.md`
-- package README: `ki_knowledge/widgetkit_django/README.md`
+- [host integration guide](doc/integration/widgetkit-django-host-integration.md)
+- [historical extraction log](doc/archive/widgetkit-django-extraction.md)
+- [historical packaging roadmap](doc/archive/widgetkit-django-packaging-roadmap.md)
 
 ## Frontend assets
 
-See [frontend asset rules](doc/frontend-assets.md) for static CSS/JavaScript
+See [frontend asset rules](doc/guides/frontend-assets.md) for static CSS/JavaScript
 organization, safe template-to-script data handoffs, the inline-block cleanup
 inventory, and database-free validation commands.
 
 ## Dependencies
 
-- `ki-core`, `widgetkit-django`, `yaml-cfg-wizard` as sibling repos (not on PyPI)
-- Django
-- Elasticsearch / Neo4j
-- PDF processing (pypdf, etc.)
-- JIRA SDK
-- Embeddings (sentence-transformers)
+The authoritative dependency list is in [pyproject.toml](pyproject.toml).
+It includes Django, FastAPI/Uvicorn, Wagtail, PDF/document parsers,
+Elasticsearch and PostgreSQL support, and sibling packages such as `ki-core`,
+`widgetkit`, `widgetkit-django` and `yaml-cfg-wizard`. Storage targets and
+external services depend on the resolved project configuration.
 
 ## Installation
 
 Ubuntu 24 (dev or prod host), any directory:
 
 ```bash
+# Prerequisite: central stackctl user tool (~/.local/bin on PATH).
+# Install once from the stackctl checkout: ./scripts/install-user.sh
 sudo apt install python3-venv git
 git clone https://github.com/uvlightdrops/ki-knowledge.git
 cd ki-knowledge
-./kistack install            # creates .venv, installs stackctl, siblings + this project editable
+stackctl install            # creates project .venv, installs siblings + this project editable
 echo dev-lokal > config/stages/.active_stage   # stage of this host: dev-lokal | prod
-./kistack start              # postgres, ollama, API, Django
+stackctl start              # postgres, ollama, API, Django
+stackctl run django         # foreground, same stack config; Ctrl+C stops Django
+stackctl run api            # foreground API instead
 ```
 
-`kistack` is a thin wrapper around [stackctl](https://github.com/uvlightdrops/stackctl), a
-project-agnostic start/deploy tool. The stack (services, ports, k8s settings) is described
+The central [stackctl](https://github.com/uvlightdrops/stackctl) user tool is the
+canonical lifecycle entry point, invoked from the project directory (or a subdirectory).
+It uses the project's interpreter for configuration and service commands, not its own
+tool environment. The stack (services, ports, k8s settings) is described
 in `config/defaults/stack.yaml` and goes through the normal ki-core configuration, so
-stages and `KI_CFG_*` env overrides apply to it as well. `./kistack install` uses
-`stackctl`, `ki-core`, `widgetkit-django` and `yaml_cfg_wizard` from the directory next to
+stages and `KI_CFG_*` env overrides apply to it as well. `stackctl install` uses
+the siblings declared in `pyproject.toml` from the directory next to
 this repo (`STACKCTL_SRC_DIR` to change) and clones them there if they are missing.
 Existing checkouts are used as they are, so a `git pull` in a sibling is picked up
 immediately. Re-run `install` after dependency changes in `pyproject.toml`.
 
-Kubernetes: `./kistack -t minikube start` (local cluster, profile `ki-knowledge`) or
-`./kistack -t k8s start` (registry + context in `stack.k8s`).
-Details: [doc/DJANGO_DEV.md](doc/DJANGO_DEV.md).
+`./kistack` remains a compatibility alias: it delegates to `~/.local/bin/stackctl`
+(otherwise `stackctl` on PATH) with this project as cwd. It never installs tools
+or creates a project environment itself. The old `examples/run_knowledge_*.py`
+launchers forward through that alias to `stackctl -t local run api|django`;
+they contain no separate server implementation. No active project venv is needed
+to invoke the central tool. Install/update stackctl independently of this project.
+
+Kubernetes: `stackctl -t minikube start` (local cluster, profile `ki-knowledge`) or
+`stackctl -t k8s start` (registry + context in `stack.k8s`).
+Details: [doc/guides/DJANGO_DEV.md](doc/guides/DJANGO_DEV.md).
 
 YAML configuration and editor operation:
-[shared sysadmin guide](doc/YAML_CONFIG_SYSADMIN.md).
+[shared sysadmin guide](doc/guides/YAML_CONFIG_SYSADMIN.md).
 Generic design and future ideas live in
 [yaml-cfg-wizard](../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md);
 the guide distinguishes current working-tree code from verified deployment.
@@ -151,7 +181,7 @@ Opt-in (`apps.ki_knowledge.nextcloud`, disabled by default): list, download and
 import Markdown from a per-domain Nextcloud input folder and upload generated
 output files create-only (never overwrites). App password only in `creds.yaml`.
 `kictl nextcloud status|list|download|import|upload` — details, supported formats
-and limits in [doc/NEXTCLOUD.md](doc/NEXTCLOUD.md).
+and limits in [doc/integration/NEXTCLOUD.md](doc/integration/NEXTCLOUD.md).
 
 ## Chrome DevTools workspace
 

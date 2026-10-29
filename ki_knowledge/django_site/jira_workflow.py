@@ -4,7 +4,6 @@ import csv
 import json
 import os
 import re
-import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +11,6 @@ from typing import Any
 
 import networkx as nx
 
-from ki_knowledge.api.app import _field_embedding_backend, _get_components
 from ki_knowledge.app_config import AppConfig as Config
 from ki_knowledge.config_runtime import knowledge_data_root
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider, TFIDFEmbeddingProvider
@@ -21,7 +19,7 @@ from ki_knowledge.integrations.jira_csv import JiraCSVImporter
 from ki_knowledge.integrations.jira_graph import JiraKnowledgeGraph
 from ki_knowledge.config_runtime import semantic_store_target
 from ki_knowledge.integrations.semantic_terms import SemanticTermStore
-from ki_knowledge.django_site.domain_paths import (
+from ki_knowledge.services.domain_paths import (
     default_semantic_domain,
     domain_jira_dir,
     domain_markdown_dir,
@@ -31,6 +29,7 @@ from ki_knowledge.django_site.domain_paths import (
     normalize_semantic_domain,
 )
 from ki_knowledge.django_site.knowledge_summary import semantic_store
+from ki_knowledge.services.jira_retrieval import JiraRetrievalService
 
 
 def domain_db_paths(domain: str | None = None) -> dict[str, Path]:
@@ -249,81 +248,28 @@ def jira_forget_jira_term(term: str, kind: str = "exception", domain: str | None
     return {"excluded": added, "forgotten": forgotten}
 
 
+def _retrieval(domain: str | None) -> JiraRetrievalService:
+    return JiraRetrievalService.from_paths(jira_cache_db_path(domain), jira_graph_db_path(domain))
+
+
 def jira_hybrid_search(query: str, limit: int = 8, domain: str | None = None) -> dict[str, Any]:
-    normalized = (query or "").strip()
-    if not normalized:
+    if not (query or "").strip():
         raise ValueError("query missing")
-    with domain_env(domain):
-        cache, _, assistant = _get_components()
-    backend = assistant.embedding_backend
-    embedding_model = assistant.embedding_model
-    if backend is None or not embedding_model:
-        backend, embedding_model = _field_embedding_backend(cache=cache, assistant=assistant)
-    cache.build_embeddings(backend, embedding_model=embedding_model)
-    hits = cache.hybrid_search(normalized, backend=backend, embedding_model=embedding_model, limit=limit)
-    return {
-        "hits": hits,
-        "query": normalized,
-        "cache_db": jira_cache_db_path(domain),
-        "issue_count": cache.issue_count(),
-        "embedding_model": embedding_model,
-    }
+    return _retrieval(domain).hybrid_search(query, limit=limit)
 
 
 def jira_daily_timeline(days: int = 14, domain: str | None = None) -> dict[str, Any]:
-    with domain_env(domain):
-        cache, _, _ = _get_components()
-    items = cache.daily_timeline(limit_days=days)
-    return {
-        "timeline": items,
-        "days": days,
-        "cache_db": jira_cache_db_path(domain),
-        "issue_count": cache.issue_count(),
-    }
+    return _retrieval(domain).daily_timeline(days=days)
 
 
 def jira_graph_explorer(*, issue_key: str | None = None, limit: int = 20, rebuild: bool = False, domain: str | None = None) -> dict[str, Any]:
-    with domain_env(domain):
-        cache, _, _ = _get_components()
-    graph = JiraKnowledgeGraph(jira_graph_db_path(domain))
-    stats = None
-    if rebuild:
-        stats = graph.rebuild_from_cache(cache)
-    selected_key = (issue_key or "").strip()
-    if not selected_key:
-        issues = cache.list_issues(limit=1)
-        selected_key = issues[0].key if issues else ""
-    neighbors = graph.issue_neighbors(selected_key, limit=limit) if selected_key else []
-    if stats is None:
-        with sqlite3.connect(jira_graph_db_path(domain)) as conn:
-            node_row = conn.execute("SELECT COUNT(*) FROM graph_nodes").fetchone()
-            edge_row = conn.execute("SELECT COUNT(*) FROM graph_edges").fetchone()
-            stats = {"nodes": int(node_row[0]) if node_row else 0, "edges": int(edge_row[0]) if edge_row else 0}
-    return {"issue_key": selected_key, "neighbors": neighbors, "stats": stats, "graph_db": jira_graph_db_path(domain), "cache_db": jira_cache_db_path(domain), "issue_count": cache.issue_count()}
+    return _retrieval(domain).graph_explorer(issue_key=issue_key, limit=limit, rebuild=rebuild)
 
 
 def jira_domain_analysis(*, limit_terms: int = 20, min_count: int = 2, query: str = "", limit_hits: int = 8, domain: str | None = None) -> dict[str, Any]:
-    with domain_env(domain):
-        cache, _, assistant = _get_components()
-    terms = cache.extract_domain_terms(limit=limit_terms, min_count=min_count)
-    backend, embedding_model = _field_embedding_backend(cache=cache, assistant=assistant)
-    embedded_fields = cache.build_field_embeddings(backend, embedding_model=embedding_model)
-    normalized_query = (query or "").strip()
-    hits = []
-    if normalized_query:
-        hits = cache.semantic_field_search(query=normalized_query, backend=backend, embedding_model=embedding_model, limit=limit_hits)
-    return {
-        "terms": terms,
-        "hits": hits,
-        "query": normalized_query,
-        "limit_terms": limit_terms,
-        "min_count": min_count,
-        "limit_hits": limit_hits,
-        "embedding_model": embedding_model,
-        "embedded_fields": embedded_fields,
-        "cache_db": jira_cache_db_path(domain),
-        "issue_count": cache.issue_count(),
-    }
+    return _retrieval(domain).domain_analysis(
+        limit_terms=limit_terms, min_count=min_count, query=query, limit_hits=limit_hits,
+    )
 
 
 __all__ = [

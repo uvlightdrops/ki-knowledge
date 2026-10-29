@@ -7,12 +7,12 @@
   <title>{% block title %}Ki-Knowledge{% endblock %}</title>
   {% block htmx_script %}<script src="https://unpkg.com/htmx.org@1.9.12"></script>{% endblock %}
   <link rel="icon" type="image/x-icon" href="{% static 'django_site/favicon.ico' %}">
-  <link rel="stylesheet" href="{% static 'django_site/css/base-theme.css' %}">
+  <link rel="stylesheet" href="{% static 'django_site/css/base-theme.css' %}?v=20261029-workbench-nav">
   <link rel="stylesheet" href="{% static 'django_site/css/node-connectivity.css' %}">
   <link rel="stylesheet" href="{% static 'widgetkit_django/css/layout-grid.css' %}?v=20261007a">
   {% block extra_css %}{% endblock %}
   <script src="{% static 'django_site/js/quick-import.js' %}" defer></script>
-  <script src="{% static 'django_site/js/node-connectivity.js' %}" defer></script>
+  {% block node_connectivity_script %}<script src="{% static 'django_site/js/node-connectivity.js' %}" defer></script>{% endblock %}
 </head>
 <body>
   <header>
@@ -71,7 +71,7 @@
         {% if area.key == nav_active_area %}
           {% for label, url, description in area.submenu %}
             {% if url %}
-              <a href="{{ url }}" title="{{ description }}">{{ label }}</a>
+              <a href="{{ url }}" title="{{ description }}"{% if request.path == url %} aria-current="page"{% endif %}>{{ label }}</a>
             {% else %}
               <span class="nav-quicklink-disabled" title="{{ description }}">{{ label }}</span>
             {% endif %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static workbench_assets %}
+{% block title %}Textwerkstatt · Ki-Knowledge{% endblock %}
+{% block htmx_script %}{% endblock %}
+{% block node_connectivity_script %}{% endblock %}
+{% block extra_css %}
+  {% workbench_assets as bundle %}
+  {% for path in bundle.styles %}<link rel="stylesheet" href="{% static path %}">{% endfor %}
+{% endblock %}
+{% block content %}
+  <div hidden>{% csrf_token %}</div>
+  {{ workbench_bootstrap|json_script:"workbench-bootstrap" }}
+  <div id="workbench-root"><p>Textwerkstatt wird geladen …</p></div>
+  <noscript>Die Textwerkstatt benötigt JavaScript. Quellen und andere Django-Seiten bleiben unabhängig davon erreichbar.</noscript>
+  {% workbench_assets as bundle %}
+  <script type="module" src="{% static bundle.script %}"></script>
+{% endblock %}

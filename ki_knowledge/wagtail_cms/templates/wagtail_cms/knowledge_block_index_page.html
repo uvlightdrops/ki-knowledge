@@ -28,12 +28,12 @@
           {% endif %}
         </td>
         <td><span class="chip">{{ entry.project.domain }}</span></td>
-        <td>{{ entry.block_count }}</td>
+        <td>{% if entry.block_error %}<span role="alert">{{ entry.block_error }}</span>{% else %}{{ entry.block_count }}{% endif %}</td>
         <td>
           {% if entry.detail_page %}
             <a class="nav-link" href="{{ entry.detail_page.url }}">Open</a>
           {% else %}
-            <span class="muted">—</span>
+            <span class="muted">Keine veroeffentlichte CMS-Detailseite. Im CMS pruefen; fehlende Seiten mit setup_wagtail_cms anlegen.</span>
           {% endif %}
         </td>
       </tr>

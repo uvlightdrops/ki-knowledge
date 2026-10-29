@@ -1,7 +1,7 @@
 """Pull the Ollama models this node needs (``python -m ki_knowledge.ollama_models``).
 
 ``knowledge.embed_model`` always, the chat model only if
-``llm.default_provider`` is ``ollama``. Waits for Ollama first, so it also
+``llm.provider`` is ``ollama``. Waits for Ollama first, so it also
 works as a Kubernetes job started next to the Ollama pod.
 """
 

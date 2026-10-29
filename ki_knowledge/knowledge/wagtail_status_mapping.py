@@ -1,7 +1,7 @@
 """Explicit status mapping between canonical sync/import status strings and
 Wagtail's structured page-workflow states.
 
-This directly addresses the gap documented in doc/content-model-matrix-from-docs.md
+This directly addresses the gap documented in doc/architecture/content-model-matrix-from-docs.md
 Section 4 ("Statusmodell-Mapping"): the canonical status values
 (`discovered`, `synced`, `imported`, `failed`) are free-form strings owned by
 the legacy models (`InfoSiteProject.sync_status`, `SourceDocument.import_status`),
@@ -33,7 +33,7 @@ class WagtailStatusEquivalence:
     note: str
 
 
-# Mirrors doc/content-model-matrix-from-docs.md Section 4 exactly; keep both in sync
+# Mirrors doc/architecture/content-model-matrix-from-docs.md Section 4 exactly; keep both in sync
 # if this mapping is revised.
 _STATUS_MAP: dict[str, WagtailStatusEquivalence] = {
     "discovered": WagtailStatusEquivalence(

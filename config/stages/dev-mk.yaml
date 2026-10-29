@@ -2,7 +2,7 @@
 # come from stack.k8s.env; chat + embeddings via the in-cluster Ollama
 # (http://ollama:11434, models persist on the ollama-models PVC).
 llm:
-  default_provider: ollama
+  provider: ollama
 apps:
   ki_knowledge:
     django:

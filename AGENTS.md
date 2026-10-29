@@ -221,9 +221,11 @@ Bisherige Varianten im Workspace:
 Festgelegt für ki-knowledge (2026-10-09):
 - Keine absoluten Pfade in `pyproject.toml`; Geschwister-Repos nur per Name
   (`ki-core`, `widgetkit-django`, `yaml-cfg-wizard`).
-- Ein Einstieg: `./kistack [-t local|minikube|k8s] install|status|start|stop|restart|logs|delete|spec`.
-  `kistack` ist nur ein sh-Wrapper um **stackctl** (Geschwister-Repo, projektneutral, mit
-  generischem Helm-Chart). Projektwissen steht **nur** in `config/defaults/stack.yaml`, Code in
+- Ein Einstieg: das globale `stackctl [-t local|minikube|k8s] install|status|start|run|stop|restart|logs|delete|spec`.
+  `kistack` bleibt ein Kompatibilitätsalias auf `~/.local/bin/stackctl` (sonst PATH)
+  mit dem Projekt als cwd; keine eigene Tool-Installation oder venv-Erzeugung.
+  **stackctl** ist projektneutral und bringt ein generisches Helm-Chart mit.
+  Projektwissen steht **nur** in `config/defaults/stack.yaml`, Code in
   ki-knowledge ist dafür nicht nötig. `[tool.stackctl]` in `pyproject.toml` nennt den
   Loader (`ki_core:load_config`) und die Geschwister-Repos.
 - Install: `.venv`, Geschwister aus `STACKCTL_SRC_DIR` (Standard: Nachbarverzeichnis)

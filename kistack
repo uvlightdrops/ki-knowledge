@@ -1,18 +1,14 @@
 #!/bin/sh
-# ki-knowledge stack via stackctl (generic sibling tool):
-#   ./kistack [-t local|minikube|k8s] [install|status|start|stop|restart|logs|delete|spec] [dienst …] [-f]
-# Target/ports/hosts come from config (config/defaults/stack.yaml + active stage).
+# Compatibility alias for the centrally installed stackctl, rooted in this project.
 set -e
 ROOT=$(dirname "$(readlink -f "$0")")
-PY="$ROOT/.venv/bin/python"
-SRC=${STACKCTL_SRC_DIR:-$(dirname "$ROOT")}
-if [ ! -x "$PY" ]; then
-    case " $* " in *" install "*) ;; *) echo "Keine .venv – zuerst: $0 install" >&2; exit 1 ;; esac
-    python3 -m venv "$ROOT/.venv"
-fi
-if ! "$PY" -c "import stackctl" 2>/dev/null; then
-    [ -d "$SRC/stackctl" ] || git clone --quiet --branch devel https://github.com/uvlightdrops/stackctl.git "$SRC/stackctl"
-    "$PY" -m pip install --quiet -e "$SRC/stackctl"
+if [ -x "$HOME/.local/bin/stackctl" ]; then
+    STACKCTL="$HOME/.local/bin/stackctl"
+elif command -v stackctl >/dev/null 2>&1; then
+    STACKCTL=$(command -v stackctl)
+else
+    echo "Zentrales stackctl fehlt: zuerst stackctl/scripts/install-user.sh ausfuehren oder stackctl im PATH bereitstellen." >&2
+    exit 127
 fi
 cd "$ROOT"
-exec "$PY" -m stackctl "$@"
+exec "$STACKCTL" "$@"

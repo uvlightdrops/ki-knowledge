@@ -1,6 +1,6 @@
-"""Chat client for the configured LLM provider (ki-core ``llm.default_provider``).
+"""Chat client for the configured LLM provider (ki-core ``llm.provider``).
 
-Same convention as kicli-code-assist: ``llm.default_provider`` selects one of
+Same convention as kicli-code-assist: ``llm.provider`` selects one of
 ``llm.providers.{ki,openai,ollama}``; ``ki`` is the company-internal,
 OpenAI-compatible server (key in ``creds.yaml``).  ``http.verify_ssl`` and
 ``http.request_timeout`` apply to the remote providers.  Embeddings are not
@@ -34,7 +34,7 @@ def chat_settings(config: AppConfig | None = None) -> dict[str, str]:
         return {"provider": "ollama", "base_url": config.ollama_base_url.strip(), "model": config.ollama_model.strip()}
     if provider == "mock":
         return {"provider": "mock", "base_url": "", "model": "mock-1"}
-    raise ValueError(f"llm.default_provider '{provider}' unbekannt (erlaubt: {', '.join(CHAT_PROVIDERS)})")
+    raise ValueError(f"llm.provider '{provider}' unbekannt (erlaubt: {', '.join(CHAT_PROVIDERS)})")
 
 
 def chat_client(*, model: str | None = None, base_url: str | None = None, config: AppConfig | None = None) -> AIClient:

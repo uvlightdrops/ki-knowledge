@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from ki_knowledge.django_site.block_search import domain_source_ids, embedding_settings
 from ki_knowledge.django_site.book_pipeline import refresh_book_pipeline
-from ki_knowledge.django_site.domain_paths import default_semantic_domain, normalize_semantic_domain
+from ki_knowledge.services.domain_paths import default_semantic_domain, normalize_semantic_domain
 from ki_knowledge.integrations.block_embedder import embed_pending_blocks, model_key
 from ki_knowledge.integrations.embeddings import OllamaEmbeddingProvider
 from ki_knowledge.integrations.knowledge_store import KnowledgeStore
