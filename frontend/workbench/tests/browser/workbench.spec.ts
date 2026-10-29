@@ -128,7 +128,7 @@ test("own note and explicit unsaved chat context persist without changing text",
   await page.getByLabel("Neue eigene Notiz").fill("Gesprächsnotiz");
   await page.getByRole("button", { name: "Leere Notiz anlegen", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Eigene Notiz angelegt");
-  await expect(page.getByText("browser-mock", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("KI-Gespräch").getByText("browser-mock", { exact: true })).toBeVisible();
   const editor = page.getByTestId("source-editor").getByRole("textbox");
   await editor.focus();
   await page.keyboard.insertText("# Ungespeicherte Hypothese\n\nWildbeeren allein genügen nicht.\n");
@@ -160,4 +160,101 @@ test("own note and explicit unsaved chat context persist without changing text",
   await expect(page.locator(".wb-messages")).toContainText("ProviderError");
   await page.getByRole("button", { name: "Anfrage freigeben, danach bewusst neu senden", exact: true }).click();
   await page.getByLabel("Nachricht", { exact: true }).fill("");
+});
+
+async function proposalDraft(page: Page) {
+  await login(page);
+  await capture(page, "Beeren");
+  await page.getByRole("button", { name: "Eigene Arbeitskopie anlegen", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Eigene Arbeitskopie angelegt");
+}
+
+async function selectWholeText(page: Page) {
+  await page.getByTestId("source-editor").getByRole("textbox").focus();
+  await page.keyboard.press("Control+Home");
+  await page.keyboard.press("Control+A");
+  await expect(page.getByRole("button", { name: "KI-Vorschlag erzeugen", exact: true })).toBeEnabled();
+}
+
+test("AI proposal diff, edited acceptance and provenance persist as one new revision", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await proposalDraft(page);
+  await selectWholeText(page);
+  const generated = page.waitForResponse(response => response.url().includes("/proposals") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "KI-Vorschlag erzeugen", exact: true }).click();
+  const response = await generated;
+  const proposal = await response.json();
+  expect(response.status(), JSON.stringify(proposal)).toBe(201);
+  await expect(page.getByTestId("proposal-diff")).toBeVisible();
+  await expect(page.getByTestId("source-editor")).toContainText("Wildbeeren");
+  await expect(page.getByLabel("Ersatztext vor Übernahme bearbeiten")).toHaveValue(/bewusst geprüfter Text/);
+  await page.getByLabel("Ersatztext vor Übernahme bearbeiten").fill("# Meine Fassung 🍒\n\nEigenständig geprüft.\n");
+  const accepted = page.waitForResponse(response => response.url().includes("/accept") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Vorschlag übernehmen", exact: true }).click();
+  const result = await (await accepted).json();
+  await expect(page.getByRole("status")).toContainText("Überarbeitung als neue Revision übernommen");
+  await expect(page.getByTestId("source-editor")).toContainText("Eigenständig geprüft.");
+  expect(result.document.revision.parent_id).toBe(proposal.base_revision_id);
+  expect(result.document.revision.cause).toBe("ai_proposal");
+  await page.reload();
+  await page.getByTestId(`document-${result.document.id}`).click();
+  await page.getByLabel("Gespeicherte Überarbeitungsvorschläge").selectOption(proposal.id);
+  await expect(page.getByLabel("Ersatztext vor Übernahme bearbeiten")).toHaveValue("# Meine Fassung 🍒\n\nEigenständig geprüft.\n");
+  await page.getByText("Original und KI-Fassung als Text", { exact: true }).click();
+  await expect(page.getByText("# Versorgung 🍒\n\nEin klarer, bewusst geprüfter Text.\n", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Vorschlag übernehmen", exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.locator(".wb").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test("rejecting proposals and malformed provider results leave the draft unchanged", async ({ page }) => {
+  await proposalDraft(page);
+  await selectWholeText(page);
+  await page.getByRole("button", { name: "KI-Vorschlag erzeugen", exact: true }).click();
+  await expect(page.getByTestId("proposal-diff")).toBeVisible();
+  await page.getByRole("button", { name: "Vorschlag verwerfen", exact: true }).click();
+  await expect(page.getByText("Vorschlag verworfen. Der Dokumenttext ist unverändert.", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("source-editor")).toContainText("Wildbeeren");
+  await selectWholeText(page);
+  await page.getByLabel("Überarbeitungsauftrag").fill("MALFORMED_PROPOSAL");
+  const failed = page.waitForResponse(response => response.url().includes("/proposals") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "KI-Vorschlag erzeugen", exact: true }).click();
+  expect((await failed).status()).toBe(502);
+  await expect(page.getByLabel("KI-Überarbeitung").getByRole("alert")).toBeVisible();
+  await expect(page.getByTestId("source-editor")).toContainText("Wildbeeren");
+  await page.getByRole("button", { name: "Anfrage lokal freigeben", exact: true }).click();
+  await page.getByRole("button", { name: "Auftrag zurücksetzen", exact: true }).click();
+  const failures = page.getByLabel("Gespeicherte Überarbeitungsvorschläge");
+  const failedId = await failures.locator("option").filter({ hasText: "Fehlgeschlagen" }).getAttribute("value");
+  await failures.selectOption(failedId!);
+  await expect(page.getByLabel("KI-Überarbeitung")).toContainText("Fehlgeschlagen");
+});
+
+test("parallel saved edits reject proposal acceptance without losing the candidate", async ({ page, context }) => {
+  await proposalDraft(page);
+  await selectWholeText(page);
+  const generated = page.waitForResponse(response => response.url().includes("/proposals") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "KI-Vorschlag erzeugen", exact: true }).click();
+  const proposal = await (await generated).json();
+  await expect(page.getByTestId("proposal-diff")).toBeVisible();
+  const docs = await (await page.request.get("/knowledge/workbench/api/documents?domain=browser-test")).json();
+  const draft = docs.documents.find((item: { id: string }) => item.id === proposal.document_id);
+  const other = await context.newPage();
+  await other.goto("/knowledge/workbench/?domain=browser-test");
+  await other.getByTestId(`document-${draft.id}`).click();
+  await other.getByTestId("source-editor").getByRole("textbox").focus();
+  await other.keyboard.press("Control+A");
+  await other.keyboard.insertText("# Paralleler Stand\n\nNicht überschreiben.\n");
+  await other.getByRole("button", { name: "Textrevision speichern", exact: true }).click();
+  await expect(other.getByRole("status")).toContainText("Neue Textrevision serverseitig gespeichert");
+  await page.getByLabel("Ersatztext vor Übernahme bearbeiten").fill("Mein noch nicht angenommener Vorschlag.");
+  const rejected = page.waitForResponse(response => response.url().includes("/accept") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Vorschlag übernehmen", exact: true }).click();
+  expect([409, 412]).toContain((await rejected).status());
+  await expect(page.getByLabel("Ersatztext vor Übernahme bearbeiten")).toHaveValue("Mein noch nicht angenommener Vorschlag.");
+  const actual = await (await page.request.get(`/knowledge/workbench/api/documents/${draft.id}?domain=browser-test`)).json();
+  expect(actual.revision.text).toContain("Nicht überschreiben.");
+  await other.close();
 });

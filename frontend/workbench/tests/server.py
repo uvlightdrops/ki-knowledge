@@ -1,5 +1,6 @@
 """Disposable browser-test server: never reads or migrates the application DB."""
 
+import json
 import os
 from pathlib import Path
 import signal
@@ -22,6 +23,13 @@ class BrowserProvider:
             from ki_core.core.errors import ProviderError
 
             raise ProviderError("Intentional browser-test provider failure")
+        if any("replacement_markdown" in message.content for message in request.messages):
+            if "MALFORMED_PROPOSAL" in request.messages[-1].content:
+                return SimpleNamespace(message=SimpleNamespace(content="Keine strukturierte Antwort."))
+            return SimpleNamespace(message=SimpleNamespace(content=json.dumps({
+                "replacement_markdown": "# Versorgung 🍒\n\nEin klarer, bewusst geprüfter Text.\n",
+                "rationale": "Die Formulierung ist kürzer; die fachliche Prüfung bleibt beim Menschen.",
+            })), model="browser-mock")
         return SimpleNamespace(
             message=SimpleNamespace(content="Testantwort zur ausgewählten Quelle."),
             model="browser-mock",

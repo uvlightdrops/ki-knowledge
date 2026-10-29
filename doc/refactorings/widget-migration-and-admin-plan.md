@@ -61,6 +61,16 @@ Die Seiten des produktiven UI werden aus einem konsistenten Widget-Model gerende
   - `default_w` / `default_h`
 - Fallback-Layouts werden je Area definiert.
 
+### Korrektur Systemstatus (2026-10-29)
+
+Die Status-Unterseite verwendet ihr eigenes Standardlayout statt des allgemeinen
+Admin-Layouts. Gespeicherte Layouts mit Sync-Widgets bleiben unterstützt:
+Admin-Übersicht, Domainverwaltung und Systemstatus beziehen Node-Konfiguration,
+Master-Katalog und Hostliste aus derselben Kontextaufbereitung. Ein nicht
+erreichbarer Master wird weiterhin als Katalogfehler angezeigt. Sync-Widgets
+verlangen explizit einen lokalen Node und Runtime-Einstellungen; fehlender
+Pflichtkontext wird nicht durch leere Ersatzwerte kaschiert.
+
 ## Phase 3: Renderer- und Persistenz-Contract
 
 - `views.py` lädt für jede Area das gespeicherte Layout mit `_load_dashboard_widget_ids()`.

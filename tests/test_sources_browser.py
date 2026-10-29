@@ -17,7 +17,7 @@ def domain_dirs(tmp_path, monkeypatch):
     (base / "md").mkdir(parents=True)
     (base / "pdf").mkdir()
     (base).joinpath("mix").symlink_to(cloud, target_is_directory=True)
-    folders = {"markdown": base / "md", "pdf": base / "pdf", "owl": base / "owl", "mix": base / "mix"}
+    folders = {"markdown": base / "md", "pdf": base / "pdf", "epub": base / "epub", "owl": base / "owl", "mix": base / "mix"}
     monkeypatch.setattr(sources_browser, "domain_source_dir", lambda source_type, domain: folders[source_type])
     monkeypatch.setattr(sources_browser, "domain_jira_dir", lambda domain: base / "jira")
     monkeypatch.setattr(sources_browser, "invalidate_domain_summary_cache", lambda domain: None)
@@ -180,7 +180,8 @@ def test_inventory_merges_files_of_any_format_and_deduplicates_symlinks(domain_d
     rows = inventory["rows"]
     by_title = {row["title"]: row for row in rows}
 
-    assert len(scanned) == 5 and len(set(scanned)) == 5
+    expected_folders = len(sources_browser.FOLDER_KEYS) + 1  # Includes Jira.
+    assert len(scanned) == expected_folders and len(set(scanned)) == expected_folders
     assert len(rows) == 10
     assert by_title["Stored"]["imported"] and by_title["Stored"]["records"] == 7
     assert by_title["Table"]["folder"] == "mix" and by_title["Table"]["linked"]

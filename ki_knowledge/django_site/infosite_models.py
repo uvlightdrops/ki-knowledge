@@ -741,6 +741,7 @@ from .workbench_models import (  # noqa: E402,F401
     WorkbenchConversation,
     WorkbenchDocument,
     WorkbenchMessage,
+    WorkbenchProposal,
     WorkbenchRelation,
     WorkbenchRevision,
 )

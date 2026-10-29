@@ -93,6 +93,23 @@ _WIDGETKIT_REGISTRY = CallbackWidgetRegistry(
     default_widget_ids_for_area_fn=default_widget_ids_for_area,
 )
 
+
+def _admin_sync_context() -> dict:
+    local_node = persist_local_node_settings()
+    runtime_node = get_runtime_node_settings()
+    master_domain_catalog = None
+    master_domain_catalog_error = ""
+    if runtime_node.role == "host" and runtime_node.distributed_enabled:
+        master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
+    return {
+        "local_node": local_node,
+        "runtime_node": runtime_node,
+        "master_domain_catalog": master_domain_catalog,
+        "master_domain_catalog_error": master_domain_catalog_error,
+        "known_hosts": list_known_hosts() if runtime_node.role == "master" else [],
+    }
+
+
 def dashboard(request: HttpRequest):
     active_domain = _active_semantic_domain(request)
     scoped_knowledge = domain_knowledge_summary(active_domain)
@@ -420,14 +437,9 @@ def admin_overview_view(request: HttpRequest):
     domain_states = semantic_domain_states()
     layout_raw = data_layout_snapshot(active_domain)
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
-    local_node = persist_local_node_settings()
-    runtime_node = get_runtime_node_settings()
+    sync_context = _admin_sync_context()
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
-    master_domain_catalog = None
-    master_domain_catalog_error = ""
-    if runtime_node.role == "host" and runtime_node.distributed_enabled:
-        master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
     layout = {
         "data_root": display_data_path(layout_raw.get("data_root", "")),
         "active_markdown_dir": display_data_path(layout_raw.get("active_markdown_dir", "")),
@@ -443,11 +455,7 @@ def admin_overview_view(request: HttpRequest):
         csrf_token=get_token(request),
         sync_runs=sync_runs,
         sync_jobs=sync_jobs,
-        local_node=local_node,
-        runtime_node=runtime_node,
-        master_domain_catalog=master_domain_catalog,
-        master_domain_catalog_error=master_domain_catalog_error,
-        known_hosts=list_known_hosts() if runtime_node.role == "master" else [],
+        **sync_context,
     )
     return render(
         request,
@@ -592,14 +600,9 @@ def admin_domain_management_view(request: HttpRequest):
     domain_states = semantic_domain_states()
     domain_rows = domain_registry_overview(active_domain)
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
-    local_node = persist_local_node_settings()
-    runtime_node = get_runtime_node_settings()
+    sync_context = _admin_sync_context()
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
-    master_domain_catalog = None
-    master_domain_catalog_error = ""
-    if runtime_node.role == "host" and runtime_node.distributed_enabled:
-        master_domain_catalog, master_domain_catalog_error = safe_fetch_master_domain_catalog()
     csrf_token = get_token(request)
     domain_management_url = reverse("admin-domains")
     create_html = render_fragment(
@@ -625,11 +628,7 @@ def admin_domain_management_view(request: HttpRequest):
         domain_management_url=domain_management_url,
         sync_runs=sync_runs,
         sync_jobs=sync_jobs,
-        local_node=local_node,
-        runtime_node=runtime_node,
-        master_domain_catalog=master_domain_catalog,
-        master_domain_catalog_error=master_domain_catalog_error,
-        known_hosts=list_known_hosts() if runtime_node.role == "master" else [],
+        **sync_context,
         sync_admin_url=reverse("admin-sync"),
     )
     return render(
@@ -642,10 +641,7 @@ def admin_domain_management_view(request: HttpRequest):
             "management_html": management_html,
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
-            "local_node": local_node,
-            "runtime_node": runtime_node,
-            "master_domain_catalog": master_domain_catalog,
-            "master_domain_catalog_error": master_domain_catalog_error,
+            **sync_context,
             "widget_cards": widget_cards,
         },
     )
@@ -657,7 +653,7 @@ def admin_system_status_view(request: HttpRequest):
     widget_ids = _load_dashboard_widget_ids(
         request,
         area_key="admin",
-        fallback=default_widget_ids_for_area("admin"),
+        fallback=default_widget_ids_for_area("admin", "status"),
         subpage_key="status",
     )
     widget_widths = _load_dashboard_widget_widths(request, area_key="admin", subpage_key="status")
@@ -672,6 +668,7 @@ def admin_system_status_view(request: HttpRequest):
     sync_runs = list(SyncRun.objects.select_related("domain", "node").filter(domain__slug=active_domain).order_by("-started_at")[:12])
     from ki_knowledge.services.distributed_sync_runner import get_job_store as get_sync_job_store
     sync_jobs = get_sync_job_store().list_jobs(domain=active_domain, limit=12)
+    sync_context = _admin_sync_context()
     layout = {
         key: display_data_path(value) if isinstance(value, str) and "/" in value else value
         for key, value in layout_raw.items()
@@ -695,6 +692,8 @@ def admin_system_status_view(request: HttpRequest):
         status_url=reverse("admin-status"),
         sync_runs=sync_runs,
         sync_jobs=sync_jobs,
+        csrf_token=get_token(request),
+        **sync_context,
     )
     return render(
         request,
@@ -707,6 +706,7 @@ def admin_system_status_view(request: HttpRequest):
             "status_html": status_html,
             "sync_runs": sync_runs,
             "sync_jobs": sync_jobs,
+            **sync_context,
             "widget_cards": widget_cards,
         },
     )

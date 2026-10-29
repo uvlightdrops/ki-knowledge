@@ -79,7 +79,7 @@ def test_rows_cover_every_format_equally(domain_dirs, monkeypatch):
 
     rows = {row["key"]: row for row in quick_import.quick_import_rows("demo", state, sources)}
 
-    assert list(rows) == ["md", "pdf", "owl", "jira", "mix"]
+    assert list(rows) == ["md", "pdf", "epub", "owl", "jira", "mix"]
     assert rows["md"]["imported"] == 1 and rows["md"]["can_import"]
     assert rows["pdf"]["imported"] == 1 and not rows["pdf"]["can_import"]
     assert rows["mix"]["imported"] == 2 and rows["mix"]["files"] == 23

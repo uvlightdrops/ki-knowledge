@@ -12,6 +12,7 @@
 - [CLI oder Weboberflaeche](guides/CLI_VS_DJANGO.md).
 - [Frontend-Assets](guides/frontend-assets.md).
 - [Textwerkstatt: Bedienung, Build und Betrieb](guides/text-workbench.md).
+- [EPUB-Bücher als Markdown-Quellen importieren](guides/epub-import.md).
 
 ## Architektur und Modelle
 
@@ -24,7 +25,7 @@
 - [Content-Modell: Dokumentauswertung](architecture/content-model-matrix-from-docs.md).
 - [Dashboard-Seitenlayout](architecture/dashboard-page-layout-concept.md).
 - [Textwerkstatt: Editor, Wissensblöcke und KI-Gespräch](architecture/knowledge-workbench-concept.md)
-  — Zielbild; erste Umsetzung E0–E3 siehe Betriebsanleitung.
+  — Zielbild; erste Umsetzung E0–E4 siehe Betriebsanleitung.
 
 ## Fachfunktionen und Anforderungen
 
@@ -61,6 +62,9 @@
 ## Bestands- und Abdeckungsberichte
 
 - [Projektbestand und Bereinigungsreihenfolge](tracking/project-inventory-2026-10-28.md).
+- [Kurzinventur nach den Umbauten: Beherrschbarkeit, 29.10.2026](tracking/project-inventory-followup-2026-10-29.md).
+- [Textwerkstatt E4: kontrollierte KI-Überarbeitung, 29.10.2026](tracking/workbench-e4-2026-10-29.md).
+- [EPUB: Umsetzung und erster Buchimport, 29.10.2026](tracking/epub-import-2026-10-29.md).
 - [Quellenzugriff konsolidiert: Data Sources und Textwerkstatt, 29.10.2026](tracking/source-access-consolidation-2026-10-29.md).
 - [Widget-Katalog: Preview-Audit](tracking/widget-catalog-preview-audit.md) —
   wird auch von einem Abdeckungstest gelesen.

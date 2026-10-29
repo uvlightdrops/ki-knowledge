@@ -25,6 +25,7 @@ from ki_knowledge.data_layout import (
     _HOME_STATE_FILES,
     _V1_OUTPUT_DIR,
     DOMAIN_STATE_FILES,
+    EPUB,
     JIRA,
     LAYOUT_VERSION,
     MARKDOWN,
@@ -41,7 +42,7 @@ _SQLITE_SIDECARS = ("-journal", "-wal", "-shm")
 _DERIVED_FILE_NAMES = frozenset(name for pair in DOMAIN_STATE_FILES.values() for name in pair)
 _RESERVED_DOMAIN_NAMES = frozenset({
     "domains", "system", "archive", "data_out", "sources", "derived", "output",
-    "md", "pdf", "jira", "owl", "mix", "rdf",
+    "md", "pdf", "epub", "jira", "owl", "mix", "rdf",
 })
 
 # (database key, table, column); JSON columns are recursively inspected so
@@ -344,7 +345,7 @@ class _Planner:
             if original_sources.is_dir():
                 for source_path in sorted(original_sources.iterdir()):
                     fmt = source_path.name
-                    if fmt not in {source_type_dir_name(t) for t in (MARKDOWN, PDF, JIRA, ONTOLOGY, MIX)}:
+                    if fmt not in {source_type_dir_name(t) for t in (MARKDOWN, PDF, EPUB, JIRA, ONTOLOGY, MIX)}:
                         self.plan.conflicts.append(f"unknown source format directory cannot be placed at v3 root: {source_path}")
                         continue
                     if source_path.is_symlink() and not os.path.isabs(os.readlink(source_path)):
@@ -416,7 +417,7 @@ class _Planner:
             return self.plan
 
         managed_v1_entries = {
-            ".layout-version", "md", "pdf", "jira", "owl", "mix", _V1_OUTPUT_DIR,
+            ".layout-version", "md", "pdf", "epub", "jira", "owl", "mix", _V1_OUTPUT_DIR,
             "archive", "system",
         }
         managed_v1_entries.update(v1_name for v1_name, _ in _GLOBAL_FILES.values())
@@ -429,7 +430,7 @@ class _Planner:
                         self.archive(entry, "root")
 
         if version == 1:
-            for source_type in (MARKDOWN, PDF, ONTOLOGY, MIX):
+            for source_type in (MARKDOWN, PDF, EPUB, ONTOLOGY, MIX):
                 self.plan_v1_sources(source_type)
             self.plan_v1_jira()
             self.plan_v1_output()

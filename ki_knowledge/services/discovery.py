@@ -11,7 +11,7 @@ from django.utils import timezone
 import logging
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.data_layout import MARKDOWN, PDF, DataLayout
+from ki_knowledge.data_layout import EPUB, MARKDOWN, PDF, DataLayout
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,10 @@ class FileInfo:
     @property
     def is_pdf(self) -> bool:
         return self.file_type.lower() == 'pdf'
+
+    @property
+    def is_epub(self) -> bool:
+        return self.file_type.lower() == 'epub'
 
 
 class DocumentDiscoveryService:
@@ -126,6 +130,14 @@ class DocumentDiscoveryService:
             return []
         
         return self._discover_files(source_dir, recursive=True, pattern="*.pdf")
+
+    def find_epub_sources(self, domain: str) -> List[FileInfo]:
+        """Find EPUB originals in the domain's configured EPUB folder."""
+        source_dir = self.layout.source_dir(EPUB, domain)
+        return [
+            item for item in self._discover_files(source_dir, recursive=True)
+            if item.file_type.lower() == "epub"
+        ]
     
     def _discover_files(
         self,

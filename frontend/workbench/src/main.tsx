@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { apiClient, ApiError } from "./api";
 import { SourceEditor } from "./SourceEditor";
 import { ConversationPanel } from "./ConversationPanel";
+import { ProposalPanel } from "./ProposalPanel";
 import type { Anchor, Annotation, Bootstrap, Document, DocumentSummary, ExcludedSource, Metadata, Relation, Revision, Source } from "./types";
 import "./style.css";
 
@@ -28,6 +29,7 @@ function Workbench({ config }: { config: Bootstrap }) {
   const [history, setHistory] = useState<Revision[]>([]);
   const [conflict, setConflict] = useState<Document | null>(null);
   const [chatDirty, setChatDirty] = useState(false);
+  const [proposalDirty, setProposalDirty] = useState(false);
   const [source, setSource] = useState("");
   const [noteTitle, setNoteTitle] = useState("");
   const [selection, setSelection] = useState<Anchor | null>(null);
@@ -46,7 +48,7 @@ function Workbench({ config }: { config: Bootstrap }) {
   const [ready, setReady] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const textDirty = Boolean(current && buffer !== current.revision.text);
-  const hasUnsaved = dirty || relationDirty || textDirty || chatDirty;
+  const hasUnsaved = dirty || relationDirty || textDirty || chatDirty || proposalDirty;
   const isHead = current?.revision.id === current?.head_revision_id;
   const [initialSource] = useState(new URLSearchParams(location.search).get("source_id") || "");
 
@@ -115,7 +117,7 @@ function Workbench({ config }: { config: Bootstrap }) {
   async function displayDocument(document: Document) {
     const revisions = await api<{ revisions: Revision[] }>(`documents/${document.id}/revisions`);
     setCurrent(document); setBuffer(document.revision.text); setHistory(revisions.revisions);
-    setConflict(null); setChatDirty(false); resetInspector();
+    setConflict(null); setChatDirty(false); setProposalDirty(false); resetInspector();
   }
   async function openRevision(id: string) {
     if (!current || !mayLeave()) return;
@@ -251,7 +253,7 @@ function Workbench({ config }: { config: Bootstrap }) {
         </form>
         <h3>Meine Texte</h3>
         <ul className="wb-items">{documents.map(item =>
-          <li key={item.id}><button className={current?.id === item.id ? "wb-selected" : ""} disabled={busy}
+          <li key={item.id}><button data-testid={`document-${item.id}`} className={current?.id === item.id ? "wb-selected" : ""} disabled={busy}
             onClick={() => void openDocument(item.id)}>{item.title}{item.kind === "draft" ? " · Arbeitskopie" : ""}</button></li>)}</ul>
         {ready && !documents.length && <p>Noch kein Snapshot gespeichert.</p>}
         <h3>Markierungen im Dokument</h3>
@@ -280,7 +282,7 @@ function Workbench({ config }: { config: Bootstrap }) {
           </select>
           <div className="wb-selection">
             {current.kind === "reference" && <button type="button" disabled={busy} onClick={() => void createDraft()}>Eigene Arbeitskopie anlegen</button>}
-            {current.kind === "draft" && <button type="button" disabled={busy || !textDirty || !isHead || dirty || relationDirty || chatDirty}
+            {current.kind === "draft" && <button type="button" disabled={busy || !textDirty || !isHead || dirty || relationDirty || chatDirty || proposalDirty}
               onClick={() => void saveDraft()}>Textrevision speichern</button>}
             <span>{textDirty ? "Text noch nicht gespeichert." : "Angezeigter Textstand gespeichert."}</span>
           </div>
@@ -301,6 +303,14 @@ function Workbench({ config }: { config: Bootstrap }) {
             <span>{selection ? `${selection.end - selection.start} Codepoints ausgewählt` : "Wähle eine Textpassage im Editor aus."}</span>
           </div>
           <details><summary>Text ohne Editor lesen</summary><pre tabIndex={0}>{buffer}</pre></details>
+          {current.kind === "draft" && <ProposalPanel key={`proposals:${current.id}:${current.revision.id}`} config={config}
+            document={current} selection={selection} documents={documents}
+            blocked={busy || textDirty || dirty || relationDirty || chatDirty}
+            onDirty={setProposalDirty} onBusy={setBusy}
+            onAccepted={async document => {
+              await displayDocument(document); await loadLists();
+              setStatus("Überarbeitung als neue Revision übernommen. Original und frühere Markierungen bleiben erhalten.");
+            }} />}
         </> : <p>Wähle links einen bestehenden Snapshot oder erfasse ausdrücklich eine registrierte Quelle.</p>}
       </section>
       <section className="wb-panel wb-inspector" tabIndex={-1} ref={panel} aria-label="Blockinspektor">

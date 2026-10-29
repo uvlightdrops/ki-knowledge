@@ -58,6 +58,17 @@ def test_plan_is_dry(v1_root):
     assert (home / "pipeline_jobs.db").exists()
 
 
+def test_epub_sources_survive_layout_migration(v1_root):
+    root, home, _ = v1_root
+    directory = root / "epub" / "anthro"
+    directory.mkdir(parents=True)
+    (directory / "book.epub").write_bytes(b"synthetic-original")
+    plan = plan_migration(root, target_version=3, home_state_dir=home)
+    assert plan.ok, plan.conflicts
+    apply_plan(plan)
+    assert DataLayout(root).source_dir("epub", "anthro", "book.epub").read_bytes() == b"synthetic-original"
+
+
 def test_apply_moves_everything_domain_first(v1_root):
     root, home, cloud = v1_root
 

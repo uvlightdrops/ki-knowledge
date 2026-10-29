@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.data_layout import DOMAIN_STATE_FILES, JIRA, MARKDOWN, MIX, ONTOLOGY, PDF, DataLayout
+from ki_knowledge.data_layout import DOMAIN_STATE_FILES, EPUB, JIRA, MARKDOWN, MIX, ONTOLOGY, PDF, DataLayout
 
 
 def default_semantic_domain() -> str:
@@ -178,6 +178,7 @@ def domain_source_roots(domain: str | None = None) -> list[Path]:
         domain_jira_dir(domain),
         domain_ontology_dir(domain),
         domain_source_dir(PDF, domain),
+        domain_source_dir(EPUB, domain),
         domain_mix_dir(domain),
     ):
         candidates = [directory.expanduser(), directory.expanduser().resolve()]

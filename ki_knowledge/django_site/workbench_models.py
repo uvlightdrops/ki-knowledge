@@ -176,3 +176,55 @@ class WorkbenchMessage(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["conversation", "request_id"], name="workbench_message_request_unique"),
         ]
+
+
+class WorkbenchProposal(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(WorkbenchDocument, on_delete=models.PROTECT, related_name="proposals")
+    base_revision = models.ForeignKey(WorkbenchRevision, on_delete=models.PROTECT, related_name="+")
+    request_id = models.UUIDField()
+    request_sha256 = models.CharField(max_length=64)
+    start = models.PositiveIntegerField()
+    end = models.PositiveIntegerField()
+    exact = models.TextField()
+    prefix = models.TextField(blank=True)
+    suffix = models.TextField(blank=True)
+    instruction = models.TextField()
+    replacement_markdown = models.TextField(blank=True)
+    rationale = models.TextField(blank=True)
+    generated_response = models.TextField(blank=True)
+    status = models.CharField(max_length=20, default="generating", choices=[
+        (value, value.title()) for value in ("generating", "pending", "failed", "accepted", "rejected")
+    ])
+    error = models.TextField(blank=True)
+    provider = models.CharField(max_length=40)
+    model = models.CharField(max_length=255)
+    context = models.JSONField(default=dict)
+    prompt_version = models.CharField(max_length=40)
+    accepted_revision = models.ForeignKey(WorkbenchRevision, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    accepted_replacement = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["document", "request_id"], name="workbench_proposal_request_unique"),
+            models.CheckConstraint(condition=Q(end__gt=F("start")), name="workbench_proposal_nonempty"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            immutable = (
+                "document_id", "base_revision_id", "request_id", "request_sha256",
+                "start", "end", "exact", "prefix", "suffix", "instruction",
+                "provider", "model", "context", "prompt_version",
+            )
+            if previous.status != "generating":
+                immutable += ("replacement_markdown", "rationale", "generated_response")
+            if previous.status == "accepted":
+                immutable += ("accepted_revision_id", "accepted_replacement", "status")
+            if any(getattr(self, field) != getattr(previous, field) for field in immutable):
+                raise ValidationError("Proposal source and generated provenance are immutable.")
+        return super().save(*args, **kwargs)

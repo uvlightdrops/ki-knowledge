@@ -15,7 +15,7 @@ historische Berichte sind nicht derselbe Implementierungsstand.**
 - [Textwerkstatt-Konzept](architecture/knowledge-workbench-concept.md) und
   [Editor-Entwurf als Markdown](features/knowledge-workbench-design.md) —
   Zielbild für persistente Markierungen, Relationen und KI-Überarbeitung.
-  Die erste Umsetzung E0–E3 beschreibt die
+  Die erste Umsetzung E0–E4 beschreibt die
   [Textwerkstatt-Anleitung](guides/text-workbench.md).
 - [Vollstaendiger Dokumentindex](INDEX.md).
 

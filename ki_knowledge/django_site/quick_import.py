@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from ki_knowledge.data_layout import JIRA, MARKDOWN, MIX, ONTOLOGY, PDF
+from ki_knowledge.data_layout import EPUB, JIRA, MARKDOWN, MIX, ONTOLOGY, PDF
 from ki_knowledge.integrations.mixed_ingest import (
     IMAGE_KIND,
+    EPUB_KIND,
     MARKDOWN_KIND,
     ONTOLOGY_KIND,
     PDF_KIND,
@@ -36,6 +37,7 @@ class QuickSource:
 QUICK_SOURCES: tuple[QuickSource, ...] = (
     QuickSource("md", MARKDOWN, "Markdown", "📝", ".md"),
     QuickSource("pdf", PDF, "PDF", "📄", ".pdf"),
+    QuickSource("epub", EPUB, "EPUB", "📖", ".epub → Markdown-Kapitel"),
     QuickSource("owl", ONTOLOGY, "Ontologie", "🕸️", ".owl .ttl .rdf"),
     QuickSource("jira", JIRA, "Jira", "🎫", "Jira-CSV"),
     QuickSource("mix", MIX, "Mix", "🧩", "Tabellen, Bilder, gemischt"),
@@ -45,12 +47,13 @@ QUICK_SOURCE_KEYS = tuple(source.key for source in QUICK_SOURCES)
 # Upload target folder per file kind (tables/images only make sense in mix/).
 _UPLOAD_TARGET = {
     PDF_KIND: PDF,
+    EPUB_KIND: EPUB,
     MARKDOWN_KIND: MARKDOWN,
     ONTOLOGY_KIND: ONTOLOGY,
     TABLE_KIND: MIX,
     IMAGE_KIND: MIX,
 }
-UPLOAD_ACCEPT = ".md,.markdown,.pdf,.owl,.rdf,.ttl,.n3,.jsonld,.csv,.tsv,.ods,.xlsx,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.gif,.webp"
+UPLOAD_ACCEPT = ".md,.markdown,.pdf,.epub,.owl,.rdf,.ttl,.n3,.jsonld,.csv,.tsv,.ods,.xlsx,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.gif,.webp"
 MAX_UPLOAD_FILES = 50
 
 
@@ -59,7 +62,7 @@ def _imported_group(source: Any) -> str | None:
     source_id = getattr(source, "source_id", "") or ""
     if source_type in {TABLE_KIND, IMAGE_KIND} or source_id.startswith(("mix:", "pdf:mix/")):
         return "mix"
-    return {"markdown": "md", "pdf": "pdf", "owl": "owl"}.get(source_type)
+    return {"markdown": "md", "pdf": "pdf", "epub": "epub", "owl": "owl"}.get(source_type)
 
 
 def quick_import_rows(domain: str, state: dict[str, Any], sources: Iterable[Any]) -> list[dict[str, Any]]:
@@ -74,6 +77,7 @@ def quick_import_rows(domain: str, state: dict[str, Any], sources: Iterable[Any]
     files = {
         "md": int(state.get("markdown_files", 0) or 0),
         "pdf": int(state.get("pdf_files", 0) or 0),
+        "epub": int(state.get("epub_files", 0) or 0),
         "owl": int(state.get("ontology_files", 0) or 0),
         "jira": int(state.get("jira_csv_files", 0) or 0),
         "mix": int(state.get("mix_files", 0) or 0),
@@ -137,6 +141,15 @@ def run_source_import(
             except (FileNotFoundError, OSError, ValueError) as exc:
                 warnings.append(f"{path.name}: {exc}")
         message = f"{queued} PDF-Jobs eingereiht"
+    elif key == "epub":
+        from .source_workflow import import_mixed_directory
+
+        result = import_mixed_directory(directory, domain=domain, kinds=(EPUB_KIND,))
+        warnings.extend(f"{Path(error['file']).name}: {error['error']}" for error in result["errors"])
+        count = len(result["source_ids"])
+        if not count and warnings:
+            return {"ok": False, "message": f"{source.label}: Kein Buch importiert.", "warnings": warnings}
+        message = f"{count} Bücher in Markdown umgewandelt, {result['imported']} Blöcke"
     elif key == "owl":
         result = import_ontology_directory(directory)
         if result.get("error"):

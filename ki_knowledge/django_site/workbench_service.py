@@ -577,7 +577,11 @@ def selected_context(conversation, data):
     elif "base_revision_id" in data:
         invalid("buffer_text", "A base revision is only valid with an unsaved buffer.")
     sources = [context_source(conversation.revision, conversation.annotation, buffer)]
-    references = data.get("reference_revision_ids", [])
+    append_reference_context(conversation.owner, conversation.domain, sources, data.get("reference_revision_ids", []))
+    return {"unsaved": buffer is not None, "sources": sources, "history_message_ids": []}
+
+
+def append_reference_context(owner, domain, sources, references):
     if not isinstance(references, list) or len(references) > 8:
         invalid("reference_revision_ids", "Expected at most eight explicitly selected reference revisions.")
     selected_ids = set()
@@ -587,15 +591,14 @@ def selected_context(conversation, data):
             invalid("reference_revision_ids", "Duplicate reference revision.")
         selected_ids.add(revision_id)
         revision = WorkbenchRevision.objects.select_related("document").filter(
-            pk=revision_id, document__owner=conversation.owner,
-            document__domain=conversation.domain, document__kind="reference",
+            pk=revision_id, document__owner=owner,
+            document__domain=domain, document__kind="reference",
         ).first()
         if revision is None:
             raise WorkbenchError("not_found", "Selected reference revision not found.", 404)
         sources.append(context_source(revision))
     if sum(len(source["text"]) for source in sources) > MAX_CONTEXT_CHARS:
         invalid("context", "Selected context exceeds 60000 characters; select a smaller passage.")
-    return {"unsaved": buffer is not None, "sources": sources, "history_message_ids": []}
 
 
 def message_json(turn):

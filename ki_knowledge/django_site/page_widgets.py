@@ -875,6 +875,8 @@ def build_admin_widget_cards(
             })
         elif widget_id in {"admin.sync.overview.v1", "admin.sync.history.v1", "admin.sync.catalog.v1",
                            "admin.sync.master_domains.v1", "admin.sync.hosts.v1"}:
+            if local_node is None or runtime_node is None:
+                raise ValueError(f"Widget {widget_id} requires local_node and runtime_node")
             body = handler({
                 "active_domain": active_domain,
                 "local_node": local_node,

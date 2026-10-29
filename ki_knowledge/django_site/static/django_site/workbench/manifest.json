@@ -6,7 +6,7 @@
     "isDynamicEntry": true
   },
   "src/main.tsx": {
-    "file": "assets/workbench-CqrGwjPJ.js",
+    "file": "assets/workbench-Bvkt6l8o.js",
     "name": "main",
     "src": "src/main.tsx",
     "isEntry": true,
@@ -14,7 +14,7 @@
       "node_modules/monaco-editor/esm/vs/basic-languages/markdown/markdown.js"
     ],
     "css": [
-      "assets/main-B83yx1No.css"
+      "assets/main-yhkM3I7-.css"
     ]
   }
 }

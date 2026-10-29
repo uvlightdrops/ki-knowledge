@@ -9,6 +9,8 @@ import logging
 import os
 import shutil
 import sqlite3
+from ki_knowledge.data_layout import EPUB
+from ki_knowledge.integrations.mixed_ingest import EPUB_KIND, discover_mixed_files
 
 from ki_knowledge.django_site.domain_paths import invalidate_domain_summary_cache
 from ki_knowledge.django_site.jira_workflow import jira_cache_db_path, jira_csv_path
@@ -25,6 +27,7 @@ from ki_knowledge.services.domain_paths import (
     domain_ontology_dir,
     domain_pdf_dir,
     domain_source_roots,
+    domain_source_dir,
     domain_state_paths,
     infer_domain_from_path,
     normalize_registry_domain,
@@ -141,6 +144,8 @@ def semantic_domain_states() -> list[dict[str, Any]]:
         jira_csv_files = len(sorted(path for path in jira_dir.glob("*.csv") if jira_dir.exists() and jira_dir.is_dir() and path.is_file()))
         ontology_files = len(discover_ontology_files(ontology_dir))
         pdf_files = len(discover_pdf_files(pdf_dir))
+        epub_dir = domain_source_dir(EPUB, domain)
+        epub_files = len(discover_mixed_files(epub_dir)[EPUB_KIND])
         mix = mixed_files_summary(domain)
         pdf_job_stats = get_pdf_job_stats(domain)
         cache_exists = cache_path.exists()
@@ -166,6 +171,9 @@ def semantic_domain_states() -> list[dict[str, Any]]:
                 "jira_dir": str(jira_dir),
                 "ontology_dir": str(ontology_dir),
                 "pdf_dir": str(pdf_dir),
+                "epub_dir": str(epub_dir),
+                "epub_files": epub_files,
+                "has_epub_source": epub_files > 0,
                 "mix_dir": str(mix["dir"]),
                 "mix_files": mix["total"],
                 "mix_counts": mix["counts"],

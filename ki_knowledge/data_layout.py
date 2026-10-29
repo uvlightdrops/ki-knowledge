@@ -36,6 +36,7 @@ v3 (direct domain roots)::
       <domain>/
         md/<working_title>/...           Markdown sources
         pdf/                             PDF sources
+        epub/                            EPUB originals (converted chapters in md/epub/)
         jira/                            Jira CSVs
         owl/                             ontology sources
         mix/                             mixed formats
@@ -77,27 +78,30 @@ SUPPORTED_LAYOUT_VERSIONS = (1, 2, 3)
 
 MARKDOWN = "markdown"
 PDF = "pdf"
+EPUB = "epub"
 JIRA = "jira"
 ONTOLOGY = "owl"
 MIX = "mix"
-SOURCE_TYPES: tuple[str, ...] = (MARKDOWN, JIRA, ONTOLOGY, PDF, MIX)
+SOURCE_TYPES: tuple[str, ...] = (MARKDOWN, JIRA, ONTOLOGY, PDF, EPUB, MIX)
 
 _SOURCE_TYPE_ALIASES = {
     "markdown": MARKDOWN,
     "md": MARKDOWN,
     "pdf": PDF,
+    "epub": EPUB,
     "jira": JIRA,
     "owl": ONTOLOGY,
     "ontology": ONTOLOGY,
     "mix": MIX,
     "mixed": MIX,
 }
-_SOURCE_TYPE_DIRS = {MARKDOWN: "md", PDF: "pdf", JIRA: "jira", ONTOLOGY: "owl", MIX: "mix"}
+_SOURCE_TYPE_DIRS = {MARKDOWN: "md", PDF: "pdf", EPUB: "epub", JIRA: "jira", ONTOLOGY: "owl", MIX: "mix"}
 _SOURCE_TYPE_ENV_OVERRIDES = {
     MARKDOWN: ("KNOWLEDGE_MARKDOWN_ROOT", "KICLI_MD_ROOT"),
     JIRA: ("KNOWLEDGE_JIRA_ROOT", "KICLI_JIRA_ROOT"),
     ONTOLOGY: ("KNOWLEDGE_ONTOLOGY_ROOT", "KICLI_OWL_ROOT"),
     PDF: ("KNOWLEDGE_PDF_ROOT", "KICLI_PDF_ROOT"),
+    EPUB: ("KNOWLEDGE_EPUB_ROOT",),
     MIX: ("KNOWLEDGE_MIX_ROOT",),
 }
 _V1_OUTPUT_DIR = "data_out"
@@ -567,6 +571,7 @@ class DataLayout:
 
 __all__ = [
     "DOMAIN_STATE_FILES",
+    "EPUB",
     "JIRA",
     "LAYOUT_VERSION",
     "LAYOUT_VERSION_FILE",

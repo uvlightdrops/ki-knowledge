@@ -29,6 +29,11 @@ eingeführt.
 5. Eine zweite Stelle, auch in einem anderen Dokument, markieren.
 6. Im Blockinspektor eine gerichtete Relation zum Zielblock speichern.
 
+EPUB-Bücher lassen sich zuvor über Data Sources in einzelne Markdown-Kapitel
+umwandeln. Original und Buchstruktur bleiben separat erhalten:
+[EPUB-Import](epub-import.md). Ein gescanntes PDF benötigt dagegen Textextraktion
+bzw. OCR; die Werkstatt selbst liest weiterhin Markdown statt Binärformate.
+
 Die Auswahl verwendet dasselbe Discovery-Inventar und dieselben Domain-Quellordner
 wie Data Sources, auch Markdown-Dateien in gemischten Ordnern. Konfigurierte
 verlinkte Wurzeln und die von Data Sources erkannten verlinkten Unterverzeichnisse
@@ -115,9 +120,51 @@ Nach einer unklaren Netzwerkantwort lässt sich dieselbe Anfrage unter derselben
 ID erneut prüfen, ohne sie still doppelt auszuführen. Eine bewusst neue Anfrage
 ist gesondert möglich.
 
-**Nicht enthalten:** automatisches Überarbeiten, Diff-Annahme oder Schreibrechte
-für die KI. Das wäre E4. Die erste Oberfläche arbeitet mit vollständigen
-HTTP-Antworten, noch nicht mit Token-Streaming.
+Die Oberfläche arbeitet mit vollständigen HTTP-Antworten, noch nicht mit
+Token-Streaming. Ein Gespräch besitzt weiterhin keine Schreibrechte; E4 ist
+eine davon getrennte, ausdrücklich ausgelöste Aktion.
+
+## Überarbeitung prüfen und übernehmen (E4)
+
+1. Eine **eigene Arbeitskopie** oder Notiz öffnen und den Text ausdrücklich
+   speichern. Historische Revisionen und Quellsnapshots sind keine Schreibziele.
+2. Im Editor eine zusammenhängende Passage auswählen.
+3. Unter **Überarbeitung vorschlagen** den Auftrag formulieren. Der vorbelegte
+   Auftrag verlangt verständlichere Formulierungen bei erhaltenen Fachbegriffen
+   und Autorenperspektiven. Zusätzliche Referenzrevisionen einzeln auswählen.
+4. **KI-Vorschlag erzeugen** sendet die Auswahl, den Auftrag und die gewählten
+   Referenzen an den angezeigten Provider. Die Auswahl und der tatsächlich
+   übermittelte Kontext werden beim Vorschlag dauerhaft gespeichert.
+5. Den hervorgehobenen Vergleich prüfen. Original und unveränderter KI-Vorschlag
+   sind zusätzlich als reiner Text zugänglich. Der **Ersatztext vor Übernahme**
+   darf von Hand bearbeitet werden; der ursprüngliche KI-Vorschlag bleibt erhalten.
+6. **Vorschlag übernehmen** erzeugt genau eine neue Dokumentrevision.
+   **Vorschlag verwerfen** ändert das Dokument nicht. Ein leerer Ersatztext
+   bedeutet ausdrücklich die Löschung der ausgewählten Passage und verlangt
+   in der Oberfläche eine zusätzliche Bestätigung.
+
+Vorhandene Markierungen bleiben am historischen Textstand. Es gibt keine
+automatische Verschiebung oder fuzzy Zuordnung. Wenn der Ausgangstext inzwischen
+gespeichert verändert wurde, weist der Server die Übernahme ab. Auf dem aktuellen
+Textstand muss dann ein neuer Vorschlag entstehen; es wird nicht automatisch
+zusammengeführt.
+
+Vorschläge sind privat und domaingebunden, wie die Arbeitskopien. Provider,
+Modell, Promptversion, Ausgangsrevision, Originalauswahl, Auftrag, Kontext,
+KI-Begründung und Übernahme bleiben nachvollziehbar. **Eine KI-Begründung ist
+kein Beleg**, ein Kontextnachweis kein verifiziertes Zitat. Insbesondere bei
+philosophischen oder metaphysischen Texten bleiben Quellentreue, Argumentation,
+Denksystem-Perspektive und Tatsachenbelege getrennt zu prüfen.
+
+Providerfehler und ungültige strukturierte Antworten werden sichtbar als
+fehlgeschlagene Vorschläge gespeichert; der Text bleibt unverändert. Bei unklarer
+Netzwerkantwort verwendet **Vorschlagsanfrage erneut prüfen** dieselbe Anfrage-ID.
+**Anfrage lokal freigeben** bricht einen laufenden Serverauftrag nicht ab;
+vor bewusstem Neusenden die Vorschlagsliste aktualisieren. Auch eine unbestätigte
+Übernahme wird mit eingefrorenem Ersatztext wiederholt statt still neu angewendet.
+
+Nicht enthalten: automatische Annahme, Mehrdatei-Patches, Veröffentlichungen,
+neue Extraktion/Embeddings oder ein ausgelagertes Agenten-Framework.
 
 ## Installation und Aktualisierung
 
@@ -139,6 +186,11 @@ Gleiche kanonische Datei und gleicher normalisierter Inhalt werden pro
 Eigentümer/Domain wiederverwendet, auch wenn eine entdeckte Datei später im
 KnowledgeStore registriert wird. Die ursprüngliche Herkunft des Snapshots wird
 dabei nicht nachträglich umgeschrieben.
+
+E4 ergänzt die additive Migration `0023_workbench_proposals` für die gespeicherten
+Überarbeitungsvorschläge. Auch hierfür ist `manage.py migrate` erforderlich;
+dieser Entwicklungsschritt migriert die laufende Anwendungsdatenbank nicht
+automatisch.
 
 Die gebauten React-/Monaco-Assets sind Bestandteil des Python-Pakets und des
 Repositories. Ein Zielhost braucht zum normalen Start **kein Node.js, npm,
@@ -193,6 +245,7 @@ Grenzen, Unicode-Koordinaten, Pfadgrenzen und konkurrierende Metadatenstände ab
 - [Architekturentwurf](../architecture/knowledge-workbench-concept.md).
 - [Editor-Wireframes](../features/knowledge-workbench-design.md).
 - [Quellenzugriff: Umsetzung und geprüfter Befund vom 29.10.2026](../tracking/source-access-consolidation-2026-10-29.md).
+- [E4: Implementierungsbericht und Grenzen](../tracking/workbench-e4-2026-10-29.md).
 - Die Authoring-Objekte liegen in der Django-Anwendungsdatenbank, nicht in
   einem zusätzlichen Editor-SQLite-Store.
 - Bestehende KnowledgeStore-Records und InfoSite-Blockstores werden durch das
@@ -204,3 +257,5 @@ Grenzen, Unicode-Koordinaten, Pfadgrenzen und konkurrierende Metadatenstände ab
   gemeinsames Team-Sharing und ein Endnutzer-Löschworkflow sind noch nicht
   eingeführt; vor Einsatz mit aufbewahrungspflichtigen oder besonders sensiblen
   Daten ist diese Betriebsregelung zu ergänzen.
+- Dieselbe Aufbewahrungsregel gilt für Überarbeitungsvorschläge und ihre
+  vollständig gespeicherten Textkontexte.

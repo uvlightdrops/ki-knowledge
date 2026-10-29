@@ -3,9 +3,9 @@
 **Status: Markdown-Zielbild und Wireframes.**
 Alle Speicherstände, Texte, Blocknummern und KI-Antworten unten sind Beispiele.
 Dieses Dokument ist ein Markdown-Wireframe, keine laufende Anwendung.
-Die erste echte Umsetzung E0–E3 ist separat in der
+Die erste echte Umsetzung E0–E4 ist separat in der
 [Bedienungs- und Betriebsanleitung](../guides/text-workbench.md) beschrieben;
-insbesondere die hier gezeigten KI-Änderungsvorschläge gehören erst zu E4.
+die konkrete Oberfläche muss nicht wortgetreu diesen Wireframes entsprechen.
 
 **Umsetzungsstand 29.10.2026:** Die Quellenauswahl der ersten Oberfläche verwendet
 jetzt das allgemeine Data-Sources-Inventar statt projektgebundener InfoSite-
@@ -13,8 +13,10 @@ Eingänge. Entdeckte lokale Markdown-Dateien sind bereits vor einem Import
 erfassbar. Auswahl-IDs, Ausschlussdiagnostik, direkte Quellenlinks und der
 nichtdestruktive Herkunftsnachweis sind umgesetzt und isoliert geprüft;
 [Implementierungsbericht](../tracking/source-access-consolidation-2026-10-29.md).
-Das ist keine Umsetzung der unten gezeigten E4–E6-Funktionen und kein
-abgeschlossener InfoSite-Gesamtaudit.
+Der Quellenzugriffsschritt war keine Umsetzung der E4–E6-Funktionen und kein
+abgeschlossener InfoSite-Gesamtaudit. Inzwischen ist E4 als expliziter
+Einzelpassagen-Vorschlag mit Vergleich, manuell bearbeitbarem Ersatztext,
+Annahme/Verwerfen und erhaltenem Herkunftsnachweis ergänzt. E5/E6 bleiben offen.
 
 [Architektur, Datenmodell und Etappen](../architecture/knowledge-workbench-concept.md)
 

@@ -30,6 +30,7 @@ from ki_knowledge.django_site.source_workflow import (
     workspace_ontology_files,
 )
 from ki_knowledge.integrations.mixed_ingest import (
+    EPUB_KIND,
     IMAGE_KIND,
     TABLE_KIND,
     classify_file,
@@ -221,7 +222,7 @@ def import_action(request: HttpRequest):
                 return HttpResponseBadRequest("PDF file not found")
             messages.success(request, f"PDF import queued: {job_id}")
             return HttpResponseRedirect(f"{reverse('pdf-import-jobs')}?domain={domain}")
-        if classify_file(path) in {TABLE_KIND, IMAGE_KIND}:
+        if classify_file(path) in {TABLE_KIND, IMAGE_KIND, EPUB_KIND}:
             image_processing = "asset" if request.POST.get("image_processing") == "asset" else "ocr"
             result = import_mixed_file(
                 path,
@@ -243,7 +244,7 @@ def import_action(request: HttpRequest):
     elif should_treat_as_directory:
         path.mkdir(parents=True, exist_ok=True)
         grouped = discover_mixed_files(path)
-        if grouped[TABLE_KIND] or grouped[IMAGE_KIND]:
+        if grouped[TABLE_KIND] or grouped[IMAGE_KIND] or grouped[EPUB_KIND]:
             domain = _active_semantic_domain(request)
             summary = import_mixed_directory(
                 path,

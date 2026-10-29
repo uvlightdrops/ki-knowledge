@@ -32,10 +32,12 @@ ONTOLOGY_KIND = "ontology"
 TABLE_KIND = "table"
 IMAGE_KIND = "image"
 TEI_KIND = "tei"
+EPUB_KIND = "epub"
 UNSUPPORTED_KIND = "unsupported"
 
 _KIND_BY_SUFFIX = {
     ".pdf": PDF_KIND,
+    ".epub": EPUB_KIND,
     ".md": MARKDOWN_KIND,
     ".markdown": MARKDOWN_KIND,
     ".owl": ONTOLOGY_KIND,
@@ -56,7 +58,7 @@ _KIND_BY_SUFFIX = {
     ".gif": IMAGE_KIND,
     ".webp": IMAGE_KIND,
 }
-MIX_KINDS = (PDF_KIND, MARKDOWN_KIND, ONTOLOGY_KIND, TABLE_KIND, IMAGE_KIND, TEI_KIND, UNSUPPORTED_KIND)
+MIX_KINDS = (PDF_KIND, EPUB_KIND, MARKDOWN_KIND, ONTOLOGY_KIND, TABLE_KIND, IMAGE_KIND, TEI_KIND, UNSUPPORTED_KIND)
 
 # Guards against the huge "repeated" empty cells/rows ODS files use for padding.
 _MAX_REPEAT = 1024

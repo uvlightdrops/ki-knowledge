@@ -14,6 +14,7 @@ from django.views.decorators.http import require_GET
 from .infosite_models import Domain
 from .views_common import _active_semantic_domain
 from . import workbench_service as service
+from . import workbench_proposals as proposal_service
 
 
 def active_domain(request):
@@ -223,3 +224,50 @@ def message_create(request, domain, conversation_id):
         result["error"] = {"code": "provider_failed", "message": turn.error}
         return JsonResponse(result, status=502)
     return JsonResponse(result, status=201 if created else 200)
+
+
+@api(["GET", "POST"])
+def proposal_list(request, domain, document_id):
+    document = service.owned_document(request.user, domain, document_id)
+    proposal_service.require_draft(document)
+    if request.method == "GET":
+        return JsonResponse({"proposals": [
+            proposal_service.proposal_json(item)
+            for item in proposal_service.proposals(request.user, domain).filter(document=document)
+        ]})
+    proposal, created = proposal_service.create_proposal(
+        document, body(request), request.headers.get("If-Match"),
+    )
+    result = proposal_service.proposal_json(proposal)
+    if proposal.status == "failed":
+        return JsonResponse({
+            "proposal": result,
+            "error": {"code": "provider_failed", "message": proposal.error},
+        }, status=502)
+    return JsonResponse(result, status=201 if created else 200)
+
+
+@api(["GET"])
+def proposal_detail(request, domain, proposal_id):
+    return JsonResponse(proposal_service.proposal_json(
+        proposal_service.owned_proposal(request.user, domain, proposal_id),
+    ))
+
+
+@api(["POST"])
+def proposal_accept(request, domain, proposal_id):
+    proposal, document = proposal_service.accept(
+        request.user, domain, proposal_id, body(request), request.headers.get("If-Match"),
+    )
+    response = JsonResponse({
+        "proposal": proposal_service.proposal_json(proposal), "document": service.document_json(document),
+    })
+    response["ETag"] = f'"{document.version}"'
+    return response
+
+
+@api(["POST"])
+def proposal_reject(request, domain, proposal_id):
+    return JsonResponse(proposal_service.proposal_json(
+        proposal_service.reject(request.user, domain, proposal_id, body(request)),
+    ))

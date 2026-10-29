@@ -20,6 +20,7 @@ from ki_knowledge.services.domain_paths import (
 from ki_knowledge.integrations.pdf_ingest import extract_text_from_pdf as pdf_extract_text
 from ki_knowledge.integrations.mixed_ingest import (
     IMAGE_KIND,
+    EPUB_KIND,
     MARKDOWN_KIND,
     MIX_KINDS,
     ONTOLOGY_KIND,
@@ -155,12 +156,18 @@ def import_markdown_file(path: Path, *, source_name: str | None = None, block_ty
     if block_types is None and "/ontology/" in str(path):
         block_types = ["heading", "paragraph"]
     source_id = f"markdown:{path.resolve()}"
+    existing = store_obj.get_source(source_id)
     store_obj.import_markdown_file(
         path,
         source_name=source_name,
         allowed_block_types=block_types,
         source_id=source_id,
     )
+    if existing is not None and existing.metadata.get("origin_type") == "epub":
+        source = store_obj.get_source(source_id)
+        source.metadata = {**source.metadata, **existing.metadata}
+        source.title = existing.title
+        store_obj.upsert_source(source)
     invalidate_domain_summary_cache(_infer_domain_from_path(path))
     return {"imported": len(store_obj.list_records(source_id=source_id)), "source_id": source_id}
 
@@ -467,6 +474,13 @@ def import_mixed_file(
 ) -> dict[str, Any]:
     """Import one file of any supported kind (PDFs synchronously)."""
     kind = classify_file(path)
+    if kind == EPUB_KIND:
+        from .epub_import import import_epub_file
+
+        try:
+            return import_epub_file(path, domain=domain)
+        except (ValueError, OSError) as exc:
+            return {"imported": 0, "error": str(exc), "file": str(path), "kind": kind}
     if kind == TABLE_KIND:
         return import_table_file(path, domain=domain)
     if kind == IMAGE_KIND:

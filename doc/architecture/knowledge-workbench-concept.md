@@ -1,7 +1,7 @@
 # Textwerkstatt: Markdown, Wissensblöcke und KI-Gespräch
 
-**Status: Architektur- und Zielbildentwurf. E0–E3 sind inzwischen als erste
-Implementierung ergänzt; E4 und folgende bleiben Planung.**
+**Status: Architektur- und Zielbildentwurf. E0–E4 sind inzwischen als erste
+Implementierung ergänzt; E5 und folgende bleiben Planung.**
 
 Aktuelle Bedienung, Einführungsrechte, Grenzen und Aktualisierungsschritte:
 [Betriebs- und Entwicklungsanleitung](../guides/text-workbench.md).
@@ -13,7 +13,10 @@ Data-Sources-Inventar einschließlich noch nicht importierter Markdown-Dateien.
 Ein InfoSite-Projekt ist keine Eingangsvoraussetzung. Der
 [Quellenzugriffsbericht](../tracking/source-access-consolidation-2026-10-29.md)
 beschreibt die implementierte Grenze, Migrationsverträglichkeit und offenen
-InfoSite-/UI-Fragen; E4–E6 bleiben ausdrücklich unberührt.
+InfoSite-/UI-Fragen. Der Quellenzugriffsschritt selbst änderte E4–E6 nicht.
+E4 ergänzt inzwischen gespeicherte Einzelpassagen-Vorschläge, einen Diff,
+bearbeitbaren Ersatztext sowie transaktionale Annahme und Verwerfen.
+Ein gemeinsames Agentenpaket wird dadurch noch nicht eingeführt.
 
 Das Dokument beantwortet drei Fragen: Wo bearbeitet man Wissen mit der KI?
 Wie werden markierte Textstellen zu dauerhaft nutzbaren Wissensobjekten?
