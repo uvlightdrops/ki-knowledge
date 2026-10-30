@@ -58,6 +58,9 @@ The reusable dashboard/layout builder is supplied by the sibling packages
 `widgetkit` and `widgetkit-django`, not by an in-repository
 `ki_knowledge/widgetkit_django/` package. This application provides concrete
 registries, views and persistence adapters.
+The [live settings editor](doc/guides/live-settings.md) also uses the shared
+widgetkit-django UI and ki-core runtime service rather than an app-specific
+configuration store.
 
 Documentation:
 

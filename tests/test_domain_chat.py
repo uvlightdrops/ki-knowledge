@@ -11,9 +11,11 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ki_knowledge.django_site.settin
 django.setup()
 
 from django.conf import settings
+from django.http import HttpResponse
 from django.test import RequestFactory
 from django.urls import resolve, reverse
 from ki_core.core.models import Role
+from ki_core.core.errors import ProviderError
 
 from ki_knowledge.django_site import block_search, knowledge_summary, domain_registry, support_chat as services, views_common
 from ki_knowledge.django_site import views_chat as views
@@ -33,6 +35,58 @@ def request(method="get", *, domain="alpha", data=None, session=None, route="sup
     req.session = session if session is not None else Session(semantic_active_domain=domain)
     req.user = SimpleNamespace(username="test", id=1, is_authenticated=True)
     return req
+
+
+def test_model_discovery_failure_is_reported_instead_of_empty_success(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(views, "_active_semantic_domain", lambda req: "alpha")
+    monkeypatch.setattr(views, "load_prompt_library_context", lambda domain: {})
+    monkeypatch.setattr(
+        views, "ollama_runtime_settings",
+        lambda: {"provider": "ollama", "base_url": "http://offline:11434", "model": "m"},
+    )
+
+    def offline(*args):
+        raise ProviderError("Sensitive diagnostic not for display")
+
+    def render(req, template, context, *, status=200):
+        captured.update(context)
+        return HttpResponse(context["error_message"], status=status)
+
+    monkeypatch.setattr(views, "ollama_available_models", offline)
+    monkeypatch.setattr(views, "render", render)
+    response = views.prompt_backlog_view(RequestFactory().get("/knowledge/prompt-backlog/"))
+    assert response.status_code == 503
+    assert captured["available_models"] == []
+    assert "Modellliste nicht verfügbar" in response.content.decode()
+    assert "Sensitive" not in response.content.decode()
+
+
+def test_legacy_post_reports_provider_error_without_losing_history(monkeypatch):
+    session = Session(ollama_chat_history=[])
+    captured = {}
+    monkeypatch.setattr(views, "_active_semantic_domain", lambda req: "alpha")
+    monkeypatch.setattr(
+        views, "ollama_runtime_settings",
+        lambda: {"provider": "ollama", "base_url": "http://offline:11434", "model": "m"},
+    )
+
+    def offline(*args, **kwargs):
+        raise ProviderError("Sensitive diagnostic not for display")
+
+    def render(req, template, context, *, status=200):
+        captured.update(context)
+        return HttpResponse(context["error_message"], status=status)
+
+    monkeypatch.setattr(views, "ollama_chat_answer", offline)
+    monkeypatch.setattr(views, "render", render)
+    response = views.ollama_chat_view(request(
+        "post", route="ollama-chat", data={"question": "Synthetic test"}, session=session,
+    ))
+    assert response.status_code == 503
+    assert "Chat fehlgeschlagen" in response.content.decode()
+    assert "Sensitive" not in response.content.decode()
+    assert session["ollama_chat_history"] == []
 
 
 @pytest.fixture

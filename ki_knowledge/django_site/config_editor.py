@@ -122,73 +122,20 @@ def runtime_target(path: Optional[Union[str, Path]] = None) -> Optional[Path]:
 # --- resolution -------------------------------------------------------------------
 
 
-def _safe_validation_error(message: str) -> Exception:
-    try:
-        from yaml_cfg_wizard.editor import ValidationError
-
-        return ValidationError(message)
-    except ImportError:  # pragma: no cover - core not installed
-        return ValueError(message)
-
-
 def resolve_candidate(
     file_id: str, candidate: Mapping[str, Any], path: Optional[Union[str, Path]] = None
 ) -> dict[str, Any]:
-    """Full effective config with the runtime layer replaced by ``candidate``.
-
-    Mirrors ``ki_core.config._resolve_config`` step by step (defaults dir,
-    ki.yaml, profile, stage, runtime, ``KI_CFG_*`` env, base-schema check,
-    creds.yaml, merged-schema defaults). The runtime layer is *replaced* by the
-    candidate, not merged onto the effective result, so removed keys fall back
-    to lower layers and higher layers (env, creds) still win. Credentials are
-    loaded internally like at runtime; callers only ever expose allowlisted
-    fields.
-    """
+    """Compatibility adapter to the common runtime-layer resolver."""
     if file_id != RUNTIME_FILE_ID:
         raise KeyError(file_id)
-    if not isinstance(candidate, Mapping):
-        raise _safe_validation_error("runtime layer must be a mapping")
+    from ki_core.runtime_settings import resolve_runtime_candidate
 
-    from jsonschema import Draft7Validator
-    from ki_core import config as kc
-    from yaml_cfg_wizard import ConfigResolver, deep_merge
-    from yaml_cfg_wizard.core import env_to_dict, load_directory_yaml, load_yaml_files
-    from yaml_cfg_wizard.schema_utils import merge_schemas, scaffold_skeleton_from_schema
-
-    config_path = kc._find_yaml_config_path(path)
-    creds_path = kc._find_creds_yaml_path(path)
-    layered = kc._layered_config_dir(path)
-    stage_file = kc._layer_file(layered / "stages", kc.STAGE_ENV, kc.ACTIVE_STAGE_MARKER)
-    profile_file = kc._layer_file(layered / "profiles", kc.PROFILE_ENV, kc.ACTIVE_PROFILE_MARKER)
-    schemas = kc.get_merged_schemas()
-
-    # Same order as yaml_cfg_wizard.ConfigResolver.resolve() with ki-core's arguments.
-    merged: dict[str, Any] = {}
-    if (layered / "defaults").exists():
-        merged = deep_merge(merged, load_directory_yaml(layered / "defaults"))
-    merged = deep_merge(merged, load_yaml_files([config_path] if config_path else []))
-    merged = deep_merge(merged, load_yaml_files([profile_file] if profile_file else []))
-    merged = deep_merge(merged, load_yaml_files([stage_file] if stage_file else []))
-    merged = deep_merge(merged, dict(candidate))
-    merged = deep_merge(merged, env_to_dict("KI_CFG_"))
-    if schemas:
-        import yaml
-
-        base_schema = yaml.safe_load(Path(schemas[0]).read_text(encoding="utf-8"))
-        if any(True for _ in Draft7Validator(base_schema).iter_errors(merged)):
-            # never echo jsonschema messages: they contain the offending values
-            raise _safe_validation_error("candidate violates the base config schema")
-
-    if creds_path:
-        try:
-            creds_payload = ConfigResolver(defaults=[creds_path], schema_file=schemas[0] if schemas else None).resolve()
-        except ValueError:
-            raise _safe_validation_error("creds.yaml violates the base config schema") from None
-        if isinstance(creds_payload, dict):
-            merged = deep_merge(merged, creds_payload)
-
-    schema_defaults = scaffold_skeleton_from_schema(merge_schemas(*schemas)) if schemas else {}
-    return deep_merge(schema_defaults, merged)
+    explicit = Path(path).absolute() if path is not None else None
+    return resolve_runtime_candidate(
+        explicit.parent if explicit is not None else Path.cwd(),
+        candidate,
+        config_path=explicit,
+    )
 
 
 def editor_schema() -> dict[str, Any]:

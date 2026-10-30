@@ -1,6 +1,6 @@
 # YAML-Konfiguration in ki-knowledge
 
-Stand: 2026-10-28. Diese Seite ist der projektspezifische Einstieg, keine zweite
+Stand: 2026-10-29. Diese Seite ist der projektspezifische Einstieg, keine zweite
 Kopie der gemeinsamen Konfigurationsdokumentation.
 
 ## Gemeinsame Grundlagen
@@ -43,6 +43,9 @@ der Dokumentation.
   wird vom aktuellen Core-Schema nicht akzeptiert.
 - Die Stack-Definition liegt in `config/defaults/stack.yaml`, nicht in
   Example-Startskripten.
+- [Live-Konfiguration](live-settings.md) unter `/settings/config/`:
+  schema-basierte gemeinsame Oberfläche für aktive Superuser, mit
+  Revisionsschutz, Vererbung und ausdrücklich gekennzeichneten Neustartgrenzen.
 - Der begrenzte Sync-Editor unter `/settings/config/sync/` bearbeitet
   `public_url` und `federation_id` im Runtime-Layer. Weitere Grenzen und
   Voraussetzungen stehen im Betriebsleitfaden.

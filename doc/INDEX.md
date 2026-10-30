@@ -7,6 +7,7 @@
 
 - [Django und Stack](guides/DJANGO_DEV.md).
 - [YAML-Konfiguration](guides/YAML_CONFIG_SYSADMIN.md).
+- [Live-Konfiguration: Bedienung, Vererbung und Aktivierungsgrenzen](guides/live-settings.md).
 - [CLI-Referenz](guides/CLI.md).
 - [Paket-Build und kanonischer Quellbaum](guides/packaging.md).
 - [CLI oder Weboberflaeche](guides/CLI_VS_DJANGO.md).
@@ -61,6 +62,7 @@
 
 ## Bestands- und Abdeckungsberichte
 
+- [Live-Konfiguration und Providerprüfung, 29.10.2026](tracking/live-settings-2026-10-29.md).
 - [Projektbestand und Bereinigungsreihenfolge](tracking/project-inventory-2026-10-28.md).
 - [Kurzinventur nach den Umbauten: Beherrschbarkeit, 29.10.2026](tracking/project-inventory-followup-2026-10-29.md).
 - [Textwerkstatt E4: kontrollierte KI-Überarbeitung, 29.10.2026](tracking/workbench-e4-2026-10-29.md).

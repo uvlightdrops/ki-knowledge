@@ -11,6 +11,7 @@ from django.http import HttpRequest, HttpResponseBadRequest, HttpResponseRedirec
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
+from ki_core.core.errors import AIError
 from ki_knowledge.django_site.source_workflow import import_markdown_file
 from ki_knowledge.django_site.ui_dispatcher import run_dashboard_task
 from ki_knowledge.integrations.sql_backend import psycopg
@@ -43,7 +44,7 @@ _DOMAIN_CHAT_SESSION_KEY = "domain_chat_history"
 _OLLAMA_CHAT_SESSION_KEY = "ollama_chat_history"
 
 
-_CHAT_ERRORS = (RuntimeError, ValueError, OSError, RequestException, sqlite3.DatabaseError)
+_CHAT_ERRORS = (AIError, RuntimeError, ValueError, OSError, RequestException, sqlite3.DatabaseError)
 if psycopg is not None:
     _CHAT_ERRORS += (psycopg.Error,)
 
@@ -139,10 +140,17 @@ def prompt_backlog_view(request: HttpRequest):
     domain = _active_semantic_domain(request)
     prompt_context = load_prompt_library_context(domain)
     ollama_settings = ollama_runtime_settings()
-    available_models = ollama_available_models(ollama_settings["base_url"])
     default_model = ollama_settings["model"]
     notice = request.GET.get("notice", "").strip()
     error_message = ""
+    status_code = 200
+    try:
+        available_models = ollama_available_models(ollama_settings["base_url"])
+    except AIError as exc:
+        logging.getLogger(__name__).warning("Chat model discovery failed (%s).", type(exc).__name__)
+        available_models = []
+        error_message = "Modellliste nicht verfügbar. Provider-Verbindung und Konfiguration prüfen."
+        status_code = 503
 
     if request.method == "POST":
         action = request.POST.get("action", "save").strip() or "save"
@@ -192,7 +200,7 @@ def prompt_backlog_view(request: HttpRequest):
                     )
             query = urlencode({"notice": notice})
             return HttpResponseRedirect(f"{reverse('prompt-backlog')}?{query}")
-        except (OSError, RuntimeError, ValueError) as exc:
+        except (AIError, OSError, RuntimeError, ValueError) as exc:
             error_message = str(exc)
             backlog_items = parse_prompt_backlog(backlog_content)
             template_names = sorted(parse_prompt_templates(templates_content).keys())
@@ -223,6 +231,7 @@ def prompt_backlog_view(request: HttpRequest):
             "notice": notice,
             "error_message": error_message,
         },
+        status=status_code,
     )
 
 
@@ -241,6 +250,7 @@ def ollama_chat_view(request: HttpRequest):
     available_models = [ollama_settings["model"]] if ollama_settings["model"] else []
     default_model = ollama_settings["model"]
     error_message = ""
+    status_code = 200
     notice = request.GET.get("notice", "").strip()
     saved_path = display_data_path(request.GET.get("saved_path", "").strip() or None)
     imported_notice = request.GET.get("imported", "").strip()
@@ -421,8 +431,10 @@ def ollama_chat_view(request: HttpRequest):
                 }
             )
             return HttpResponseRedirect(f"{reverse('ollama-chat')}?{query}")
-        except RuntimeError as exc:
-            error_message = str(exc)
+        except _CHAT_ERRORS as exc:
+            logging.getLogger(__name__).warning("Legacy chat failed (%s).", type(exc).__name__)
+            error_message = "Chat fehlgeschlagen. Provider-Verbindung und Konfiguration prüfen."
+            status_code = 503
 
     return render(
         request,
@@ -439,4 +451,5 @@ def ollama_chat_view(request: HttpRequest):
             "imported_notice": imported_notice,
             "error_message": error_message,
         },
+        status=status_code,
     )

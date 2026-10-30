@@ -7,6 +7,7 @@ from wagtail.documents import urls as wagtaildocs_urls
 
 from . import views
 from .config_editor import settings_config_sync_view
+from .live_settings import settings_config_compact_view
 from .views_devtools import chrome_devtools_workspace
 from .node_connectivity import node_connectivity_view
 from .identity_views import identity_admin_view, identity_sync_api
@@ -97,6 +98,7 @@ urlpatterns = [
     # --- ⚙️ Settings ----------------------------------------------------------
     path("settings/", views.settings_view, name="settings"),
     path("settings/config/", views.settings_config_view, name="settings-config"),
+    path("settings/config/c2/", settings_config_compact_view, name="settings-config-c2"),
     path("settings/config/sync/", settings_config_sync_view, name="settings-config-sync"),
     path("settings/layout/", views.layout_settings_view, name="settings-layout"),
     path("settings/layout/widgets/", views.widget_catalog_view, name="settings-layout-widgets"),

@@ -13,28 +13,46 @@ from __future__ import annotations
 from typing import Any
 
 from ki_core import AIClient
-from ki_core.adapters.mock import MockAIClient
-from ki_core.adapters.ollama import OllamaClient
-from ki_core.adapters.openai_compat import OpenAICompatibleClient
+from ki_core.chat import create_chat_client, get_chat_models, get_chat_settings
+from ki_core.core.errors import ValidationError
 
 from ki_knowledge.app_config import AppConfig
 
 CHAT_PROVIDERS = ("ki", "openai", "ollama", "mock")
 
 
+def _chat_config(config: AppConfig) -> dict[str, Any]:
+    """Adapt resolved app attributes, including explicit per-call overrides."""
+    return {
+        "llm": {
+            "provider": config.llm_default_provider,
+            "providers": {
+                "ki": {
+                    "base_url": config.ki_base_url,
+                    "api_key": config.ki_api_key,
+                    "model": config.ki_model,
+                },
+                "openai": {
+                    "base_url": config.openai_base_url,
+                    "api_key": config.openai_api_key,
+                    "model": config.openai_model,
+                },
+                "ollama": {
+                    "base_url": config.ollama_base_url,
+                    "model": config.ollama_model,
+                },
+            },
+        },
+        "http": {"request_timeout": config.request_timeout, "verify_ssl": config.http_verify_ssl},
+    }
+
+
 def chat_settings(config: AppConfig | None = None) -> dict[str, str]:
     """``provider``, ``base_url`` and ``model`` of the configured chat provider."""
-    config = config or AppConfig.from_env()
-    provider = config.llm_default_provider
-    if provider == "ki":
-        return {"provider": "ki", "base_url": config.ki_base_url.strip(), "model": config.ki_model.strip()}
-    if provider == "openai":
-        return {"provider": "openai", "base_url": config.openai_base_url.strip(), "model": config.openai_model.strip()}
-    if provider == "ollama":
-        return {"provider": "ollama", "base_url": config.ollama_base_url.strip(), "model": config.ollama_model.strip()}
-    if provider == "mock":
-        return {"provider": "mock", "base_url": "", "model": "mock-1"}
-    raise ValueError(f"llm.provider '{provider}' unbekannt (erlaubt: {', '.join(CHAT_PROVIDERS)})")
+    try:
+        return get_chat_settings(_chat_config(config or AppConfig.from_env()))
+    except ValidationError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def chat_client(*, model: str | None = None, base_url: str | None = None, config: AppConfig | None = None) -> AIClient:
@@ -43,33 +61,16 @@ def chat_client(*, model: str | None = None, base_url: str | None = None, config
     ``base_url`` is only honoured for Ollama (e.g. a stored chat session); for
     remote providers the configured endpoint is always used.
     """
-    config = config or AppConfig.from_env()
-    settings = chat_settings(config)
-    provider = settings["provider"]
-    resolved_model = (model or settings["model"]).strip() or None
-    resolved_url = ((base_url if provider == "ollama" else None) or settings["base_url"]).strip()
-    if provider == "mock":
-        return MockAIClient(model=resolved_model or "mock-1")
-    if provider == "ollama":
-        return OllamaClient(base_url=resolved_url, model=resolved_model, verify=config.http_verify_ssl)
-    if not resolved_url:
-        raise ValueError(f"llm.providers.{provider}.base_url fehlt in ki.yaml")
-    api_key = config.ki_api_key if provider == "ki" else config.openai_api_key
-    return OpenAICompatibleClient(
-        base_url=resolved_url,
-        api_key=api_key,
-        model=resolved_model,
-        timeout=config.request_timeout,
-        verify=config.http_verify_ssl,
-    )
+    try:
+        return create_chat_client(
+            _chat_config(config or AppConfig.from_env()),
+            model=model,
+            ollama_base_url=base_url,
+        )
+    except ValidationError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def chat_models(settings: dict[str, Any] | None = None) -> list[str]:
     """Selectable models: installed Ollama models, otherwise just the configured one."""
-    settings = settings or chat_settings()
-    if settings["provider"] == "ollama":
-        try:
-            return OllamaClient.get_available_models(settings["base_url"])
-        except Exception:
-            return []
-    return [settings["model"]] if settings["model"] else []
+    return get_chat_models(settings or chat_settings())

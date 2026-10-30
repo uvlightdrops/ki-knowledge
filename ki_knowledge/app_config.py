@@ -89,7 +89,10 @@ def _config_fingerprint(path: Optional[Union[str, Path]]) -> tuple:
         candidates.extend(get_merged_schemas())
     except Exception:  # pragma: no cover - schema discovery is best effort
         pass
-    env = tuple(sorted((k, v) for k, v in os.environ.items() if k.startswith("KI_CFG_")))
+    env = tuple(sorted(
+        (k, v) for k, v in os.environ.items()
+        if k.startswith("KI_CFG_") or k in {"KI_STAGE", "KI_PROFILE"}
+    ))
     return (str(cwd), str(path) if path is not None else None, env, tuple(_stat_token(p) for p in candidates))
 
 

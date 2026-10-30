@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from ki_knowledge.app_config import AppConfig, ConfigDict, clear_config_cache, load_config_cached
 
 
@@ -81,3 +83,23 @@ def test_env_change_invalidate_config_cache(tmp_path, monkeypatch):
     monkeypatch.setenv("KI_CFG_KNOWLEDGE__DATA_ROOT", "/tmp/override")
     assert load_config_cached(config_path)["knowledge"]["data_root"] == "/tmp/override"
     assert seen == ["", "/tmp/override"]
+
+
+@pytest.mark.parametrize("selector", ["KI_STAGE", "KI_PROFILE"])
+def test_layer_selection_change_invalidates_config_cache(tmp_path, monkeypatch, selector):
+    clear_config_cache()
+    config_path = tmp_path / "ki.yaml"
+    config_path.write_text("{}\n", encoding="utf-8")
+    seen = []
+
+    def fake_load_config(path=None):
+        selected = os.getenv(selector, "")
+        seen.append(selected)
+        return ConfigDict({"knowledge": {"default_domain": selected or "default"}})
+
+    monkeypatch.delenv(selector, raising=False)
+    monkeypatch.setattr("ki_knowledge.app_config.load_config", fake_load_config)
+    assert load_config_cached(config_path)["knowledge"]["default_domain"] == "default"
+    monkeypatch.setenv(selector, "another")
+    assert load_config_cached(config_path)["knowledge"]["default_domain"] == "another"
+    assert seen == ["", "another"]

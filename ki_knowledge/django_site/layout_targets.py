@@ -94,7 +94,8 @@ _AREAS = [
         "key": "settings", "nav_key": "settings", "prefixes": ["/settings/"],
         "submenu": [
             ("Übersicht", "/settings/", "Settings overview."),
-            ("Configuration", "/settings/config/", "Aktive AppConfig-Werte anzeigen."),
+            ("Configuration", "/settings/config/", "Live-Konfiguration ausführlich bearbeiten."),
+            ("C2", "/settings/config/c2/", "Kompakte Konfigurationstabelle mit Hierarchie und Statuskürzeln."),
             ("Builder", "/settings/layout/builder/", "Widget-Layout pro Area verwalten."),
             ("Widget catalog", "/settings/layout/widgets/", "Preview aller Widgets und ihres HTML-Codes."),
             ("Widget shell builder", "/settings/layout/shell-builder/", "Widget-Shells ohne Live-Daten zusammenklicken."),
@@ -103,6 +104,7 @@ _AREAS = [
         "targets": [
             ("overview", "Übersicht", "/settings/"),
             ("config", "Configuration", "/settings/config/"),
+            ("config-c2", "C2", "/settings/config/c2/"),
             ("builder", "Builder", "/settings/layout/builder/"),
             ("widgets", "Widget catalog", "/settings/layout/widgets/"),
             ("shell-builder", "Widget shell builder", "/settings/layout/shell-builder/"),

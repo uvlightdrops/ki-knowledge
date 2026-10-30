@@ -50,6 +50,13 @@ def main():
 
 
 def run_server(temporary):
+    settings_project = temporary / "settings-project"
+    (settings_project / "schema").mkdir(parents=True)
+    shutil.copy(ROOT / "schema/ki_knowledge.schema.yaml", settings_project / "schema")
+    (settings_project / "ki.yaml").write_text("llm:\n  provider: mock\n", encoding="utf-8")
+    (settings_project / "creds.yaml").write_text(
+        "llm:\n  providers:\n    ki:\n      api_key: browser-secret-must-stay-hidden\n", encoding="utf-8",
+    )
     with patch(
         "ki_knowledge.llm_provider.chat_settings",
         return_value={"provider": "mock", "model": "browser-mock", "base_url": ""},
@@ -102,6 +109,7 @@ def run_server(temporary):
         with patch("ki_knowledge.django_site.sources_browser.domain_source_dir", side_effect=source_dir), \
              patch("ki_knowledge.django_site.sources_browser.domain_jira_dir", return_value=temporary / "jira"), \
              patch("ki_knowledge.django_site.sources_browser._pdf_job_states", return_value={}), \
+             patch("ki_knowledge.django_site.live_settings.PROJECT_ROOT", settings_project), \
              patch("ki_knowledge.django_site.knowledge_summary.domain_source_roots", return_value=[temporary]):
             call_command("runserver", f"127.0.0.1:{sys.argv[1]}", use_reloader=False, verbosity=0)
 

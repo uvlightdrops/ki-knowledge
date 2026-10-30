@@ -805,6 +805,9 @@ def admin_sync_view(request: HttpRequest):
 @require_GET
 
 def settings_view(request: HttpRequest):
+    from ki_knowledge.app_config import AppConfig
+
+    config = AppConfig.from_env()
     active_domain = _active_semantic_domain(request)
     widget_ids = _load_dashboard_widget_ids(
         request,
@@ -815,9 +818,9 @@ def settings_view(request: HttpRequest):
     config_summary = {
         "active_area": "settings",
         "active_domain": active_domain,
-        "llm_provider": "ki",
-        "knowledge_root": "/data/knowledge",
-        "infosite_enabled": True,
+        "llm_provider": config.llm_default_provider,
+        "knowledge_root": config.knowledge_data_root,
+        "infosite_enabled": config.infosite_enabled,
     }
     widget_cards = build_settings_widget_cards(
         active_domain=active_domain,
@@ -832,111 +835,17 @@ def settings_view(request: HttpRequest):
             "active_domain": active_domain,
             "widget_cards": widget_cards,
             "quick_links": [
-                ("Configuration", "/settings/config/", "View active AppConfig values (LLM providers, knowledge paths, infosite, jira). Secrets are shown as set/not set only."),
+                ("Live-Konfiguration", "/settings/config/", "Schema-basierte Runtime-Einstellungen bearbeiten; nur aktive Superuser. Secrets bleiben verborgen, Neustartgrenzen werden angezeigt."),
                 ("Dashboard Builder", layout_builder_url("settings", "overview"), "Arrange widgets by area and drag them into the active layout grid."),
             ],
         },
     )
 
 
-# Config fields considered secret: never rendered in plaintext, only "gesetzt"/"nicht gesetzt".
-_CONFIG_SECRET_FIELDS = {"ki_api_key", "openai_api_key", "jira_api_token"}
-
-# Grouping of AppConfig fields into the settings sections shown in the GUI,
-# mirroring the resolved YAML sections owned by ki-knowledge and ki-core.
-_CONFIG_SECTIONS = [
-    (
-        "LLM Provider",
-        "llm",
-        ["ki_base_url", "ki_api_key", "ki_model", "ki_endpoint", "ollama_base_url", "ollama_model", "openai_api_key", "openai_model", "openai_base_url"],
-    ),
-    (
-        "Knowledge Base",
-        "knowledge",
-        [
-            "knowledge_data_root",
-            "knowledge_markdown_root",
-            "knowledge_jira_root",
-            "knowledge_ontology_root",
-            "knowledge_pdf_root",
-            "knowledge_cache_db",
-            "knowledge_graph_db",
-            "knowledge_embed_model",
-            "knowledge_default_domain",
-        ],
-    ),
-    (
-        "Infosite",
-        "infosite",
-        ["infosite_enabled", "infosite_title", "infosite_output_base_dir", "infosite_domain"],
-    ),
-    (
-        "Jira",
-        "jira",
-        [
-            "jira_url",
-            "jira_username",
-            "jira_api_token",
-            "jira_csv_path",
-            "jira_cache_db",
-            "jira_graph_db",
-            "jira_graph_cypher_path",
-            "jira_csv_delimiter",
-            "jira_csv_encoding",
-            "jira_timeline_days",
-            "jira_embed_model",
-            "jira_use_hybrid_search",
-            "jira_use_graph",
-            "jira_cache_refresh",
-        ],
-    ),
-    (
-        "HTTP",
-        "http",
-        ["request_timeout", "http_verify_ssl"],
-    ),
-]
-
-
-@require_GET
-
 def settings_config_view(request: HttpRequest):
-    """Read-only overview of the active AppConfig. Secrets are never
-    rendered in plaintext, only as "gesetzt"/"nicht gesetzt"."""
-    active_domain = _active_semantic_domain(request)
-    from dataclasses import fields as dataclass_fields
+    from .live_settings import settings_config_view as live_settings_view
 
-    from ki_core.config import _find_yaml_config_path  # local import: optional dependency boundary
-    from ki_knowledge.app_config import AppConfig
-
-    config_path = _find_yaml_config_path()
-    config = AppConfig.from_yaml()
-    available_fields = {field.name for field in dataclass_fields(AppConfig) if field.name != "raw"}
-
-    sections = []
-    for title, key, fields in _CONFIG_SECTIONS:
-        rows = []
-        for field_name in fields:
-            if field_name not in available_fields:
-                continue
-            raw_value = getattr(config, field_name, None)
-            is_secret = field_name in _CONFIG_SECRET_FIELDS
-            if is_secret:
-                display_value = "✅ gesetzt" if raw_value else "— nicht gesetzt"
-            else:
-                display_value = raw_value if raw_value not in (None, "") else "—"
-            rows.append({"field": field_name, "value": display_value, "is_secret": is_secret})
-        sections.append({"title": title, "key": key, "rows": rows})
-
-    return render(
-        request,
-        "kicli_django/settings_config.html",
-        {
-            "active_domain": active_domain,
-            "config_path": str(config_path) if config_path else None,
-            "sections": sections,
-        },
-    )
+    return live_settings_view(request)
 
 
 @require_GET
