@@ -26,6 +26,7 @@ REQUEST_FIELDS = {
 def proposals(owner, domain):
     return WorkbenchProposal.objects.filter(
         document__owner=owner, document__domain=domain, document__kind="draft",
+        document__archived_at__isnull=True,
     ).select_related("document", "base_revision")
 
 

@@ -28,6 +28,7 @@ export type Relation = {
 };
 export type DocumentSummary = {
   id: string; title: string; kind: "reference" | "draft";
+  etag: string;
   revision: { id: string; content_sha256: string };
 };
 export type Revision = { id: string; content_sha256: string; parent_id: string | null; cause: string; created_at: string };

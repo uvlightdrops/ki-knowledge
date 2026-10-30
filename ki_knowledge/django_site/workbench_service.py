@@ -86,13 +86,16 @@ def metadata(data, partial=False):
     return result
 
 
-def documents(owner, domain):
-    return WorkbenchDocument.objects.filter(owner=owner, domain=domain).select_related("head_revision")
+def documents(owner, domain, *, archived=False):
+    return WorkbenchDocument.objects.filter(
+        owner=owner, domain=domain, archived_at__isnull=not archived,
+    ).select_related("head_revision")
 
 
-def annotations(owner, domain):
+def annotations(owner, domain, *, archived=False):
     return WorkbenchAnnotation.objects.filter(
         document__owner=owner, document__domain=domain,
+        document__archived_at__isnull=True, archived_at__isnull=not archived,
     ).select_related("document").prefetch_related("anchors")
 
 
@@ -101,6 +104,8 @@ def relations(owner, domain):
         owner=owner, domain=domain,
         source__document__owner=owner, source__document__domain=domain,
         target__document__owner=owner, target__document__domain=domain,
+        source__document__archived_at__isnull=True, target__document__archived_at__isnull=True,
+        source__archived_at__isnull=True, target__archived_at__isnull=True,
     )
 
 
@@ -109,6 +114,33 @@ def owned_document(owner, domain, document_id):
     if document is None:
         raise WorkbenchError("not_found", "Document not found.", 404)
     return document
+
+
+def set_archived(owner, domain, resource_id, data, if_match, *, annotation=False):
+    check_fields(data, {"archived"}, {"archived"})
+    if type(data["archived"]) is not bool:
+        invalid("archived", "Expected a boolean.")
+    model = WorkbenchAnnotation if annotation else WorkbenchDocument
+    scope = {
+        "document__owner": owner, "document__domain": domain, "document__archived_at__isnull": True,
+    } if annotation else {
+        "owner": owner, "domain": domain,
+    }
+    with transaction.atomic():
+        item = model.objects.select_for_update().filter(pk=resource_id, **scope).first()
+        if item is None:
+            raise WorkbenchError("not_found", "Resource not found.", 404)
+        require_match(item.version, if_match)
+        values = {
+            "archived_at": timezone.now() if data["archived"] else None,
+            "version": F("version") + 1,
+        }
+        if annotation:
+            values["updated_at"] = timezone.now()
+        if not model.objects.filter(pk=item.pk, version=item.version, **scope).update(**values):
+            raise WorkbenchError("precondition_failed", "Resource has changed. Reload before saving.", 412)
+        item.refresh_from_db()
+    return item
 
 
 def source_location(source, domain):
@@ -226,14 +258,16 @@ def persist_capture(owner, domain, text, title, path, origin, *, key=None, sourc
     with transaction.atomic():
         # Older snapshots keep their FK, UUID and revision/anchor identities.
         # Reuse an identical legacy capture, without rewriting historical origin.
-        legacy_query = documents(owner, domain).filter(
-            kind="reference", origin_key="", capture_sha256=digest,
+        legacy_query = WorkbenchDocument.objects.filter(
+            owner=owner, domain=domain, kind="reference", origin_key="", capture_sha256=digest,
         )
         locator = Q(origin_locator__in=[str(path), str(path.resolve(strict=True))])
         if source is not None:
             locator |= Q(source=source)
         legacy = legacy_query.filter(locator).first()
         if legacy:
+            if legacy.archived_at is not None:
+                raise WorkbenchError("archived", "Snapshot is archived. Restore it from the archive.", 409)
             return legacy, False
         document, created = WorkbenchDocument.objects.get_or_create(
             owner=owner, domain=domain, kind="reference", origin_key=key, capture_sha256=digest,
@@ -242,6 +276,8 @@ def persist_capture(owner, domain, text, title, path, origin, *, key=None, sourc
                 "origin_metadata": origin, "source": source,
             },
         )
+        if document.archived_at is not None:
+            raise WorkbenchError("archived", "Snapshot is archived. Restore it from the archive.", 409)
         if created:
             revision = WorkbenchRevision.objects.create(document=document, text=text, content_sha256=digest)
             document.head_revision = revision
@@ -346,6 +382,7 @@ def annotation_json(annotation, anchor=None):
         "document_title": annotation.document.title, "revision_id": str(anchor.revision_id),
         "title": annotation.title, "category": annotation.category, "tags": annotation.tags,
         "note": annotation.note, "version": annotation.version, "etag": f'"{annotation.version}"',
+        "archived": annotation.archived_at is not None,
         "start": anchor.start, "end": anchor.end, "exact": anchor.exact,
         "prefix": anchor.prefix, "suffix": anchor.suffix,
         "representation": anchor.representation, "offset_unit": anchor.offset_unit,
@@ -376,6 +413,7 @@ def document_json(document, full=True, revision=None):
     result = {
         "id": str(document.pk), "title": document.title, "source_id": document.source_id,
         "kind": document.kind, "version": document.version, "etag": f'"{document.version}"',
+        "archived": document.archived_at is not None,
         "head_revision_id": str(document.head_revision_id),
         "origin_revision_id": str(document.origin_revision_id) if document.origin_revision_id else None,
         "origin_metadata": document.origin_metadata,
@@ -521,6 +559,7 @@ def provider_config(config=None):
 def conversations(owner, domain):
     return WorkbenchConversation.objects.filter(
         owner=owner, domain=domain, document__owner=owner, document__domain=domain,
+        document__archived_at__isnull=True,
     ).select_related("document", "revision")
 
 
@@ -593,6 +632,7 @@ def append_reference_context(owner, domain, sources, references):
         revision = WorkbenchRevision.objects.select_related("document").filter(
             pk=revision_id, document__owner=owner,
             document__domain=domain, document__kind="reference",
+            document__archived_at__isnull=True,
         ).first()
         if revision is None:
             raise WorkbenchError("not_found", "Selected reference revision not found.", 404)

@@ -93,7 +93,9 @@ def source_list(request, domain):
 def document_list(request, domain):
     if request.method == "GET":
         return JsonResponse({"documents": [
-            service.document_json(item, full=False) for item in service.documents(request.user, domain)
+            service.document_json(item, full=False) for item in service.documents(
+                request.user, domain, archived=request.GET.get("archived") == "1",
+            )
         ]})
     if not request.user.is_staff:
         raise service.WorkbenchError("forbidden", "Staff source access is required.", 403)
@@ -118,8 +120,27 @@ def annotation_create(request, domain, document_id):
 @api(["GET"])
 def annotation_list(request, domain):
     return JsonResponse({"annotations": [
-        service.annotation_json(item) for item in service.annotations(request.user, domain)
+        service.annotation_json(item) for item in service.annotations(
+            request.user, domain, archived=request.GET.get("archived") == "1",
+        )
     ]})
+
+
+@api(["POST"])
+def document_archive(request, domain, document_id):
+    item = service.set_archived(
+        request.user, domain, document_id, body(request), request.headers.get("If-Match"),
+    )
+    return JsonResponse(service.document_json(item, full=False))
+
+
+@api(["POST"])
+def annotation_archive(request, domain, annotation_id):
+    item = service.set_archived(
+        request.user, domain, annotation_id, body(request), request.headers.get("If-Match"),
+        annotation=True,
+    )
+    return JsonResponse(service.annotation_json(item))
 
 
 @api(["PATCH"])

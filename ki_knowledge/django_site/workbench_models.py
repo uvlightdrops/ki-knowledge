@@ -24,6 +24,7 @@ class WorkbenchDocument(models.Model):
     origin_key = models.CharField(max_length=64, blank=True, default="")
     origin_metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
 
     @property
     def revision(self):
@@ -73,6 +74,7 @@ class WorkbenchAnnotation(models.Model):
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
 
     @property
     def anchor(self):

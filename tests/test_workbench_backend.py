@@ -24,6 +24,10 @@ def test_workbench_migrated_backend():
     run_scenario(BACKEND_SCENARIO)
 
 
+def test_workbench_archive_preserves_history_and_links():
+    run_scenario(BACKEND_SCENARIO + ARCHIVE_SCENARIO)
+
+
 def test_workbench_drafts_and_explicit_chat():
     run_scenario(DRAFT_CHAT_SCENARIO)
 
@@ -34,6 +38,62 @@ def test_workbench_existing_snapshot_migration():
 
 def test_workbench_general_inventory_without_infosite():
     run_scenario(INVENTORY_SCENARIO)
+
+
+ARCHIVE_SCENARIO = r'''
+client.force_login(owner)
+document_endpoint = f'documents/{doc["id"]}'
+annotation_endpoint = f'annotations/{annotation["id"]}'
+live_doc = request("get", document_endpoint)
+live_annotation = next(item for item in request("get", "annotations")["annotations"] if item["id"] == annotation["id"])
+counts = [model.objects.count() for model in (WorkbenchRevision, WorkbenchAnchor, WorkbenchRelation)]
+original_file = file.read_bytes()
+for endpoint, item in ((document_endpoint, live_doc), (annotation_endpoint, live_annotation)):
+    request("post", endpoint + "/archive", {"archived": True}, status=428)
+    request("post", endpoint + "/archive", {"archived": True}, status=412, HTTP_IF_MATCH='"0"')
+    request("post", endpoint + "/archive", {"archived": "yes"}, status=422, HTTP_IF_MATCH=item["etag"])
+    client.force_login(other)
+    request("post", endpoint + "/archive", {"archived": True}, status=404, HTTP_IF_MATCH=item["etag"])
+    client.force_login(owner)
+    assert client.post(base + endpoint + "/archive?domain=beta", data=json.dumps({"archived": True}),
+        content_type="application/json", HTTP_IF_MATCH=item["etag"]).status_code == 404
+    guarded = Client(enforce_csrf_checks=True)
+    guarded.force_login(owner)
+    assert guarded.post(base + endpoint + "/archive?domain=alpha", data=json.dumps({"archived": True}),
+        content_type="application/json", HTTP_IF_MATCH=item["etag"]).status_code == 403
+
+hidden_mark = request("post", annotation_endpoint + "/archive", {"archived": True}, HTTP_IF_MATCH=live_annotation["etag"])
+assert hidden_mark["archived"] and hidden_mark["version"] == live_annotation["version"] + 1
+assert not request("get", document_endpoint)["annotations"]
+assert not request("get", "relations")["relations"]
+assert client.get(base + "annotations?domain=alpha&archived=1").json()["annotations"][0]["id"] == annotation["id"]
+request("patch", annotation_endpoint, {"note": "cannot edit archived"}, status=404, HTTP_IF_MATCH=hidden_mark["etag"])
+request("post", annotation_endpoint + "/archive", {"archived": False}, status=412, HTTP_IF_MATCH=live_annotation["etag"])
+restored_mark = request("post", annotation_endpoint + "/archive", {"archived": False}, HTTP_IF_MATCH=hidden_mark["etag"])
+assert not restored_mark["archived"]
+assert request("get", "relations")["relations"] == [relation]
+
+hidden_doc = request("post", document_endpoint + "/archive", {"archived": True}, HTTP_IF_MATCH=live_doc["etag"])
+request("get", document_endpoint, status=404)
+request("get", document_endpoint + "/revisions", status=404)
+assert all(item["id"] != doc["id"] for item in request("get", "documents")["documents"])
+assert all(item["id"] != annotation["id"] for item in request("get", "annotations")["annotations"])
+assert not request("get", "relations")["relations"]
+assert client.get(base + "documents?domain=alpha&archived=1").json()["documents"][0]["id"] == doc["id"]
+try:
+    service.persist_capture(owner, domain, canonical, "same source", file, {}, source=source)
+except service.WorkbenchError as error:
+    assert error.code == "archived"
+else:
+    raise AssertionError("Archived capture silently reused or duplicated")
+restored_doc = request("post", document_endpoint + "/archive", {"archived": False}, HTTP_IF_MATCH=hidden_doc["etag"])
+assert not restored_doc["archived"]
+assert request("get", document_endpoint)["revision"]["text"] == canonical
+assert request("get", document_endpoint)["annotations"][0]["id"] == annotation["id"]
+assert request("get", "relations")["relations"] == [relation]
+assert counts == [model.objects.count() for model in (WorkbenchRevision, WorkbenchAnchor, WorkbenchRelation)]
+assert file.read_bytes() == original_file
+'''
 
 
 BACKEND_SCENARIO = r'''

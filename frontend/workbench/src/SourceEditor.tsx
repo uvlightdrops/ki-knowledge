@@ -3,6 +3,7 @@ import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
 import "monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import { selectionAnchor, utf16Range } from "./coordinates.mjs";
+import { lineNavigation } from "./lineNavigation.mjs";
 import type { Anchor, Annotation } from "./types";
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
@@ -89,5 +90,18 @@ export function SourceEditor({ text, annotations, selected, readOnly = true, onC
     const [start, end] = utf16Range(text, selected.start, selected.end);
     instance.revealRangeInCenter(monaco.Range.fromPositions(model.getPositionAt(start), model.getPositionAt(end)));
   }, [text, selected]);
-  return <div ref={container} className="wb-editor" data-testid="source-editor" />;
+  const lines = lineNavigation(text);
+  return <div className="wb-editor-layout"
+    style={{ gridTemplateColumns: `${Math.max(44, String(lines[lines.length - 1]).length * 8 + 12)}px minmax(0, 1fr)` }}>
+    <nav className="wb-line-nav" aria-label="Zeilennummern-Navigation">
+      {lines.map(line => <button key={line} type="button" title={`Zu Zeile ${line} springen`}
+        aria-label={`Zeile ${line}`}
+        onClick={() => {
+          editor.current?.setPosition({ lineNumber: line, column: 1 });
+          editor.current?.revealLineInCenter(line);
+          editor.current?.focus();
+        }}>{line}</button>)}
+    </nav>
+    <div ref={container} className="wb-editor" data-testid="source-editor" />
+  </div>;
 }

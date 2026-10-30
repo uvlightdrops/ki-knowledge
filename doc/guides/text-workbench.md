@@ -45,6 +45,7 @@ Vertrauensgrenze.
 Die Dropdown-Beschriftung zeigt Titel, Ordner/Pfad und Importstatus.
 **Nicht erfassbare Quellen** nennt Ausschlussgründe, etwa fehlende Dateien,
 andere Formate oder entfernte Quellen ohne kontrollierte lokale Markdown-Datei.
+Gleiche Ausschlussgründe erscheinen nur einmal mit der zugehörigen Dateiliste.
 Die maximale Snapshotgröße beträgt 2 MiB; UTF-8- und Leseprobleme werden bei der
 ausdrücklichen Erfassung sichtbar angezeigt.
 
@@ -63,6 +64,37 @@ Markierungen referenzieren einen unveränderlichen Snapshot. Externes Ändern
 der Originaldatei verschiebt keine bestehende Markierung. Erneutes Erfassen
 eines anderen Inhalts erzeugt einen anderen Snapshot; der ältere bleibt
 erreichbar. Die Oberfläche speichert nicht automatisch im Hintergrund.
+
+## Kompakte Bedienung und Archiv
+
+Erfolgsmeldungen belegen keine eigene Zeile oberhalb der Werkstatt mehr;
+Screenreader erhalten sie weiterhin über eine Live-Region. Fehler bleiben sichtbar.
+Der höhere Editor bietet links eine schmale **Zeilennummern-Navigation**
+mit ausschließlich anklickbaren Zahlen. Die Sprungpunkte verteilen sich in
+regelmäßigen Abständen über den gesamten Text, auch ohne Markdown-Überschriften;
+erste und letzte Zeile sind immer erreichbar. Kurze Texte zeigen jede Zeile,
+lange Texte gröbere Abstände. Die Leiste folgt auch ungespeicherten Änderungen.
+Ein Klick springt zur betreffenden Quellzeile, ohne den Text zu verändern.
+
+Die kleinen **[x]**-Buttons vor Texten und Markierungen archivieren nach
+Bestätigung, statt endgültig zu löschen. Ungespeicherte Eingaben verlangen
+zusätzlich eine ausdrückliche Bestätigung. Unter **Archiv** lassen sich die
+Einträge wiederherstellen, auch nach einem Neuladen der Seite.
+
+Revisionen, historische Anker, Gespräche, KI-Vorschläge und Verweise bleiben
+erhalten. Archivierte Texte und Markierungen verschwinden aus den aktiven
+Listen und Relationszielen; ihre Relationen erscheinen nach Wiederherstellung
+wieder. Bei archivierten Texten zuerst den Text wiederherstellen, danach
+gegebenenfalls einzeln archivierte Markierungen. Eine identische archivierte
+Quelle kann nicht still neu erfasst werden: stattdessen den Snapshot
+wiederherstellen. Quelldateien werden niemals gelöscht oder verändert.
+
+Die Archiv-API verwendet `POST …/api/documents/<id>/archive` beziehungsweise
+`POST …/api/annotations/<id>/archive` mit `{"archived": true|false}` und
+`If-Match`. Archivlisten sind mit `?archived=1` abrufbar. Eigentümer,
+aktive Domain, CSRF und Versionsprüfung gelten auch für Wiederherstellungen.
+Vor Einsatz ist die additive Datenbankmigration `0024_workbench_archive`
+mit `python manage.py migrate` einzuspielen.
 
 ## Eigene Texte und Revisionsverlauf (E2)
 

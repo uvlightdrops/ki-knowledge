@@ -20,6 +20,8 @@ const emptyMetadata = (): Metadata => ({ title: "", category: "claim", tags: "",
 function Workbench({ config }: { config: Bootstrap }) {
   const api = useRef(apiClient(config)).current;
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [archivedDocuments, setArchivedDocuments] = useState<DocumentSummary[]>([]);
+  const [archivedAnnotations, setArchivedAnnotations] = useState<Annotation[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [excludedSources, setExcludedSources] = useState<ExcludedSource[]>([]);
   const [targets, setTargets] = useState<Annotation[]>([]);
@@ -61,14 +63,18 @@ function Workbench({ config }: { config: Bootstrap }) {
   }, [hasUnsaved]);
 
   async function loadLists() {
-    const [docs, allAnnotations, allRelations] = await Promise.all([
+    const [docs, allAnnotations, allRelations, archivedDocs, archivedMarks] = await Promise.all([
       api<{ documents: DocumentSummary[] }>("documents"),
       api<{ annotations: Annotation[] }>("annotations"),
       api<{ relations: Relation[] }>("relations"),
+      api<{ documents: DocumentSummary[] }>("documents?archived=1"),
+      api<{ annotations: Annotation[] }>("annotations?archived=1"),
     ]);
     setDocuments(docs.documents);
     setTargets(allAnnotations.annotations);
     setRelations(allRelations.relations);
+    setArchivedDocuments(archivedDocs.documents);
+    setArchivedAnnotations(archivedMarks.annotations);
   }
   function report(cause: unknown) {
     const message = cause instanceof Error ? cause.message : String(cause);
@@ -220,6 +226,25 @@ function Workbench({ config }: { config: Bootstrap }) {
       await loadLists(); setStatus("Relation serverseitig gespeichert.");
     });
   }
+  async function archive(item: DocumentSummary | Annotation, annotation: boolean, archived: boolean) {
+    if (!mayLeave()) return;
+    if (archived && !window.confirm(`„${item.title || "Ohne Titel"}“ archivieren? Verlauf und Verweise bleiben erhalten.`)) return;
+    await action(async () => {
+      await api(`${annotation ? "annotations" : "documents"}/${item.id}/archive`, "POST", { archived }, item.etag);
+      if (!annotation && current?.id === item.id) {
+        setCurrent(null); setBuffer(""); setHistory([]); setConflict(null);
+        setChatDirty(false); setProposalDirty(false); resetInspector();
+      } else if (annotation && current) {
+        await displayDocument(await api<Document>(`documents/${current.id}/revisions/${current.revision.id}`));
+      }
+      await loadLists();
+      setStatus(archived ? "Archiviert. Im Archiv wiederherstellbar." : "Wiederhergestellt.");
+    });
+  }
+  const excludedGroups = new Map<string, ExcludedSource[]>();
+  for (const item of excludedSources) {
+    excludedGroups.set(item.reason, [...(excludedGroups.get(item.reason) || []), item]);
+  }
   const relevantRelations = active ? relations.filter(relation =>
     relation.source_id === active.id || relation.target_id === active.id) : [];
   const availableTargets = targets.filter(item => item.id !== active?.id &&
@@ -242,7 +267,9 @@ function Workbench({ config }: { config: Bootstrap }) {
           {ready && !sources.length && <p>Keine erfassbare Markdown-Datei im Data-Sources-Inventar dieser Domain vorhanden. Ein InfoSite-Projekt ist nicht erforderlich.</p>}
           {excludedSources.length > 0 && <details>
             <summary>Nicht erfassbare Quellen ({excludedSources.length})</summary>
-            <ul>{excludedSources.map(item => <li key={item.id}>{item.title}: {item.reason}</li>)}</ul>
+            {[...excludedGroups].map(([reason, items]) => <div key={reason}>
+              <p>{reason}</p><ul>{items.map(item => <li key={item.id}>{item.title}</li>)}</ul>
+            </div>)}
           </details>}
         </form> : <p>Neue Quellsnapshots dürfen in E1 nur angemeldete Staff-Benutzer erfassen.</p>}
         <form onSubmit={createNote}>
@@ -253,18 +280,36 @@ function Workbench({ config }: { config: Bootstrap }) {
         </form>
         <h3>Meine Texte</h3>
         <ul className="wb-items">{documents.map(item =>
-          <li key={item.id}><button data-testid={`document-${item.id}`} className={current?.id === item.id ? "wb-selected" : ""} disabled={busy}
+          <li key={item.id} className="wb-item-row">
+            <button type="button" className="wb-remove" aria-label={`Text archivieren: ${item.title}`} title="Archivieren (wiederherstellbar)" disabled={busy}
+              onClick={() => void archive(item, false, true)}>[x]</button>
+            <button data-testid={`document-${item.id}`} className={current?.id === item.id ? "wb-selected" : ""} disabled={busy}
             onClick={() => void openDocument(item.id)}>{item.title}{item.kind === "draft" ? " · Arbeitskopie" : ""}</button></li>)}</ul>
         {ready && !documents.length && <p>Noch kein Snapshot gespeichert.</p>}
         <h3>Markierungen im Dokument</h3>
         <ul className="wb-items">{current?.annotations.map(item =>
-          <li key={item.id}><button disabled={busy} className={active?.id === item.id ? "wb-selected" : ""}
+          <li key={item.id} className="wb-item-row">
+            <button type="button" className="wb-remove" aria-label={`Markierung archivieren: ${item.title}`} title="Archivieren (wiederherstellbar)" disabled={busy}
+              onClick={() => void archive(item, true, true)}>[x]</button>
+            <button disabled={busy} className={active?.id === item.id ? "wb-selected" : ""}
             onClick={() => inspect(item)}>{item.title || "Ohne Titel"}</button></li>)}</ul>
+        <details className="wb-archive">
+          <summary>Archiv ({archivedDocuments.length + archivedAnnotations.length})</summary>
+          <p>Archivierte Texte enthalten weiterhin ihre Markierungen und ihren Verlauf. Quelldateien bleiben unverändert.</p>
+          {archivedDocuments.map(item => <div key={item.id}>
+            <button disabled={busy} onClick={() => void archive(item, false, false)}>Text wiederherstellen: {item.title}</button>
+          </div>)}
+          {archivedAnnotations.map(item => <div key={item.id}>
+            <button disabled={busy} onClick={() => void archive(item, true, false)}>Markierung wiederherstellen: {item.title} · {item.document_title}</button>
+          </div>)}
+        </details>
         {Boolean(current?.historical_annotations.length) && <>
           <h3>Historische Markierungen</h3>
           <p>Auf diesem Textstand noch nicht zugeordnet. Neue Stelle wählen und bewusst zuordnen oder den historischen Stand öffnen.</p>
           {current!.historical_annotations.map(item => <div key={item.id} className="wb-historical">
             <strong>{item.title}</strong><blockquote>{item.exact}</blockquote>
+            <button type="button" className="wb-remove" aria-label={`Markierung archivieren: ${item.title}`} title="Archivieren (wiederherstellbar)" disabled={busy}
+              onClick={() => void archive(item, true, true)}>[x]</button>
             <button type="button" disabled={busy || hasUnsaved} onClick={() => void openRevision(item.revision_id)}>Ursprünglichen Stand öffnen</button>
             <button type="button" disabled={busy || !selection || hasUnsaved || !isHead}
               onClick={() => void reanchor(item)}>Dieser Auswahl zuordnen</button>

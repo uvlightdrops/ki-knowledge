@@ -103,6 +103,7 @@ def run_server(temporary):
             ))
         (temporary / "Unimportiert.md").write_text("# Noch ohne Import\n\nDirekt erfassbar.\n", encoding="utf-8")
         (temporary / "Hinweis.pdf").write_bytes(b"%PDF")
+        (temporary / "Weiterer-Hinweis.pdf").write_bytes(b"%PDF")
         assert not InfoSiteProject.objects.exists()
         def source_dir(kind, domain):
             return temporary if kind == "markdown" and domain == "browser-test" else temporary / kind / domain

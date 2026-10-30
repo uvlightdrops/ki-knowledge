@@ -12,13 +12,20 @@
 .wb .wb-items { list-style: none; padding: 0; }
 .wb .wb-items button { width: 100%; background: #1c2a40; border-color: var(--wb-line); overflow-wrap: anywhere; }
 .wb .wb-items .wb-selected { border-left: 4px solid var(--wb-accent); background: #254438; }
-.wb .wb-editor { height: 58vh; min-height: 340px; border: 1px solid var(--wb-line); }
+.wb .wb-item-row { display: flex; gap: 5px; align-items: stretch; }
+.wb .wb-item-row > button:not(.wb-remove) { flex: 1; min-width: 0; }
+.wb .wb-items .wb-remove, .wb .wb-remove { width: auto; flex: 0 0 auto; padding: 3px; font-size: .75rem; background: transparent; }
+.wb .wb-editor-layout { display: grid; min-width: 0; }
+.wb .wb-editor, .wb .wb-line-nav { height: 76vh; min-height: 420px; }
+.wb .wb-editor { min-width: 0; border: 1px solid var(--wb-line); }
+.wb .wb-line-nav { display: block; box-sizing: border-box; width: 100%; min-width: 0; overflow-y: auto; padding: 0 4px 0 0; }
+.wb .wb-line-nav button { display: block; width: 100%; margin: 0 0 3px; padding: 3px; background: transparent; border-color: var(--wb-line); font: .75rem monospace; color: var(--wb-accent); text-align: right; white-space: nowrap; }
 .wb .wb-selection { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .wb .wb-mark { background: #38644d; border-bottom: 2px solid #a2dcba; }
 .wb .wb-mark-selected { background: #596322; border-bottom-color: #ffdd76; }
 .wb blockquote { margin: 14px 0; padding: 10px 12px; border-left: 3px solid var(--wb-accent); background: #20372f; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
 .wb .wb-muted { color: #bbc8da; font-size: .9rem; }
-.wb .wb-status { min-height: 26px; }
+.wb .wb-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .wb .wb-error { border: 1px solid #e8a7a7; background: #4c252c; padding: 14px; white-space: pre-wrap; }
 .wb pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; }
 .wb .wb-relations { padding-left: 18px; }
@@ -37,4 +44,4 @@
 .wb .wb-proposals fieldset { border: 1px solid var(--wb-line); margin-top: 12px; }
 .wb .wb-diff { height: 320px; border: 1px solid var(--wb-line); margin-top: 12px; }
 @media (max-width: 1200px) { .wb .wb-layout { grid-template-columns: minmax(200px, .7fr) minmax(320px, 1.6fr); } .wb .wb-inspector { grid-column: 1 / -1; } }
-@media (max-width: 740px) { .wb .wb-layout { display: block; } .wb .wb-panel { margin-bottom: 16px; } .wb .wb-editor { min-height: 300px; height: 50vh; } }
+@media (max-width: 740px) { .wb .wb-layout { display: block; } .wb .wb-panel { margin-bottom: 16px; } .wb .wb-editor, .wb .wb-line-nav { min-height: 360px; height: 72vh; } }

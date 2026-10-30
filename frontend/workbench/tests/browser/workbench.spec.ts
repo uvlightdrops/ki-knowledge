@@ -33,10 +33,82 @@ test("general discovered Markdown and direct selection work without an InfoSite 
   await expect(page.getByRole("button", { name: "Snapshot ausdrücklich erfassen" })).toBeEnabled();
   await expect(page.getByText("Nicht erfassbare Quellen", { exact: false })).toBeVisible();
   await page.getByText("Nicht erfassbare Quellen", { exact: false }).click();
-  await expect(page.getByText("Hinweis.pdf:", { exact: false })).toBeVisible();
+  await expect(page.getByText("Hinweis.pdf", { exact: true })).toBeVisible();
+  await expect(page.getByText("Weiterer-Hinweis.pdf", { exact: true })).toBeVisible();
+  const excluded = page.locator("details").filter({ has: page.getByText("Hinweis.pdf", { exact: true }) });
+  const reasonCount = await excluded.locator("p").allTextContents();
+  expect(new Set(reasonCount).size).toBe(reasonCount.length);
   await page.getByRole("button", { name: "Snapshot ausdrücklich erfassen" }).click();
   await expect(page.getByRole("heading", { name: "Unimportiert.md", exact: true })).toBeVisible();
   await expect(page.getByTestId("source-editor")).toContainText("Direkt erfassbar.");
+});
+
+test("compact archive buttons preserve marks and restore documents after reload", async ({ page }) => {
+  await login(page);
+  await page.getByLabel("Neue eigene Notiz").fill("Archivtest");
+  await page.getByRole("button", { name: "Leere Notiz anlegen", exact: true }).click();
+  const editor = page.getByTestId("source-editor").getByRole("textbox");
+  await editor.focus();
+  await page.keyboard.insertText("# Archivtest\n\nEine erhaltene Passage.\n");
+  await page.getByRole("button", { name: "Textrevision speichern", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Neue Textrevision");
+  await mark(page, "Archivmarkierung");
+  const removeMark = page.getByRole("button", { name: "Markierung archivieren: Archivmarkierung", exact: true });
+  expect((await removeMark.boundingBox())!.width).toBeLessThan(40);
+  page.once("dialog", dialog => dialog.dismiss());
+  await removeMark.click();
+  await expect(page.getByRole("button", { name: "Archivmarkierung", exact: true })).toBeVisible();
+  page.once("dialog", dialog => dialog.accept());
+  await removeMark.click();
+  await expect(page.getByRole("button", { name: "Archivmarkierung", exact: true })).toHaveCount(0);
+  await page.locator(".wb-archive summary").click();
+  await page.getByRole("button", { name: "Markierung wiederherstellen: Archivmarkierung · Archivtest", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Archivmarkierung", exact: true })).toBeVisible();
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Text archivieren: Archivtest", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Dokument auswählen", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Archivtest · Arbeitskopie", exact: true })).toHaveCount(0);
+  await page.locator(".wb-archive summary").click();
+  await page.getByRole("button", { name: "Text wiederherstellen: Archivtest", exact: true }).click();
+  await page.getByRole("button", { name: "Archivtest · Arbeitskopie", exact: true }).click();
+  await expect(page.getByTestId("source-editor")).toContainText("Eine erhaltene Passage.");
+  await expect(page.getByRole("button", { name: "Archivmarkierung", exact: true })).toBeVisible();
+});
+
+test("narrow numeric navigation covers text without headings and does not change it", async ({ page }) => {
+  await login(page);
+  await page.getByLabel("Neue eigene Notiz").fill("Navigationstest");
+  await page.getByRole("button", { name: "Leere Notiz anlegen", exact: true }).click();
+  const text = "Anfang\n" + "Langer Absatz.\n".repeat(180) + "Ziel 🍒\nEnde.\n";
+  await page.getByTestId("source-editor").getByRole("textbox").focus();
+  await page.keyboard.insertText(text);
+  await page.getByRole("button", { name: "Textrevision speichern", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Neue Textrevision");
+  expect((await page.getByRole("status").boundingBox())!.height).toBeLessThanOrEqual(1);
+  const bounds = await page.getByTestId("source-editor").boundingBox();
+  expect(bounds!.height).toBeGreaterThanOrEqual(page.viewportSize()!.height * .75);
+  const navigation = page.getByRole("navigation", { name: "Zeilennummern-Navigation" });
+  expect((await navigation.boundingBox())!.width).toBeLessThanOrEqual(50);
+  expect(await navigation.getByRole("button").allTextContents()).toEqual([
+    "1", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100", "110", "120", "130", "140", "150", "160", "170", "180", "184",
+  ]);
+  await navigation.getByRole("button", { name: "Zeile 1", exact: true }).click();
+  await expect(page.getByTestId("source-editor").locator(".view-lines")).not.toContainText("Ziel 🍒");
+  await navigation.getByRole("button", { name: "Zeile 184", exact: true }).click();
+  await expect(page.getByTestId("source-editor").locator(".view-lines")).toContainText("Ziel 🍒");
+  await expect(page.getByRole("button", { name: "Textrevision speichern", exact: true })).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.locator(".wb").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  expect((await page.getByTestId("source-editor").boundingBox())!.height).toBeGreaterThan(600);
+  expect((await navigation.boundingBox())!.width).toBeLessThanOrEqual(50);
+  await page.getByTestId("source-editor").getByRole("textbox").focus();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText("Nur eine Zeile");
+  await expect(navigation.getByRole("button")).toHaveCount(1);
+  await expect(navigation.getByRole("button")).toHaveText("1");
+  page.once("dialog", dialog => dialog.accept());
+  await page.reload();
 });
 
 async function mark(page: Page, title: string) {
