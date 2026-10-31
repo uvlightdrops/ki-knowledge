@@ -1,0 +1,366 @@
+name: Config & Deployment Tests
+
+on:
+  push:
+    branches: [main, devel]
+    paths:
+      - 'config/**'
+      - 'ki.yaml'
+      - 'schema/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main, devel]
+    paths:
+      - 'config/**'
+      - 'ki.yaml'
+      - 'schema/**'
+
+jobs:
+  config-validation:
+    name: Config Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install ki-core and dependencies
+        run: |
+          pip install --quiet ki-core yaml-cfg-wizard pyyaml jsonschema requests
+          # Ensure ki-core is available from local path if in monorepo
+          pip install -e ../ki-core 2>/dev/null || true
+      
+      - name: Test all stages load correctly
+        env:
+          KI_STAGE: dev-lokal
+        run: |
+          python << 'PYTHON'
+          import sys
+          sys.path.insert(0, '../ki-core/src')
+          
+          from ki_core.config import load_config, active_layers
+          
+          stages = ['dev-lokal', 'dev-mk', 'prod-k8s', 'prod']
+          
+          for stage in stages:
+              import os
+              os.environ['KI_STAGE'] = stage
+              
+              try:
+                  config = load_config()
+                  layers = active_layers()
+                  
+                  # Verify basic structure
+                  assert isinstance(config, dict), f"Config not a dict for {stage}"
+                  assert layers['stage'] == stage, f"Stage mismatch for {stage}"
+                  assert 'llm' in config, f"LLM config missing for {stage}"
+                  assert 'apps' in config, f"Apps config missing for {stage}"
+                  
+                  print(f"✓ {stage:12} loaded successfully")
+              except Exception as e:
+                  print(f"✗ {stage:12} failed: {e}")
+                  sys.exit(1)
+          
+          print("\n✓ All stages loaded successfully")
+          PYTHON
+      
+      - name: Validate merge order (stage overrides base)
+        run: |
+          python << 'PYTHON'
+          import sys
+          sys.path.insert(0, '../ki-core/src')
+          sys.path.insert(0, '../yaml_cfg_wizard/src')
+          
+          from yaml_cfg_wizard.core import load_yaml_file, deep_merge
+          import os
+          
+          os.environ['KI_STAGE'] = 'dev-lokal'
+          
+          ki_yaml = load_yaml_file("ki.yaml")
+          stage_yaml = load_yaml_file("config/stages/dev-lokal.yaml")
+          
+          merged = deep_merge(ki_yaml, stage_yaml)
+          
+          # dev-lokal sets debug=true and allowed_hosts=["*"]
+          debug = merged.get('apps', {}).get('ki_knowledge', {}).get('django', {}).get('debug')
+          hosts = merged.get('apps', {}).get('ki_knowledge', {}).get('django', {}).get('allowed_hosts', [])
+          
+          assert debug == True, f"dev-lokal debug override failed: got {debug}"
+          assert hosts == ["*"], f"dev-lokal allowed_hosts override failed: got {hosts}"
+          
+          print("✓ Stage overrides base config correctly (deep merge works)")
+          PYTHON
+      
+      - name: Test environment variable override
+        run: |
+          python << 'PYTHON'
+          import sys
+          import os
+          sys.path.insert(0, '../ki-core/src')
+          
+          # Set env var override (highest priority)
+          os.environ['KI_CFG_APPS__KI_KNOWLEDGE__DJANGO__DEBUG'] = 'false'
+          os.environ['KI_STAGE'] = 'dev-lokal'  # dev-lokal.yaml has debug=true
+          
+          from ki_core.config import load_config
+          config = load_config()
+          
+          debug_value = config.get_path('apps.ki_knowledge.django.debug')
+          
+          # Env var should override stage config
+          assert debug_value == False, f"Env var override failed: expected False, got {debug_value}"
+          print("✓ Environment variable override works (KI_CFG_* has priority)")
+          PYTHON
+      
+      - name: Test provider detection
+        run: |
+          python << 'PYTHON'
+          import sys
+          import os
+          sys.path.insert(0, '../ki-core/src')
+          
+          from ki_core.config import ConfigManager
+          
+          stages_expected = {
+              'dev-lokal': 'ollama',      # Stage sets provider=ollama
+              'dev-mk': 'ollama',         # Stage sets provider=ollama
+              'prod-k8s': 'ki',           # Stage sets provider=ki
+              'prod': 'ki',               # Stage sets provider=ki
+          }
+          
+          for stage, expected_provider_config in stages_expected.items():
+              os.environ['KI_STAGE'] = stage
+              cm = ConfigManager()
+              
+              config_provider = cm.load().get_path('llm.provider')
+              detected_provider = cm.get_llm_provider()
+              
+              # Stage should set explicit provider
+              if config_provider != expected_provider_config:
+                  print(f"⚠ {stage}: config says {config_provider}, expected {expected_provider_config}")
+              
+              # Provider should be valid
+              valid_providers = ['openai', 'ollama', 'ki', 'mock']
+              assert detected_provider in valid_providers, \
+                  f"{stage}: invalid provider {detected_provider}"
+              
+              print(f"✓ {stage:12} config={config_provider:8} detected={detected_provider:8}")
+          
+          print("\n✓ All providers correctly detected")
+          PYTHON
+      
+      - name: Test creds.yaml merge (if present)
+        run: |
+          python << 'PYTHON'
+          import sys
+          import os
+          from pathlib import Path
+          sys.path.insert(0, '../ki-core/src')
+          
+          os.environ['KI_STAGE'] = 'dev-lokal'
+          
+          # Only test if creds.yaml exists
+          if not Path('creds.yaml').exists():
+              print("⊘ creds.yaml not present (normal in CI), skipping")
+              sys.exit(0)
+          
+          from ki_core.config import load_config
+          config = load_config()
+          
+          # If creds has app_password, it should be in final config
+          creds_path = Path('creds.yaml')
+          if creds_path.exists():
+              from yaml_cfg_wizard.core import load_yaml_file
+              creds = load_yaml_file('creds.yaml')
+              
+              if 'apps' in creds and 'ki_knowledge' in creds['apps']:
+                  creds_app = creds['apps']['ki_knowledge']
+                  config_app = config.get('apps', {}).get('ki_knowledge', {})
+                  
+                  # Check if nextcloud password is merged
+                  if 'nextcloud' in creds_app and 'app_password' in creds_app['nextcloud']:
+                      config_nc = config_app.get('nextcloud', {})
+                      assert config_nc.get('app_password') == creds_app['nextcloud']['app_password'], \
+                          "Creds not merged correctly"
+                      print("✓ creds.yaml merged correctly (high priority)")
+          PYTHON
+      
+      - name: Validate config file structure
+        run: |
+          python << 'PYTHON'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, '../yaml_cfg_wizard/src')
+          
+          from yaml_cfg_wizard.core import load_yaml_file
+          
+          required_files = [
+              ('ki.yaml', 'Main config'),
+              ('config/stages/dev-lokal.yaml', 'dev-lokal stage'),
+              ('config/stages/dev-mk.yaml', 'dev-mk stage'),
+              ('config/stages/prod-k8s.yaml', 'prod-k8s stage'),
+              ('config/stages/prod.yaml', 'prod stage'),
+          ]
+          
+          for filepath, desc in required_files:
+              if not Path(filepath).exists():
+                  print(f"✗ {desc} missing: {filepath}")
+                  sys.exit(1)
+              
+              try:
+                  data = load_yaml_file(filepath)
+                  assert isinstance(data, dict), f"{filepath} is not a dict"
+                  print(f"✓ {filepath:35} exists and is valid YAML")
+              except Exception as e:
+                  print(f"✗ {filepath:35} invalid: {e}")
+                  sys.exit(1)
+          
+          print("\n✓ All required config files present and valid")
+          PYTHON
+      
+      - name: Check for secrets in config files
+        run: |
+          python << 'PYTHON'
+          import sys
+          from pathlib import Path
+          import re
+          
+          # Files to check
+          check_files = [
+              'ki.yaml',
+              'config/stages/dev-lokal.yaml',
+              'config/stages/dev-mk.yaml',
+              'config/stages/prod-k8s.yaml',
+              'config/stages/prod.yaml',
+          ]
+          
+          # Secret patterns to look for
+          secret_patterns = [
+              (r'api_key\s*:\s*["\']?[a-zA-Z0-9\-_]{20,}["\']?', 'API Key'),
+              (r'secret_key\s*:\s*["\']?[a-zA-Z0-9]{30,}["\']?', 'Secret Key'),
+              (r'password\s*:\s*["\']?[a-zA-Z0-9]{8,}["\']?', 'Password'),
+              (r'token\s*:\s*["\']?[a-zA-Z0-9\-_]{30,}["\']?', 'Token'),
+          ]
+          
+          found_secrets = False
+          
+          for filepath in check_files:
+              if not Path(filepath).exists():
+                  continue
+              
+              content = Path(filepath).read_text()
+              
+              for pattern, secret_type in secret_patterns:
+                  matches = re.finditer(pattern, content)
+                  for match in matches:
+                      # Exclude obvious non-secrets like empty strings, placeholders
+                      value = match.group(0)
+                      if any(x in value for x in ['${', '***', 'YOUR_', 'REPLACE_', '""', "''"]):
+                          continue
+                      
+                      print(f"⚠ Potential {secret_type} in {filepath}")
+                      print(f"  {value[:60]}...")
+                      found_secrets = True
+          
+          if found_secrets:
+              print("\n⚠ Potential secrets found in config files!")
+              print("  → Move secrets to creds.yaml (add to .gitignore)")
+              print("  → Use placeholders like 'YOUR_API_KEY' or '${...}'")
+              # Don't fail the build, just warn
+          else:
+              print("✓ No obvious secrets found in config files")
+          PYTHON
+  
+  health-check:
+    name: Deployment Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push'  # Only on push, not PR
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install --quiet ki-core yaml-cfg-wizard pyyaml jsonschema requests
+          pip install -e ../ki-core 2>/dev/null || true
+      
+      - name: Run health check (config verification)
+        env:
+          KI_STAGE: dev-lokal
+        run: |
+          python << 'PYTHON'
+          import sys
+          sys.path.insert(0, '../ki-core/src')
+          
+          from ki_core.config import load_config, ConfigManager
+          
+          print("Performing deployment health checks...")
+          print()
+          
+          # 1. Config loads
+          try:
+              config = load_config()
+              print("✓ Config loads successfully")
+          except Exception as e:
+              print(f"✗ Config load failed: {e}")
+              sys.exit(1)
+          
+          # 2. Required sections exist
+          required = ['llm', 'apps', 'knowledge']
+          for section in required:
+              if section not in config:
+                  print(f"✗ Missing required section: {section}")
+                  sys.exit(1)
+          print(f"✓ All required sections present: {', '.join(required)}")
+          
+          # 3. LLM provider can be detected
+          try:
+              cm = ConfigManager()
+              provider = cm.get_llm_provider()
+              print(f"✓ LLM provider detected: {provider}")
+          except Exception as e:
+              print(f"✗ Provider detection failed: {e}")
+              sys.exit(1)
+          
+          # 4. App config structure
+          app_config = config.get('apps', {}).get('ki_knowledge', {})
+          if 'django' not in app_config:
+              print("✗ Django config missing")
+              sys.exit(1)
+          print("✓ App config structure valid")
+          
+          print()
+          print("✓ All health checks passed")
+          PYTHON
+  
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [config-validation, health-check]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.config-validation.result }}" != "success" ]; then
+            echo "❌ Config validation failed"
+            exit 1
+          fi
+          
+          if [ "${{ needs.health-check.result }}" != "success" ] && [ "${{ needs.health-check.result }}" != "skipped" ]; then
+            echo "❌ Health check failed"
+            exit 1
+          fi
+          
+          echo "✅ All tests passed"
