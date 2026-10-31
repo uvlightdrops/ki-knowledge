@@ -6,6 +6,7 @@ historische Berichte sind nicht derselbe Implementierungsstand.**
 ## Hier anfangen
 
 - [Schnellstart und Projektueberblick](../README.md).
+- [**Deployment-Infrastruktur**](deployment/README.md) — Stages, Config-Merge, Betrieb.
 - [Aktuelle Bestandsaufnahme](tracking/project-inventory-2026-10-28.md):
   Groesse, Verantwortlichkeiten, Engpaesse und priorisierte Bereinigung.
 - [Django und Service-Stack betreiben](guides/DJANGO_DEV.md).

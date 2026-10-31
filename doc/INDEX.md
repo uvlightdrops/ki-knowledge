@@ -5,6 +5,10 @@
 
 ## Betrieb und Entwicklung
 
+- [Deployment-Infrastruktur](deployment/README.md) — Übersicht der 4 Stages (dev-lokal, dev-mk, prod-k8s, prod).
+  - [Config Merge Reference](deployment/CONFIG_MERGE_REFERENCE.md) — Konfigurationsschichten und Merge-Semantik.
+  - [Stage Details](deployment/STAGES.md) — Detaillierte Anleitung für jede Stage.
+  - [Testing](deployment/TESTING.md) — Config-Validierung und Deployment-Tests.
 - [Django und Stack](guides/DJANGO_DEV.md).
 - [YAML-Konfiguration](guides/YAML_CONFIG_SYSADMIN.md).
 - [Live-Konfiguration: Bedienung, Vererbung und Aktivierungsgrenzen](guides/live-settings.md).
