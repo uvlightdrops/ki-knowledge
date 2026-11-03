@@ -46,6 +46,7 @@ dev = [
 ]
 widgetkit = ["Jinja2>=3.1"]
 audit = ["pip-audit>=2.7.0"]
+uberspace7 = ["gunicorn>=23"]
 # shared node contracts with ia3simworld (not on PyPI yet; dev: pip install -e ../ia3simworld/packages/ki-node-core)
 node = ["ki-node-core>=0.1.0a1"]
 

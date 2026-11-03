@@ -1,8 +1,11 @@
 #!/bin/sh
-# Compatibility alias for the centrally installed stackctl, rooted in this project.
+# Compatibility alias, rooted in this project.
 set -e
 ROOT=$(dirname "$(readlink -f "$0")")
-if [ -x "$HOME/.local/bin/stackctl" ]; then
+if [ -x "$ROOT/.venv/bin/python" ]; then
+    cd "$ROOT"
+    exec "$ROOT/.venv/bin/python" -m stackctl "$@"
+elif [ -x "$HOME/.local/bin/stackctl" ]; then
     STACKCTL="$HOME/.local/bin/stackctl"
 elif command -v stackctl >/dev/null 2>&1; then
     STACKCTL=$(command -v stackctl)

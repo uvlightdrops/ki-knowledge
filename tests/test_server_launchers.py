@@ -60,6 +60,17 @@ def test_wrapper_prefers_central_tool_preserves_root_arguments_and_exit_code(tmp
     assert not (root / ".venv").exists()
 
 
+def test_wrapper_prefers_project_interpreter_without_global_fallback(tmp_path, monkeypatch):
+    root, home, _ = _wrapper_project(tmp_path, monkeypatch)
+    _fake_stackctl(root / ".venv/bin/python", "project-python", exit_code=17)
+    _fake_stackctl(home / ".local/bin/stackctl", "central")
+    result = subprocess.run(
+        [str(root / "kistack"), "status"], cwd=tmp_path, capture_output=True, text=True,
+    )
+    assert result.returncode == 17
+    assert result.stdout.splitlines() == ["project-python", str(root), "-m", "stackctl", "status"]
+
+
 def test_wrapper_uses_path_when_no_central_tool_exists(tmp_path, monkeypatch):
     root, _, bin_dir = _wrapper_project(tmp_path, monkeypatch)
     _fake_stackctl(bin_dir / "stackctl", "path")

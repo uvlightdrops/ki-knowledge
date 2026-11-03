@@ -4,6 +4,9 @@ This directory documents the deployment infrastructure for ki-knowledge.
 
 ## Quick Links
 
+- **[Ollama: Server-Anforderungen](OLLAMA_REQUIREMENTS.md)** - Dedizierter Inferenzhost, Hardwareprofile und messbare Leistungsziele.
+- **[Uberspace 7: Umsetzung und Installation](UBERSPACE7_IMPLEMENTATION.md)** - Bootstrap, supervisord, PostgreSQL/pgvector und Git-Updates; Hostabnahme offen.
+- **[Uberspace 8: Umsetzungsplan](UBERSPACE8_IMPLEMENTATION.md)** - Rootloses Hosting, stackctl/systemd-Grenzen und geplante Skripte; noch nicht implementiert.
 - **[CONFIG_MERGE_REFERENCE.md](CONFIG_MERGE_REFERENCE.md)** - How configuration layers work
 - **[STAGES.md](STAGES.md)** - Detailed guide for each deployment stage
 - **[TESTING.md](TESTING.md)** - Testing deployment configurations locally

@@ -1,0 +1,35 @@
+# Copy to config/runtime/runtime.yaml and replace EVERY example value.
+# Use an existing PostgreSQL cluster; bootstrap never creates or stops it.
+knowledge:
+  data_root: /home/ACCOUNT/ki/data/ki-knowledge
+llm:
+  provider: ollama
+  providers:
+    ollama:
+      # Persistent, separately supervised SSH tunnel to the dedicated Ollama host.
+      base_url: http://127.0.0.1:11434
+      model: REPLACE_WITH_INSTALLED_CHAT_MODEL
+apps:
+  ki_knowledge:
+    distributed:
+      # Password is read by libpq from ~/.pgpass (0600), not duplicated here.
+      postgres_dsn: postgresql://APP_ROLE@127.0.0.1:5432/APP_DATABASE
+    django:
+      allowed_hosts: [knowledge.example.org]
+      csrf_trusted_origins: [https://knowledge.example.org]
+      wagtail_admin_base_url: https://knowledge.example.org
+      static_root: /var/www/virtual/ACCOUNT/knowledge.example.org/static
+      media_root: /home/ACCOUNT/ki/data/ki-knowledge/media
+      # Only set this after verifying the U7 frontend overwrites this header.
+      secure_proxy_ssl_header: [HTTP_X_FORWARDED_PROTO, https]
+    uberspace7:
+      domain: knowledge.example.org
+      document_root: /var/www/virtual/ACCOUNT/knowledge.example.org
+      backup_root: /home/ACCOUNT/ki/backups/ki-knowledge
+stack:
+  services:
+    postgres: {host: 127.0.0.1, port: 5432}
+    ollama: {host: 127.0.0.1, port: 11434}
+    api: {port: 8090}
+    django:
+      port: 8000

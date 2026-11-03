@@ -234,7 +234,47 @@ properties:
               wagtail_admin_base_url:
                 type: string
                 default: ""
+              static_root:
+                type: string
+                default: ""
+              media_root:
+                type: string
+                default: ""
+              csrf_trusted_origins:
+                type: array
+                items: {type: string}
+                default: []
+              session_cookie_secure:
+                type: boolean
+                default: false
+              csrf_cookie_secure:
+                type: boolean
+                default: false
+              secure_ssl_redirect:
+                type: boolean
+                default: false
+              secure_hsts_seconds:
+                type: integer
+                minimum: 0
+                default: 0
+              secure_proxy_ssl_header:
+                type: array
+                items: {type: string}
+                default: []
             additionalProperties: true
+          uberspace7:
+            type: object
+            properties:
+              domain:
+                type: string
+                default: ""
+              document_root:
+                type: string
+                default: ""
+              backup_root:
+                type: string
+                default: ""
+            additionalProperties: false
         additionalProperties: true
     additionalProperties: true
 additionalProperties: true

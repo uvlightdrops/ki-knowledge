@@ -33,6 +33,31 @@ DEBUG = (
 ALLOWED_HOSTS = (
     os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if os.getenv("DJANGO_ALLOWED_HOSTS") else None
 ) or list(_DJANGO_CFG.get("allowed_hosts") or ["*"])
+CSRF_TRUSTED_ORIGINS = list(_DJANGO_CFG.get("csrf_trusted_origins") or [])
+SESSION_COOKIE_SECURE = bool(_DJANGO_CFG.get("session_cookie_secure", False))
+CSRF_COOKIE_SECURE = bool(_DJANGO_CFG.get("csrf_cookie_secure", False))
+SECURE_SSL_REDIRECT = bool(_DJANGO_CFG.get("secure_ssl_redirect", False))
+SECURE_HSTS_SECONDS = int(_DJANGO_CFG.get("secure_hsts_seconds", 0))
+_proxy_header = _DJANGO_CFG.get("secure_proxy_ssl_header") or []
+if _proxy_header and (
+    not isinstance(_proxy_header, list) or len(_proxy_header) != 2
+    or not all(isinstance(value, str) and value for value in _proxy_header)
+):
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured("secure_proxy_ssl_header must be [header_name, secure_value]")
+SECURE_PROXY_SSL_HEADER = tuple(_proxy_header) if _proxy_header else None
+if os.getenv("KI_STAGE") == "prod-uberspace7" and (
+    DEBUG or "*" in ALLOWED_HOSTS or not ALLOWED_HOSTS
+    or SECRET_KEY.startswith("django-insecure") or len(SECRET_KEY) < 50
+    or not SESSION_COOKIE_SECURE or not CSRF_COOKIE_SECURE
+    or not SECURE_SSL_REDIRECT or not SECURE_PROXY_SSL_HEADER
+):
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "prod-uberspace7 requires an explicit secret, hosts, secure cookies and verified HTTPS proxy settings."
+    )
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -136,8 +161,17 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [str(BASE_DIR / "static")] if (BASE_DIR / "static").exists() else []
-# for apache2 
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = Path(_DJANGO_CFG.get("static_root") or BASE_DIR / "staticfiles").expanduser()
+MEDIA_ROOT = str(Path(_DJANGO_CFG["media_root"]).expanduser()) if _DJANGO_CFG.get("media_root") else ""
+MEDIA_URL = "/media/"
+if _DJANGO_CFG.get("static_root"):
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            "OPTIONS": {"file_permissions_mode": 0o644, "directory_permissions_mode": 0o755},
+        },
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -84,6 +84,11 @@ external services depend on the resolved project configuration.
 
 ## Installation
 
+Rootless Uberspace 7: use the dedicated
+[installation and update guide](doc/deployment/UBERSPACE7_IMPLEMENTATION.md).
+It uses the project's `.venv/bin/python -m stackctl` and a separately delivered
+supervisord adapter; the Ubuntu/Docker commands below do not apply there.
+
 Ubuntu 24 (dev or prod host), any directory:
 
 ```bash
@@ -110,8 +115,9 @@ this repo (`STACKCTL_SRC_DIR` to change) and clones them there if they are missi
 Existing checkouts are used as they are, so a `git pull` in a sibling is picked up
 immediately. Re-run `install` after dependency changes in `pyproject.toml`.
 
-`./kistack` remains a compatibility alias: it delegates to `~/.local/bin/stackctl`
-(otherwise `stackctl` on PATH) with this project as cwd. It never installs tools
+`./kistack` remains a compatibility alias: it prefers `.venv/bin/python -m stackctl`
+with this project as cwd. Without a project interpreter it retains the legacy
+`~/.local/bin/stackctl` (otherwise PATH) invocation. It never installs tools
 or creates a project environment itself. The old `examples/run_knowledge_*.py`
 launchers forward through that alias to `stackctl -t local run api|django`;
 they contain no separate server implementation. No active project venv is needed
