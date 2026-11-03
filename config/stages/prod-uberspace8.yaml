@@ -1,0 +1,34 @@
+llm:
+  provider: ollama
+apps:
+  ki_knowledge:
+    django:
+      debug: false
+      session_cookie_secure: true
+      csrf_cookie_secure: true
+      secure_ssl_redirect: true
+      secure_hsts_seconds: 3600
+stack:
+  target: systemd-user
+  services:
+    postgres:
+      kind: external
+      host: localhost
+      compose: null
+    ollama:
+      kind: external
+      host: 127.0.0.1
+      compose: null
+      post_start: null
+    api:
+      host: 127.0.0.1
+      env:
+        KI_STAGE: prod-uberspace8
+        UVICORN_RELOAD: "false"
+    django:
+      host: 0.0.0.0
+      health_path: ""
+      prepare: null
+      command: ["{python}", "-m", gunicorn, "ki_knowledge.django_site.wsgi:application", --bind, "{host}:{port}", --workers, "1", --threads, "2", --timeout, "120", --access-logfile, "-"]
+      env:
+        KI_STAGE: prod-uberspace8

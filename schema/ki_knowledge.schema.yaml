@@ -275,6 +275,22 @@ properties:
                 type: string
                 default: ""
             additionalProperties: false
+          uberspace8:
+            type: object
+            properties:
+              domain:
+                type: string
+                default: ""
+              document_root:
+                type: string
+                default: ""
+              backup_root:
+                type: string
+                default: ""
+              exclude_provider_postgis:
+                type: boolean
+                default: false
+            additionalProperties: false
         additionalProperties: true
     additionalProperties: true
 additionalProperties: true

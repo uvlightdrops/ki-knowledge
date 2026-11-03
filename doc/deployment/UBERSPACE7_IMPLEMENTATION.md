@@ -2,8 +2,8 @@
 project: ki-knowledge
 scope: deployment
 created: "2026-11-03 01"
-updated: "2026-11-03 02"
-update_reason: "Repository-Implementierung, sichere Erstinstallation und Git-Updatepfad dokumentiert"
+updated: "2026-11-03 15"
+update_reason: "Gemeinsamen U7/U8-Workflow und plattformspezifische Lifecycle-Adapter dokumentiert"
 status: draft
 agent_project: ki-knowledge
 ---
@@ -18,6 +18,12 @@ Bestand aufnehmen und integrieren, nicht neu initialisieren oder fremde
 Dienste uebernehmen. Stage, Bootstrap und Deploymentskript sind im Repository
 implementiert; der generische supervisord-Adapter liegt im Schwesterprojekt
 stackctl. **Auf Uberspace noch nicht installiert oder abgenommen.**
+
+U7 und U8 verwenden denselben Deploymentkern in
+`ki_knowledge/deployment/uberspace.py` und den Standardbibliothek-Bootstrap in
+`deploy/uberspace_bootstrap.py`; die versionsbezogenen Einstiegspunkte bleiben
+erhalten. Beide Versionen sperren denselben Checkout ueber `var/uberspace.lock`.
+Vor Umstellung laufende alte U7-Deployments mit bisheriger Sperrdatei abschliessen.
 
 ## Bedienbarer Repository-Stand
 
@@ -126,7 +132,7 @@ off-host Backupkopie und kontrollierte externe Readiness.
 
 Einstiege: [Deployment](README.md), [Config-Merge](CONFIG_MERGE_REFERENCE.md),
 [Dokumentationsbaum](../README.md). Der
-[U8-Plan](UBERSPACE8_IMPLEMENTATION.md) beschreibt dieselbe Deployment-Linie,
+[U8-Leitfaden](UBERSPACE8_IMPLEMENTATION.md) beschreibt dieselbe Deployment-Linie,
 aber einen anderen Plattformadapter. Gemeinsame Grundlagen:
 [Server-Management](../../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).
 Workspace-Links setzen benachbarte Repositories voraus.
@@ -166,8 +172,7 @@ ki-core  -> normaler Config-Merge -> Stage prod-uberspace7
 Git-Transport per HTTPS, projektbezogene `.venv`, deklarierte
 Geschwister-Repositories und stackctl bleiben die Einstiege. Kein eigener
 Prozessmanager, kein zweiter PID-Bestand, keine duplizierten `.env`-Dateien.
-Der im U8-Plan beschriebene Einstiegskonflikt ist fuer diesen Pfad durch
-den projektbezogenen stackctl-Aufruf im Bootstrap und in `kistack` aufgeloest.
+Bootstrap und `kistack` verwenden den projektbezogenen stackctl-Aufruf.
 
 Die Stage verwendet Gunicorn fuer WSGI, zunaechst einen Worker mit zwei
 Threads, und Uvicorn ohne Reload fuer die interne API. Gunicorn ist im
@@ -376,7 +381,7 @@ die modernere Basis, sobald pgvector dort bestaetigt und aktivierbar ist.
 | pgvector | Fuer PostgreSQL 12–15 im Changelog bestaetigt; Zieldatenbank aktivieren. | Im gelesenen PostgreSQL-Handbuch nicht zugesichert; keine Behauptung, dass es fehlt. |
 | Datenbankbetrieb | Eigener Cluster bietet administrative Kontrolle, erfordert aber eigene Pflege und Backuporganisation. | Anbieterbetrieb und taegliche PostgreSQL-Backups reduzieren Eigenbetrieb; weniger administrative Freiheit. |
 | Python-/Native-Pakete | Aeltere Systembasis kann moderne Wheels oder native Abhaengigkeiten erschweren, trotz aktueller Python-Binaries. | Aktuelle Systembibliotheken/Compiler erleichtern tendenziell moderne Dependencies; Rolling Updates verlangen Regressionstests. |
-| Lifecycle | Bewaehrtes supervisord, stackctl-Adapter implementiert; Hostabnahme ausstehend. | systemd-User-Services, Journal und Timer; stackctl-Adapter noch zu implementieren. |
+| Lifecycle | Bewaehrtes supervisord, stackctl-Adapter implementiert; Hostabnahme ausstehend. | systemd-User-Services und Journal; stackctl-Adapter implementiert, Hostabnahme ausstehend. |
 | Perspektive | CentOS-7-Basis wird laut Anbieter weiter sicherheitsgepflegt; nicht mit ungepatchtem Standard-CentOS gleichsetzen. | Aktive Weiterentwicklung auf Arch Linux; Anbieter bezeichnet U8 auf der Vergleichsseite noch als Beta hinsichtlich Featurevollstaendigkeit. |
 
 Es gibt keinen belegten pauschalen Geschwindigkeitsvorteil einer Plattform
@@ -409,4 +414,4 @@ Projektbezug: `ki_knowledge/integrations/knowledge_store.py`
 (`_init_schema`, `add_embedding`, `similar_blocks`),
 `ki_knowledge/config_runtime.py`, `config/defaults/stack.yaml` und
 `ki_knowledge/django_site/settings.py`. Gemeinsame offene Integrationspunkte
-sind im [U8-Plan](UBERSPACE8_IMPLEMENTATION.md) dokumentiert.
+sind im [U8-Leitfaden](UBERSPACE8_IMPLEMENTATION.md) dokumentiert.

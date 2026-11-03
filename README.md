@@ -84,10 +84,12 @@ external services depend on the resolved project configuration.
 
 ## Installation
 
-Rootless Uberspace 7: use the dedicated
-[installation and update guide](doc/deployment/UBERSPACE7_IMPLEMENTATION.md).
-It uses the project's `.venv/bin/python -m stackctl` and a separately delivered
-supervisord adapter; the Ubuntu/Docker commands below do not apply there.
+Rootless Uberspace: use the dedicated
+[U7](doc/deployment/UBERSPACE7_IMPLEMENTATION.md) or
+[U8 installation and update guide](doc/deployment/UBERSPACE8_IMPLEMENTATION.md).
+Both use the project's `.venv/bin/python -m stackctl` with the corresponding
+supervisord (U7) or systemd-user (U8) adapter; the Ubuntu/Docker commands below
+do not apply there.
 
 Ubuntu 24 (dev or prod host), any directory:
 

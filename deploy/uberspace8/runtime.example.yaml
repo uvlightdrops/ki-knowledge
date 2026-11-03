@@ -1,0 +1,37 @@
+# Merge into config/runtime/runtime.yaml; replace EVERY example value.
+# Use an existing database; bootstrap never creates databases or extensions.
+knowledge:
+  data_root: /home/ACCOUNT/ki/data/ki-knowledge
+llm:
+  provider: ollama
+  providers:
+    ollama:
+      # Persistent, separately managed SSH tunnel to the dedicated Ollama host.
+      base_url: http://127.0.0.1:11434
+      model: REPLACE_WITH_INSTALLED_CHAT_MODEL
+apps:
+  ki_knowledge:
+    distributed:
+      # Match the provider's ~/.pgpass entry; do not copy the password here.
+      postgres_dsn: postgresql://ACCOUNT@localhost:5432/ACCOUNT_knowledge
+    django:
+      allowed_hosts: [knowledge.example.org]
+      csrf_trusted_origins: [https://knowledge.example.org]
+      wagtail_admin_base_url: https://knowledge.example.org
+      static_root: /var/www/virtual/ACCOUNT/knowledge.example.org/static
+      media_root: /home/ACCOUNT/ki/data/ki-knowledge/media
+      # Only set this after verifying the U8 frontend overwrites this header.
+      secure_proxy_ssl_header: [HTTP_X_FORWARDED_PROTO, https]
+    uberspace8:
+      domain: knowledge.example.org
+      document_root: /var/www/virtual/ACCOUNT/knowledge.example.org
+      backup_root: /home/ACCOUNT/ki/backups/ki-knowledge
+      # Provider PostGIS dump workaround; see runbook before opting in.
+      # Leave false for an external database or if these schemas hold your data.
+      exclude_provider_postgis: false
+stack:
+  services:
+    postgres: {host: localhost, port: 5432}
+    ollama: {host: 127.0.0.1, port: 11434}
+    api: {port: 8090}
+    django: {port: 8000}

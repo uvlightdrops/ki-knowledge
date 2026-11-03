@@ -47,7 +47,7 @@ if _proxy_header and (
 
     raise ImproperlyConfigured("secure_proxy_ssl_header must be [header_name, secure_value]")
 SECURE_PROXY_SSL_HEADER = tuple(_proxy_header) if _proxy_header else None
-if os.getenv("KI_STAGE") == "prod-uberspace7" and (
+if os.getenv("KI_STAGE") in {"prod-uberspace7", "prod-uberspace8"} and (
     DEBUG or "*" in ALLOWED_HOSTS or not ALLOWED_HOSTS
     or SECRET_KEY.startswith("django-insecure") or len(SECRET_KEY) < 50
     or not SESSION_COOKIE_SECURE or not CSRF_COOKIE_SECURE
@@ -56,7 +56,7 @@ if os.getenv("KI_STAGE") == "prod-uberspace7" and (
     from django.core.exceptions import ImproperlyConfigured
 
     raise ImproperlyConfigured(
-        "prod-uberspace7 requires an explicit secret, hosts, secure cookies and verified HTTPS proxy settings."
+        f"{os.environ['KI_STAGE']} requires an explicit secret, hosts, secure cookies and verified HTTPS proxy settings."
     )
 
 INSTALLED_APPS = [

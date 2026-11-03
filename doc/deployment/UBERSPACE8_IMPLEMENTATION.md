@@ -2,240 +2,239 @@
 project: ki-knowledge
 scope: deployment
 created: "2026-11-02 22"
-updated: "2026-11-02 22"
-update_reason: "Umsetzungsplan fuer rootloses Uberspace-8-Hosting im KI-Oekosystem"
+updated: "2026-11-03 15"
+update_reason: "U8-Bootstrap, systemd-User-Lifecycle und gemeinsamen U7/U8-Deploymentpfad implementiert"
 status: draft
 agent_project: ki-knowledge
 ---
 
 # Uberspace 8: Deployment-Umsetzung
 
-## Status und Geltungsbereich
+## Status und Voraussetzungen
 
-Ziel ist ein **Uberspace-8-Hosting-Account ohne Root-Zugriff**, kein eigener
-Ubuntu-VPS. Dieses Dokument ist der erste Umsetzungsschritt: Architektur,
-Skriptverantwortlichkeiten, Voraussetzungen und Abnahme. Die beschriebenen
-neuen Skripte, Stage und stackctl-Erweiterungen sind **noch nicht implementiert**;
-auf einem Zielhost wurde nichts installiert oder gestartet.
+Ziel ist ein **rootloser Uberspace-8-Account**, kein eigener Ubuntu-VPS.
+Bootstrap, Stage, Deployment und Runtime-Vorlage sind implementiert; der
+generische **systemd-User-Adapter** liegt im Schwesterrepository stackctl.
+Beide Repositories gemeinsam ausliefern. **Auf einem Zielhost wurde nichts
+installiert, gestartet oder abgenommen.**
 
-Einstiege: [Deployment](README.md), [Dokumentationsbaum](../README.md),
-[Config-Merge](CONFIG_MERGE_REFERENCE.md). Projektuebergreifende Grundlagen:
-[Server-Management](../../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md)
-und [KI-Oekosystem](../../../../dev_doc/architecture/ki-ecosystem-workbench.md).
-Externe Workspace-Links setzen benachbarte Repositories voraus.
+Die Bedienbefehle entsprechen [U7](UBERSPACE7_IMPLEMENTATION.md).
+Gemeinsame Implementierung: `ki_knowledge/deployment/uberspace.py` und
+Standardbibliothek-Bootstrap `deploy/uberspace_bootstrap.py`; Einstiegspunkte:
+`deploy/uberspace7/` und `deploy/uberspace8/`.
+Git/HTTPS, Projekt-venv, ki-core-Konfigurationsmerge und stackctl bleiben die
+einzigen Installations-/Lifecycle-Vertraege. Keine duplizierten `.env`,
+kein eigener Prozessmanager, kein Docker, nginx oder sudo auf Uberspace.
+Andere Stages bleiben unveraendert.
 
-## 1. Bestehende Linie und notwendige Anpassungen
+Vor Installation bestaetigen:
 
-Beibehalten werden Git-Transport per HTTPS, Geschwister-Repositories,
-projektbezogene `.venv`, Konfiguration durch ki-core und **stackctl als einziger
-Lifecycle-Einstieg**. Keine Makefiles, duplizierten `.env`-Konfigurationen,
-eigenen PID-Register oder projektspezifischen Ersatz-Prozessmanager.
+- Versionierter Python-Interpreter ab 3.12, Git, `systemctl`, `journalctl`,
+  `pg_dump` und Uberspace-CLI sind vorhanden. Die systemd-User-Instanz ist
+  erreichbar und wird vom Anbieter beim Boot gestartet.
+- Eigene Domain mit geprueftem DocumentRoot, freie Ports, Speicherquota und
+  RAM-Budget. Django bindet `0.0.0.0`; die interne API bleibt auf Loopback.
+- PostgreSQL-Datenbank mit **aktivem pgvector** und Nicht-Superuser-App-Rolle.
+  Bootstrap legt weder Datenbank noch Erweiterung an.
+- Ollama mit Embedding- und Chatmodell auf dem separaten Root-Server.
+  Ein separat betreuter SSH-Tunnel lauscht auf `127.0.0.1:11434`; Schluessel,
+  Host-Key-Pruefung und automatische Wiederverbindung vorher einrichten.
 
-Es gibt einen konkreten Dokumentations-/Integrationskonflikt:
-`ki-knowledge/README.md` und `kistack` verwenden noch das globale stackctl;
-die aktuelle `stackctl/README.md` verlangt im KI-Oekosystem dagegen
-`.venv/bin/python -m stackctl`, wobei `install` in die ausfuehrende venv
-installiert und keine Projekt-venv anlegt. Vor dem Bootstrap diesen Vertrag
-anhand der verwendeten stackctl-Revision pruefen und die betroffenen
-Einstiegspunkte samt Launcher-Tests konsistent anpassen. Kein stiller Wechsel
-zwischen Tool- und Projektumgebung.
+### PostgreSQL und pgvector bleiben ein Host-Gate
 
-Die vorhandene `prod`-Stage bleibt unveraendert: sie beschreibt Hostbetrieb
-mit Docker Compose und Django `runserver`. Uberspace bekommt eine eigene
-Stage `prod-uberspace8`. Ein Stage-Wechsel allein macht aus dem bestehenden
-lokalen Prozessbackend noch keine systemd-Integration.
+U8 stellt PostgreSQL mit Accountrolle und privater `~/.pgpass` bereit.
+Zusaetzliche Datenbanken muessen mit dem Accountnamen beginnen.
+Das gelesene Handbuch sichert **pgvector nicht zu**; die Rolle kann nicht
+beliebige native Extensions selbst installieren.
 
-## 2. Verifizierte Uberspace-8-Rahmenbedingungen
+In der tatsaechlichen App-Datenbank lesend pruefen:
 
-| Bereich | Bedeutung fuer die Umsetzung |
-|---|---|
-| Betriebssystem | Arch Linux mit Rolling Releases; keine `apt`-/`sudo`-Installation voraussetzen. |
-| Dauerbetrieb | systemd-User-Instanz startet beim Hostboot; `supervisord` gehoert zu Uberspace 7, nicht 8. |
-| Web | Uberspace-Caddy uebernimmt HTTPS und Routing. Das Webbackend muss auf `0.0.0.0` oder `::` lauschen, Port 1024–65535. |
-| Python | Versioniertes Binary fuer Bootstrap verwenden; vorgeschlagen Python 3.12, Paketkompatibilitaet auf dem Zielhost pruefen. Nicht den wechselnden Standardinterpreter voraussetzen. |
-| Ressourcen | Laut aktuellem U8-Handbuch insgesamt 1500 MiB RAM, CPU-Fair-Use und standardmaessig 10 GB Speicher. Tatsaechliche Account-Limits vor Installation messen. |
-| PostgreSQL | Vom Anbieter bereitgestellt; eigene Datenbank mit Account-Praefix moeglich. Zugang ueber localhost, Passwort in privater `~/.pgpass`. |
-| Erweiterungen | pgvector ist in der gelesenen U8-Dokumentation nicht zugesichert. Verfuegbarkeit und Berechtigung muessen vorab bestaetigt werden. |
-
-Diese Aussagen stammen aus dem **U8-Handbuch**, nicht aus U7-Anleitungen.
-Rolling Releases und Anbieterlimits bei der eigentlichen Installation erneut
-pruefen; die unten verlinkten Quellen sind keine Zusage fuer jeden Account.
-
-## 3. Zielaufbau und offene Freigaben
-
-```text
-Browser -- HTTPS --> Uberspace-Caddy
-                       | /static -> DocumentRoot, nur oeffentliche Assets
-                       | /       -> Django WSGI auf 0.0.0.0:<web-port>
-                                         |
-                              interne Knowledge-API auf 127.0.0.1:<api-port>
-                                         |
-                            explizit konfigurierter Daten-/Providerzugriff
-
-stackctl -> systemd --user -> benannte Services und Journal
-ki-core  -> defaults -> ki.yaml -> Profil/Stage -> runtime -> KI_CFG_* -> creds
+```sql
+SELECT current_database(), current_user, version();
+SELECT name, default_version, installed_version
+FROM pg_available_extensions WHERE name = 'vector';
+SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
+SELECT rolsuper FROM pg_roles WHERE rolname = current_user;
+SELECT '[1,0,0]'::vector <=> '[1,0,0]'::vector;
 ```
 
-Vorgeschlagen: Gunicorn statt `runserver --insecure`, zunaechst ein Worker
-mit begrenzter Parallelitaet; API ohne Reload. Kein eigener nginx und kein
-Docker-/Helm-Stack auf diesem Account. Gunicorn ist derzeit keine
-Projektdependency und muss bei Umsetzung explizit aufgenommen werden.
+Der Distanzvergleich muss `0` ergeben. Fehlende Bereitstellung/Aktivierung
+mit dem Anbieter klaeren oder **explizit externes PostgreSQL mit pgvector**
+konfigurieren. DSN und externe Stack-Host-/Portwerte muessen uebereinstimmen.
+Es gibt keinen stillen SQLite-Fallback; dieser Deploymentpfad setzt PostgreSQL
+fuer Django und KnowledgeStore voraus. Keine Datenmigration durch DSN-Wechsel.
 
-**Vor Implementierung der betroffenen Skripte entscheiden:**
+## Erstinstallation
 
-| Entscheidung | Vorschlag / Grenze |
-|---|---|
-| Datenbank | Anbieter-PostgreSQL nur bei nachgewiesenem pgvector-Support fuer den KnowledgeStore. Andernfalls explizit SQLite-Pilot oder externe PostgreSQL-Datenbank vereinbaren. |
-| Embeddings | Ollama mit `nomic-embed-text` auf einem separaten erreichbaren Host; keine lokale Modellinstallation im knappen Accountbudget. Verbindung ueber abgesicherten Zugang/Tunnel, nicht eine offene Ollama-API. |
-| Chat | Vorhandenen Provider ueber `ki_knowledge.llm_provider` / ki-core konfigurieren; Endpoint und Zugang auf dem Zielhost pruefen. |
-| Zugriff | Pilot zunaechst nur fuer berechtigte Nutzer; oeffentliche Inhalte und administrative Schreibaktionen vor Freischaltung getrennt pruefen. |
-| Domain und Updates | Eigene Subdomain, freie Ports und auszuliefernde Branches je Repo festlegen. Erst manueller Git-Updatepfad, spaeter opt-in Automatik. |
-
-Der aktuelle KnowledgeStore fuehrt bei PostgreSQL
-`CREATE EXTENSION IF NOT EXISTS vector` aus. Ein erfolgreicher Django-DB-Test
-allein reicht deshalb **nicht** als Nachweis des vollstaendigen Betriebs.
-Ein SQLite-Pilot ist eine bewusst freigegebene Variante, kein automatischer
-Fallback bei PostgreSQL-Fehlern. Ein bestehender PostgreSQL-Datenbestand braucht
-eine gesonderte, gepruefte Migration; DSN leeren migriert keine Daten.
-
-## 4. Eigentuemermodule und geplante Artefakte
-
-| Ort | Geplante Verantwortung |
-|---|---|
-| `stackctl` | Generischer systemd-User-Adapter fuer Installieren/Starten/Stoppen/Status/Logs; gleiche aufgeloeste Service-Spec, keine Knowledge-Logik. |
-| `ki-core` | Unveraenderter Config-Loader und Providervertrag; keine Uberspace-Sonderkonfiguration daneben. |
-| `config/stages/prod-uberspace8.yaml` | Projekt-Spec: keine Compose-Dienste starten, WSGI-Kommando, interne API, Reload aus, Debug aus; benoetigte generische Spec-Felder zuerst in stackctl definieren. |
-| `schema/ki_knowledge.schema.yaml` und Django-Settings | Explizite konfigurierbare HTTPS-/CSRF-/Cookie-Einstellungen sowie Static-/Media-Pfade; Defaults bestehender Stages bewahren. |
-| `pyproject.toml` | WSGI-Abhaengigkeit und vereinbarter stackctl-Installationsvertrag; keine absoluten Entwicklerpfade. |
-| `deploy/uberspace8/bootstrap.py` | Rootlosen Erstaufbau pruefen, Projekt-venv mit gewaehltem Python erstellen, stackctl darin bereitstellen und dessen Sibling-Installation aufrufen. Keine Lifecycle-Implementierung. |
-| `deploy/uberspace8/configure_web.py` | Nur freigegebene Domain-/Pfad-Backends ueber die U8-CLI konfigurieren; vorher Bestand anzeigen, keine fremden Backends ueberschreiben. |
-| `deploy/uberspace8/update.py` | Gesperrte Update-Transaktion: Git-Pruefung, Backup, freigegebene Revisionen, Installation bei Bedarf, Migration, Assets, Neustart und Readiness ueber stackctl. |
-| `tests/` | Bootstrap-/Update-Fehlerpfade und Projekt-Spec; Adapter-/Unit-Tests gehoeren ins stackctl-Repo. |
-
-Dateinamen sind geplante Artefakte, keine bereits aufrufbaren Befehle.
-Die Adapter-CLI erst nach Abstimmung der stackctl-Spec dokumentieren:
-insbesondere kein erfundenes `stackctl -t uberspace` oder bereits vorhandenes
-systemd-Ziel behaupten.
-
-Skripte vorzugsweise als Python mit `subprocess`-Argumentlisten, klaren
-Exitcodes und begrenzten Timeouts, nicht als lange eingebettete Python-Bloecke
-in Shellskripten. Idempotent arbeiten; fehlende Programme/Konfigurationen
-konkret melden. Keine stillen Defaults, kein `eval`, kein Secret im Log.
-
-## 5. Konfiguration, Dateien und HTTPS
-
-Vorgeschlagenes Hostlayout, vom konkreten Entwicklerpfad unabhaengig:
-
-```text
-~/ki/src/ki-knowledge/                  Checkout und .venv
-~/ki/src/stackctl/                      unabhaengiges Tool-Checkout
-~/ki/src/<siblings>/                    Namen/Pfade aus pyproject.toml
-~/ki/data/ki-knowledge/                 Daten, Quellen, Workspace, private Medien
-~/ki/backups/ki-knowledge/              gesicherte Backups und Revisionsmanifest
-~/.config/systemd/user/                 von stackctl verwaltete Units
-/var/www/virtual/<account>/<docroot>/static/  collectstatic-Ausgabe
-```
-
-Nichtgeheime Hostwerte in `config/runtime/runtime.yaml`; Secrets in
-`creds.yaml` mit Modus `0600` bzw. bei PostgreSQL passende private `.pgpass`.
-Beide Konfigpfade und `.active_stage` sind bereits gitignored. Keine Kopie
-von Zugangsdaten in Units, `.env` oder Dokumentation. Relative/expandierte
-Pfade ueber den Config-Vertrag aufloesen; `${HOME}` in YAML nicht ohne
-nachgewiesene Loader-Unterstuetzung verwenden.
-
-Die Stage muss `debug: false` und explizite `allowed_hosts` erzwingen.
-DSN, API-URL, Provider-URL, Datenroot und Wagtail-Admin-URL muessen im
-**aufgeloesten** Configstand stimmen: `ki.yaml` und `creds.yaml` koennen
-Stagewerte ueberlagern. Systemd-WorkingDirectory ist das Projektroot,
-Interpreter die Projekt-venv, Stage explizit; keine interaktive Shellaktivierung.
-
-Vor Freigabe Django um erforderliche Einstellungen erweitern:
-`CSRF_TRUSTED_ORIGINS`, sichere Session-/CSRF-Cookies und gepruefte
-HTTPS-Erkennung hinter dem Anbieterproxy. `SECURE_PROXY_SSL_HEADER` nur
-setzen, wenn dessen Header vom Proxy verlaesslich bereinigt/gesetzt wird;
-keine ungepruefte Vertrauensannahme oder Redirect-Schleife.
-
-`STATIC_ROOT` ist aktuell im Quellbaum festgelegt. Fuer U8 konfigurieren
-und `collectstatic` in den echten DocumentRoot schreiben; kein Symlink auf
-das private Home-Verzeichnis. Nur oeffentliche Assets dort ablegen.
-Wagtail-Medien separat behandeln: private Uploads nicht pauschal durch ein
-oeffentliches `/media`-Backend freigeben.
-
-U8-Beispiel, **erst nach Domainpruefung und laufendem Webdienst**, mit
-freigegebenen konkreten Werten:
+Im HTTPS-Checkout, mit vertrauenswuerdigem aktuellem stackctl-Checkout daneben:
 
 ```bash
-uberspace web backend list
-uberspace web backend add <domain>/ port <web-port>
-uberspace web backend add <domain>/static static
-uberspace web backend list
+python3.12 deploy/uberspace8/bootstrap.py --stackctl-source ../stackctl
+mkdir -p config/runtime
 ```
 
-Nicht blind `--force` verwenden; bestehende Zuordnungen muessen explizit
-freigegeben werden. Knowledge-API und Datenbank bekommen kein Webbackend.
+Bootstrap erstellt nur eine fehlende `.venv`, installiert stackctl editierbar,
+ruft dessen Sibling-Installation mit dem Extra `uberspace8` auf und prueft
+Abhaengigkeiten. Eine unvollstaendige oder zu alte vorhandene venv wird
+nicht ueberschrieben. **Keine Hostdienste, Datenbanken oder Webbackends
+werden dabei eingerichtet.**
 
-## 6. Implementierungsreihenfolge und Abnahme
+`config/runtime/runtime.yaml` anhand von
+`deploy/uberspace8/runtime.example.yaml` anlegen oder die benoetigten Werte
+in die bestehende Datei **zusammenfuehren, nicht ueberschreiben**:
+Account, Domain, Daten-/Backup-/Static-/Medienpfade, DSN, Ports und
+tatsaechlich installierten Chatmodellnamen ersetzen.
+Bei Anbieter-PostgreSQL den Hostnamen an den vorhandenen `.pgpass`-Eintrag
+anpassen; `localhost` und `127.0.0.1` sind dort nicht automatisch austauschbar.
 
-1. **Host-Preflight und Entscheidungen:** Python, Git, User-systemd,
-   Namespace, Ports, Quota und RAM pruefen; DB-/pgvector- und Providerzugang
-   entscheiden. Noch keine Migration oder Routingaenderung.
-2. **stackctl-Vertrag konsolidieren:** venv-Bootstrap und generischen
-   User-systemd-Adapter implementieren. Unitnamen projektspezifisch,
-   `WantedBy=default.target`, begrenzte Restarts, Journal, sauberes SIGTERM.
-   Status/Logs auch fuer die bestehende maschinenlesbare Integration liefern.
-   Keine parallel von stackctl und systemd verwalteten PID-Lebenszyklen;
-   Vorbereitung genau einmal im festgelegten Start-/Updatepfad.
-3. **Projekt integrieren:** Stage, WSGI-Dependency, HTTPS-/Asset-Settings und
-   Bootstrap implementieren; erforderliche Schema-/Config-Tests ergaenzen.
-   External-Dienste weder starten noch stoppen; keine geerbten Compose-Hooks
-   oder Ollama-Model-Pulls ausfuehren.
-4. **Pilot installieren:** Backups vorbereiten, Migration/KnowledgeStore
-   pruefen, Assets sammeln, Dienste ueber stackctl starten; Routing erst nach
-   lokaler Readiness konfigurieren. Adminzugang interaktiv anlegen.
-5. **Updatepfad umsetzen:** Schreibende Dienste/Jobs geordnet pausieren,
-   konsistente Sicherung erstellen, genehmigte saubere Checkouts per
-   `git pull --ff-only` aktualisieren. Kein automatisches Stash, Reset,
-   Branchwechsel oder Umschreiben der Historie. Jede Sibling-Revision und
-   aufgeloeste Paketversion im privaten Revisionsmanifest festhalten.
-6. **Automatisierung freigeben:** Erst nach erfolgreichem Wiederherstellungstest
-   denselben Updatepfad als opt-in User-Timer oder kontrollierten SSH-Aufruf
-   betreiben. Nicht jeder beliebige Push loest ungepruefte Prod-Migrationen aus.
+Secrets bleiben in privater `creds.yaml` bzw. vorhandener `.pgpass`, Modus
+`0600`. Einen zufaelligen Django-Schluessel von mindestens 50 Zeichen unter
+`apps.ki_knowledge.django.secret_key` eintragen. Keine Zugangsdaten in Units,
+Beispiele, Shellhistorie oder Git uebernehmen.
 
-Bei Fehlern Update mit ungleich null beenden und den tatsaechlichen Zustand
-melden; keine Erfolgsmeldung nach fehlgeschlagener Migration oder Readiness.
-Keine automatische Rueckmigration: Rueckkehr zu alten Coderevisionen nur bei
-kompatiblem Schema, sonst dokumentierte Wiederherstellung der gesicherten
-Daten und Revisionen ohne Git-History-Rewrite.
+Hostlayout:
 
-Abnahme umfasst: `manage.py check --deploy` mit bewerteten Warnungen,
-DB-/KnowledgeStore-Schreib-/Lesetest, authentifizierten Import, Chat und
-Embedding, statische Assets und privaten Medienzugriff, CSRF/HTTPS-Login,
-Neustart nach SSH-Abmeldung, automatische Crash-Recovery, gemessenen
-RAM-/Speicherverbrauch sowie Backup-Restore. Lokaler HTTP-Erfolg oder
-`systemctl active` allein ist keine vollstaendige Readiness.
+```text
+~/ki/src/ki-knowledge/                         Checkout und .venv
+~/ki/src/stackctl/                             Tool-Checkout
+~/ki/src/<siblings>/                           deklarierte Geschwister
+~/ki/data/ki-knowledge/                        private Daten und Medien
+~/ki/backups/ki-knowledge/                     private Sicherungen
+~/.config/systemd/user/                        verwaltete User-Units
+/var/www/virtual/<account>/<domain>/static/     oeffentliche Assets
+```
 
-SQLite-Backups bei freigegebenem Pilot konsistent ueber Backup-API oder bei
-gestoppten Schreibern erstellen, nicht laufende WAL-Dateien einzeln kopieren.
-PostgreSQL-Dumps auf Restore pruefen; den aktuell dokumentierten
-U8-PostGIS-Dumpfehler beruecksichtigen. Quellen, Workspace, Artefakte und
-private Medien mit sichern; eine DB-Sicherung allein reicht nicht.
-Mindestens eine geschuetzte Kopie ausserhalb des Accounts vorsehen.
+DocumentRoot muss bereits existieren und zur Domain passen. U8 legt Domains
+zunaechst als Symlinks auf `html` an: vor Verwendung pruefen, ob mehrere
+Domains denselben Inhalt teilen. Keine Symlinks auf private Home-Daten
+veroeffentlichen. `static_root` muss exakt `<document_root>/static` sein;
+`media_root` bleibt im privaten Datenroot. Static-Dateien erhalten `0644`,
+Verzeichnisse `0755`; Backups bleiben privat.
 
-## Quellen
+Die Stage setzt sichere Cookies, HTTPS-Redirect und eine Stunde HSTS.
+Den `X-Forwarded-Proto`-Vertrag des U8-Frontends **vor** Aktivierung von
+`secure_proxy_ssl_header` bestaetigen. Explizite Hosts, HTTPS-CSRF-Origin und
+oeffentliche Wagtail-Admin-URL sind Pflicht.
+Prozessgebundene Konfigurations-Overrides werden beim Deployment abgelehnt,
+damit User-Units nach einem Neustart denselben dateibasierten Stand verwenden.
 
-Offizielle Uberspace-8-Quellen, fuer diesen Entwurf am 02.11.2026 gelesen:
+```bash
+.venv/bin/python deploy/uberspace8/deploy.py check
+.venv/bin/python deploy/uberspace8/deploy.py apply
+```
 
-- [U7 zu U8: Arch Linux und systemd](https://u8manual.uberspace.de/first_u7/)
+`check` prueft Settings, Hosttools, User-Manager, PostgreSQL/pgvector,
+App-Rolle und benoetigte Ollama-Modelle. Django-Deploywarnungen werden
+ausgegeben und blockiert, ausser bewusst nicht erzwungenem HSTS fuer weitere
+Subdomains/Preloading (`security.W005`/`security.W021`).
+
+`apply` stoppt nur Django/API, sichert Daten, migriert, initialisiert das
+KnowledgeStore-Schema, sammelt Assets und startet ueber stackctl.
+Es prueft danach HTTP mit Domain und verifiziertem HTTPS-Proxyheader lokal.
+Externer Login, CSRF, Import und Chat/Embedding sind Teil der Hostabnahme,
+nicht durch einen offenen TCP-Port bewiesen.
+
+## systemd-User-Lifecycle und Webrouting
+
+```bash
+KI_STAGE=prod-uberspace8 ./kistack status
+KI_STAGE=prod-uberspace8 ./kistack logs django
+KI_STAGE=prod-uberspace8 ./kistack restart django api
+KI_STAGE=prod-uberspace8 .venv/bin/python manage.py createsuperuser
+```
+
+Alternativ die Stage in `config/stages/.active_stage` hinterlegen.
+`kistack` bevorzugt die Projekt-venv. stackctl rendert ausschliesslich
+eigene Units mit Projekt-cwd, venv-Interpreter und expliziter Stage.
+Systemd startet die Dienste im Vordergrund, fuehrt keine Migration bei
+Crash-Recovery aus und protokolliert ins Journal. `WantedBy=default.target`
+erlaubt den Bootstart; User-Manager/Abmeldung auf dem Host abnehmen.
+Ein explizites `stop` deaktiviert auch den Bootstart; `start` aktiviert ihn
+wieder. Nach fehlgeschlagenem Deployment bleiben die Schreiber damit auch
+nach einem Hostneustart gestoppt.
+Externe PostgreSQL-/Ollama-Abhaengigkeiten werden nur geprueft, nicht verwaltet.
+Keine systemweiten Units, kein globaler Neustart fremder Dienste.
+
+Domain-Routing wird **separat freigegeben**:
+
+```bash
+# Bestand anzeigen; ohne Bestaetigung bewusst kein Schreibzugriff:
+.venv/bin/python deploy/uberspace8/deploy.py web
+# Genau diese Domain und ihre zwei Pfade zum Ersetzen freigeben:
+.venv/bin/python deploy/uberspace8/deploy.py web --confirm-domain DEINE.DOMAIN
+```
+
+Nach exakter Bestaetigung verwendet das Skript die U8-Syntax
+`uberspace web backend add DOMAIN/ port PORT --force` und
+`add DOMAIN/static static --force`. `--force` gilt nur fuer diese beiden
+freigegebenen Pfade, nie fuer das globale Standardbackend.
+Bestehende Zuordnungen vorher dokumentieren. Private Medien, API und
+Datenbank erhalten **kein** oeffentliches Backend.
+
+## Backups, Updates und Wiederherstellung
+
+```bash
+.venv/bin/python deploy/uberspace8/deploy.py backup
+.venv/bin/python deploy/uberspace8/deploy.py update
+```
+
+`backup` stoppt App-Schreiber und laesst sie danach absichtlich gestoppt.
+`update` verlangt saubere Projekt-/Tool-/Sibling-Checkouts mit Upstream,
+sperrt parallele Deployments, stoppt Django/API, sichert und zieht jedes Repo
+per `git pull --ff-only`. Bei geaenderten Dependency-Manifesten erfolgt
+erneute Installation, immer `pip check`; anschliessend laeuft der aktualisierte
+Deploymentcode unter derselben vererbten Sperre.
+U7 und U8 teilen je Checkout `var/uberspace.lock`; laufende alte
+U7-Deployments vor Umstellung abschliessen.
+
+Kein Stash/Reset, kein automatischer Rollback und keine atomare
+Multi-Repo-Transaktion: Fehler koennen bereits aktualisierte Checkouts und
+gestoppte App-Schreiber hinterlassen. Externe Dienste bleiben unberuehrt.
+Import-/Cron-Schreiber vorab eigenstaendig pausieren.
+
+Private Sicherungen enthalten Custom-Format-PostgreSQL-Dump, Datenarchiv,
+Hostkonfiguration und Revisions-/Paketmanifest. Symlinks werden nicht verfolgt:
+externe Quellen separat sichern und geschuetzte off-host Kopie vorsehen.
+
+### Anbieter-PostGIS-Dumpfehler
+
+Das aktuelle U8-Handbuch beschreibt einen Fehler beim Dump automatisch
+bereitgestellter PostGIS-Objekte. Standardmaessig wird **nichts ausgeschlossen**.
+Nur bei bestaetigtem Anbieterfall und ohne eigene Daten in diesen Schemas
+`apps.ki_knowledge.uberspace8.exclude_provider_postgis: true` setzen.
+Das Skript prueft dann `pg_dump` auf `--exclude-extension`-Unterstuetzung
+und verwendet die dokumentierten Ausschluesse fuer `public.spatial_ref_sys`,
+`tiger`, `tiger_data`, `topology` sowie `postgis`, `postgis_topology`,
+`postgis_tiger_geocoder` und `fuzzystrmatch`. **pgvector bleibt enthalten.**
+Alle Ausschluesse stehen im Backupmanifest.
+
+Solche Dumps benoetigen die ausgeschlossenen Anbieterobjekte bereits im
+Restore-Ziel. Nicht ungeprueft auf externe Datenbanken uebertragen.
+Bei externem PostgreSQL oder eigenen Daten in ausgeschlossenen Schemas
+diesen Schalter nicht aktivieren; Backupstrategie separat klaeren.
+
+Restore zuerst in separater Datenbank und separatem Datenroot erproben:
+passende Extensions administrativ bereitstellen, Dump per `pg_restore`
+einspielen, Datenarchiv und private Konfiguration zuordnen und kompatible
+Revisionen aus dem Manifest verwenden. Nicht ueber Live-Daten restaurieren.
+
+Hostabnahme: DB-/KnowledgeStore-Schreib-/Lesetest, HTTPS-Login/CSRF, Import,
+Chat/Embedding, Assets/Medienrechte, SSH-Abmeldung, Boot-/Crash-Recovery,
+Ressourcenverbrauch und Restore. Erst danach unbeaufsichtigte Updates
+oder einen opt-in Timer freigeben.
+
+## Einstiege und Quellen
+
+[Deployment](README.md), [Config-Merge](CONFIG_MERGE_REFERENCE.md),
+[Dokumentationsbaum](../README.md),
+[Server-Management im Workspace](../../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).
+
+Offizielle Dokumentation, fuer die Umsetzung am 03.11.2026 erneut geprueft:
+
 - [systemd-User-Services und Bootverhalten](https://u8manual.uberspace.de/services_systemd/)
-- [Webbackends: U8-Syntax und Bind-Adresse](https://u8manual.uberspace.de/web_backends/)
-- [DocumentRoot und Zugriffsgrenzen](https://u8manual.uberspace.de/web_documentroot/)
+- [U8-Webbackends und Bind-Adresse](https://u8manual.uberspace.de/web_backends/)
+- [DocumentRoot und Dateirechte](https://u8manual.uberspace.de/web_documentroot/)
+- [PostgreSQL, Extensions und PostGIS-Dump-Workaround](https://u8manual.uberspace.de/database_postgresql/)
+- [Python](https://u8manual.uberspace.de/lang_python/)
 - [HTTP-Stack und HTTPS](https://u8manual.uberspace.de/background_http/)
-- [Python und venv](https://u8manual.uberspace.de/lang_python/)
-- [PostgreSQL, Extensions und Backups](https://u8manual.uberspace.de/database_postgresql/)
-- [Account-Ressourcen](https://u8manual.uberspace.de/basics_resources/)
-
-Projektbefund: `kistack`, `pyproject.toml`, `config/defaults/stack.yaml`,
-`config/stages/prod.yaml`, `ki_knowledge/django_site/settings.py`,
-`ki_knowledge/config_runtime.py`, `ki_knowledge/integrations/knowledge_store.py`
-und `.gitignore`. Tool-Vertrag:
-[stackctl-README im Workspace](../../../stackctl/README.md).
+- [Ressourcen](https://u8manual.uberspace.de/basics_resources/)

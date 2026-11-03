@@ -8,7 +8,7 @@
 - [Deployment-Infrastruktur](deployment/README.md) — Übersicht der 4 Stages (dev-lokal, dev-mk, prod-k8s, prod).
   - [Ollama: Server-Anforderungen](deployment/OLLAMA_REQUIREMENTS.md) — Hardwareprofile für den separaten Root-Server und Leistungsziele.
   - [Uberspace 7: Umsetzung und Installation](deployment/UBERSPACE7_IMPLEMENTATION.md) — supervisord, Bootstrap und Git-Updates; Hostabnahme offen.
-  - [Uberspace 8: Umsetzungsplan](deployment/UBERSPACE8_IMPLEMENTATION.md) — rootloses Hosting und geplante Skripte; noch nicht implementiert.
+  - [Uberspace 8: Umsetzung und Installation](deployment/UBERSPACE8_IMPLEMENTATION.md) — Bootstrap, systemd-User-Services und Git-Updates; pgvector und Hostabnahme pruefen.
   - [Config Merge Reference](deployment/CONFIG_MERGE_REFERENCE.md) — Konfigurationsschichten und Merge-Semantik.
   - [Stage Details](deployment/STAGES.md) — Detaillierte Anleitung für jede Stage.
   - [Testing](deployment/TESTING.md) — Config-Validierung und Deployment-Tests.
