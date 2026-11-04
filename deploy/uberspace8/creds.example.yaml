@@ -1,0 +1,9 @@
+# Copy to <checkout>/creds.yaml (gitignored), then: chmod 600 creds.yaml
+# Secrets only; host settings belong in config/runtime/runtime.yaml.
+# Generate the key locally:
+#   .venv/bin/python -c "import secrets; print(secrets.token_urlsafe(64))"
+# The PostgreSQL password stays in ~/.pgpass (0600), not here.
+apps:
+  ki_knowledge:
+    django:
+      secret_key: "REPLACE_WITH_RANDOM_KEY_OF_AT_LEAST_50_CHARS"

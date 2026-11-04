@@ -52,7 +52,8 @@ Datei die benoetigten Eintraege zusammenfuehren, **nicht ueberschreiben**.
 Alle Beispielwerte ersetzen, insbesondere Account, Domain,
 Datenpfade, App-Rolle/-Datenbank und den auf dem Root-Server installierten
 Chatmodellnamen. Zugangsdaten gehoeren nach `creds.yaml` bzw. in die vorhandene
-private `.pgpass`. Django-Schluessel als zufaelligen, mindestens 50 Zeichen
+private `.pgpass`. Vorlage: `deploy/uberspace7/creds.example.yaml` nach
+`creds.yaml` im Checkout kopieren. Django-Schluessel als zufaelligen, mindestens 50 Zeichen
 langen Wert lokal erzeugen und unter `apps.ki_knowledge.django.secret_key`
 in `creds.yaml` eintragen. `chmod 600 creds.yaml ~/.pgpass` nur auf die
 tatsaechlich verwendeten Dateien anwenden.

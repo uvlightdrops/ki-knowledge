@@ -88,7 +88,7 @@ Bei Anbieter-PostgreSQL den Hostnamen an den vorhandenen `.pgpass`-Eintrag
 anpassen; `localhost` und `127.0.0.1` sind dort nicht automatisch austauschbar.
 
 Secrets bleiben in privater `creds.yaml` bzw. vorhandener `.pgpass`, Modus
-`0600`. Einen zufaelligen Django-Schluessel von mindestens 50 Zeichen unter
+`0600`; Vorlage: `deploy/uberspace8/creds.example.yaml`. Einen zufaelligen Django-Schluessel von mindestens 50 Zeichen unter
 `apps.ki_knowledge.django.secret_key` eintragen. Keine Zugangsdaten in Units,
 Beispiele, Shellhistorie oder Git uebernehmen.
 
