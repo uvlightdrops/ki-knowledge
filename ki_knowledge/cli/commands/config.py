@@ -1,10 +1,13 @@
 """Config management commands for ki-knowledge (delegates to ki-core).
 
-These commands provide config inspection and management by delegating
-to ki_core.commands for consistency across the KI ecosystem.
+Config inspection uses the app's canonical ki-core-backed accessor.
+Other commands delegate to ki_core.commands.
 """
 
+from typing import Any
+
 import click
+import yaml
 
 
 def run_config():
@@ -27,14 +30,22 @@ def run_skeleton():
         raise click.Exit(code=1)
 
 
-def run_show():
-    """Show config or specific key (delegates to ki-core)."""
-    try:
-        from ki_core.commands import run_show
-        run_show(echo_fn=click.echo)
-    except ImportError:
-        click.echo("❌ ki-core not installed. Cannot show config.", err=True)
-        raise click.Exit(code=1)
+@click.command()
+@click.argument("key", required=False)
+def run_show(key: str | None = None):
+    """Show resolved app config or a dotted KEY, including runtime overrides."""
+    from ki_knowledge.app_config import AppConfig
+
+    value: Any = dict(AppConfig.from_env().raw)
+    if key is not None:
+        for part in key.split("."):
+            if not isinstance(value, dict) or part not in value:
+                raise click.ClickException(f"Configuration key not found: {key}")
+            value = value[part]
+    if isinstance(value, str):
+        click.echo(value)
+    else:
+        click.echo(yaml.safe_dump(value, sort_keys=False).removesuffix("...\n").rstrip("\n"))
 
 
 def run_verify():

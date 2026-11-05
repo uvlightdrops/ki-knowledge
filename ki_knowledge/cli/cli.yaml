@@ -4,6 +4,9 @@
 cli:
   # Top-level commands and groups
   commands:
+    paths:
+      help: "Show a domain's existing source folders or resolve one source path"
+      callback: "ki_knowledge.cli.commands.paths:paths"
     infosite:
       help: "Knowledge Presentation (Infosite) Management"
       commands:
@@ -87,7 +90,7 @@ cli:
           help: "Generate config skeleton"
           callback: "ki_knowledge.cli.commands.config:run_skeleton"
         show:
-          help: "Show config or specific key"
+          help: "Show resolved app config or a dotted key (may include secrets)"
           callback: "ki_knowledge.cli.commands.config:run_show"
         verify:
           help: "Verify config against schema"

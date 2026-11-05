@@ -1,3 +1,13 @@
+---
+project: "ki-knowledge"
+scope: "architecture"
+created: "2026-09-02 18"
+updated: "2026-11-05 13"
+update_reason: "Distinguish empty configured roots from effective paths and list domain source folders"
+status: "active"
+agent_project: "ki-knowledge"
+---
+
 # Ki-Knowledge System Overview
 
 > Architecture document with historical and planned sections. For the dated
@@ -7,9 +17,6 @@
 
 > For the Data Sources interaction model and intake workflow, use the leading
 > [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
-
-**Letzte Aktualisierung:** 2026-09-02  
-**Status:** Architecture Review & Refactoring
 
 ---
 
@@ -465,12 +472,76 @@ names; use `DataLayout.from_config(cfg)` (honours `KNOWLEDGE_*_ROOT` /
 `ki_knowledge.django_site.domain_paths.data_layout()`.
 
 The layout version is read from `<data_root>/.layout-version` (missing = v1).
+
+#### Inspect the effective paths before adding sources
+
+Run these commands from the checkout on the U7 host (`~/dev_flow/ki-knowledge`).
+Use the same stage and any configuration environment overrides as the running
+app; an interactive shell does not inherit Supervisor's service environment.
+`knowledge.data_root` is configured in `config/runtime/runtime.yaml`, not in
+`deploy/uberspace7/`.
+
+Print the resolved `knowledge.data_root` configuration value without changing files:
+
+```bash
+KI_STAGE=prod-uberspace7 .venv/bin/kictl config show knowledge.data_root
+```
+
+`config show KEY` reads the resolved configuration through `AppConfig` and
+ki-core, including the selected stage, runtime, environment and credentials;
+it does not just read `ki.yaml`. Missing keys produce an error. Strings are
+printed as-is (without path expansion); other values are printed as YAML.
+Without `KEY`, the command prints the whole resolved config, which may contain
+secrets: do not paste that output into tickets or logs. See the
+[configuration guide](../guides/YAML_CONFIG_SYSADMIN.md) for layer selection.
+
+An empty `knowledge.data_root` is not an empty filesystem path. The app's
+resolver then checks `KNOWLEDGE_DATA_ROOT`, followed by `KICLI_DATA_ROOT`, and
+otherwise uses `~/dev_data/ki-knowledge`. To see the effective absolute root
+and only the source directories that already exist for a domain:
+
+```bash
+KI_STAGE=prod-uberspace7 .venv/bin/kictl paths anthro
+```
+
+Resolve the EPUB folder, even if it does not yet exist, using the same helper
+as the importer. Replace `anthro`
+with the intended knowledge domain's slug (not the web hostname):
+
+```bash
+KI_STAGE=prod-uberspace7 .venv/bin/kictl paths anthro epub
+```
+
+Only with layout v3 and no EPUB-root override is this
+`<data_root>/anthro/epub/`. With v2 it is
+`<data_root>/domains/anthro/sources/epub/`; with v1 it is
+`<data_root>/epub/anthro/`. `KNOWLEDGE_EPUB_ROOT` overrides these defaults.
+Use the returned path rather than constructing one from the table. Do not
+manually set `.layout-version` to force a different layout on an existing root.
+The same command supports `md`, `pdf`, `jira`, `owl` and `mix` in place of
+`epub`. It prints only the absolute path and never creates directories.
+
+Create the returned folder if necessary, copy the EPUB into it, then import
+the book (the filename is relative to that folder):
+
+```bash
+KI_STAGE=prod-uberspace7 .venv/bin/python manage.py import_epub \
+  --domain anthro --file 'mein-buch.epub'
+```
+
+This converts the EPUB into Markdown chapters under the domain's resolved
+Markdown folder (`md/epub/` in v3) and registers the book and chapter blocks
+in the knowledge store. Copying a file alone does not import it.
+
+#### Layout reference
+
 **v3 – direct domain roots (current target):**
 
 | Path | Content |
 |------|---------|
 | `<domain>/md/<working_title>/` | Markdown sources (may be a symlink, e.g. into a cloud folder) |
 | `<domain>/{pdf,jira,owl}/` | PDF, Jira CSV and ontology sources |
+| `<domain>/epub/` | EPUB originals; converted chapters are stored under `<domain>/md/epub/` |
 | `<domain>/mix/` | Mixed formats (PDF, tables, images/OCR, md, owl), see below |
 | `<domain>/derived/` | Per-domain DBs (`cache.sqlite`, `graph.sqlite`, `graph.cypher`) |
 | `<domain>/output/<working_title>/` | Generated InfoSite output |
