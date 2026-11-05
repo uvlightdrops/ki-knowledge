@@ -31,6 +31,7 @@ from ki_knowledge.services.domain_paths import (
     domain_state_paths,
     infer_domain_from_path,
     normalize_registry_domain,
+    validate_domain_name,
 )
 from ki_knowledge.ui.knowledge_api_client import discover_markdown_files
 
@@ -108,6 +109,7 @@ def create_semantic_domain(domain: str | None) -> dict[str, Any]:
     resolved = normalize_semantic_domain(raw)
     if resolved == "default" and raw.lower() != "default":
         raise ValueError("invalid domain name")
+    validate_domain_name(resolved)
     md_dir = domain_markdown_dir(resolved)
     jira_dir = domain_jira_dir(resolved)
     owl_dir = domain_ontology_dir(resolved)

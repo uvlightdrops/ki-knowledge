@@ -552,16 +552,16 @@ def admin_domain_management_view(request: HttpRequest):
             if not target_domain:
                 messages.error(request, "Keine Domain zum Übernehmen angegeben.")
             else:
-                Domain.objects.get_or_create(
-                    slug=target_domain,
-                    defaults={
-                        "display_name": target_domain,
-                        "home_node": "",
-                        "sync_mode": "pull",
-                        "visibility": "private",
-                    },
-                )
                 try:
+                    Domain.objects.get_or_create(
+                        slug=target_domain,
+                        defaults={
+                            "display_name": target_domain,
+                            "home_node": "",
+                            "sync_mode": "pull",
+                            "visibility": "private",
+                        },
+                    )
                     result = run_dashboard_task("sync_pull_master", domain=target_domain)
                     messages.success(
                         request,

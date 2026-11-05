@@ -10,6 +10,50 @@ from ki_knowledge.data_layout import DOMAIN_STATE_FILES, MARKDOWN, PDF, DataLayo
 from ki_knowledge.services import domain_paths
 
 
+@pytest.mark.parametrize("name", ["a", "ab", "md", "PDF", " epub ", "jira", "owl", "mix", "markdown", "csv", "xml"])
+def test_domain_names_reject_short_or_format_names(name):
+    with pytest.raises(ValueError, match="Domain name"):
+        domain_paths.validate_domain_name(name)
+    with pytest.raises(ValueError, match="Domain name"):
+        domain_paths.domain_source_dir("epub", name)
+
+
+@pytest.mark.parametrize("name", ["abc", "anthro-ag", "anthro.pdf", "default"])
+def test_domain_names_accept_valid_names(name):
+    domain_paths.validate_domain_name(name)
+
+
+def test_domain_creation_rejects_invalid_names_before_writing():
+    result = subprocess.run(
+        [sys.executable, "-c", """
+import os
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ki_knowledge.django_site.settings")
+import django
+django.setup()
+from django.core.exceptions import ValidationError
+from ki_knowledge.django_site.infosite_models import Domain
+from ki_knowledge.django_site.domain_registry import create_semantic_domain
+for name in ("ab", "pdf", "EPUB", "jira"):
+    for action in (lambda: Domain(slug=name).save(), lambda: create_semantic_domain(name)):
+        try:
+            action()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"creation accepted {name}")
+    try:
+        Domain(slug=name).clean()
+    except ValidationError as error:
+        assert "slug" in error.message_dict
+    else:
+        raise AssertionError(f"model validation accepted {name}")
+Domain(slug="anthro-ag").clean()
+"""],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.fixture(autouse=True)
 def clear_link_cache():
     domain_paths._LINKED_DIRS_CACHE.clear()

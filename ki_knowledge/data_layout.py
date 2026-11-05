@@ -5,7 +5,8 @@ on-disk structure can be changed in one place. Nothing else should build paths
 such as ``data_root / "md" / domain``.
 
 The layout version is stored in ``<root>/.layout-version``; a root without
-that file uses v1. ``python manage.py migrate_data_layout`` converts older layouts to v3.
+that file uses the current layout (v3). Legacy roots must explicitly declare
+their version. ``python manage.py migrate_data_layout`` converts older layouts to v3.
 
 v2 (domain first)::
 
@@ -72,7 +73,7 @@ if TYPE_CHECKING:
     from ki_knowledge.app_config import AppConfig
 
 LAYOUT_VERSION = 3
-"""Newest layout version; roots without a version file are treated as v1."""
+"""Newest layout version; also the default when no version file exists."""
 LAYOUT_VERSION_FILE = ".layout-version"
 SUPPORTED_LAYOUT_VERSIONS = (1, 2, 3)
 
@@ -139,12 +140,12 @@ class LayoutError(RuntimeError):
 
 
 def read_layout_version(root: str | Path) -> int:
-    """Layout version of a data root (1 when no version file exists)."""
+    """Layout version of a data root (current version when no marker exists)."""
     marker = Path(root).expanduser() / LAYOUT_VERSION_FILE
     try:
         raw = marker.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
-        return 1
+        return LAYOUT_VERSION
     try:
         version = int(raw)
     except ValueError:

@@ -33,7 +33,7 @@ def clear_type_root_env(monkeypatch):
 
 
 def test_v1_layout_is_source_type_first(tmp_path):
-    layout = DataLayout(tmp_path)
+    layout = DataLayout(tmp_path, version=1)
 
     assert layout.source_type_root(MARKDOWN) == tmp_path / "md"
     assert layout.source_type_root(PDF) == tmp_path / "pdf"
@@ -46,7 +46,7 @@ def test_v1_layout_is_source_type_first(tmp_path):
 
 
 def test_global_state_paths(tmp_path):
-    layout = DataLayout(tmp_path)
+    layout = DataLayout(tmp_path, version=1)
 
     assert layout.knowledge_db_path() == tmp_path / "knowledge.db"
     assert layout.django_db_path() == tmp_path / "django.sqlite3"
@@ -65,13 +65,14 @@ def test_source_type_aliases():
 
 def test_type_root_override_only_moves_that_type(tmp_path):
     external_pdf = tmp_path / "elsewhere" / "pdfs"
-    layout = DataLayout(tmp_path / "root", {"pdf": external_pdf})
+    layout = DataLayout(tmp_path / "root", {"pdf": external_pdf}, version=1)
 
     assert layout.source_dir(PDF, "anthro") == external_pdf / "anthro"
     assert layout.source_dir(MARKDOWN, "anthro") == tmp_path / "root" / "md" / "anthro"
 
 
 def test_from_config_reads_env_overrides(tmp_path, monkeypatch, clear_type_root_env):
+    (tmp_path / ".layout-version").write_text("1\n")
     monkeypatch.setenv("KNOWLEDGE_DATA_ROOT", str(tmp_path))
     monkeypatch.setenv("KICLI_JIRA_ROOT", str(tmp_path / "legacy-jira"))
     monkeypatch.setenv("KNOWLEDGE_MARKDOWN_ROOT", str(tmp_path / "markdown"))
@@ -88,7 +89,7 @@ def test_from_config_reads_env_overrides(tmp_path, monkeypatch, clear_type_root_
 
 
 def test_locate_source(tmp_path):
-    layout = DataLayout(tmp_path)
+    layout = DataLayout(tmp_path, version=1)
     document = layout.source_dir(MARKDOWN, "Anthro", "sstk") / "intro.md"
     document.parent.mkdir(parents=True)
     document.write_text("# Intro")
@@ -107,7 +108,7 @@ def test_locate_source_through_symlinked_domain_dir(tmp_path):
     external = tmp_path / "cloud" / "anthro"
     (external / "sstk").mkdir(parents=True)
     (external / "sstk" / "a.md").write_text("# A")
-    layout = DataLayout(tmp_path / "root")
+    layout = DataLayout(tmp_path / "root", version=1)
     layout.source_type_root(MARKDOWN).mkdir(parents=True)
     (layout.source_type_root(MARKDOWN) / "anthro").symlink_to(external, target_is_directory=True)
 
@@ -119,7 +120,7 @@ def test_locate_source_through_symlinked_domain_dir(tmp_path):
 
 
 def test_display_relative_hides_markdown_type_dir():
-    layout = DataLayout(Path("/data"))
+    layout = DataLayout(Path("/data"), version=1)
 
     assert layout.display_relative(Path("md/anthro/sstk/a.md")) == Path("anthro/sstk/a.md")
     assert layout.display_relative(Path("md")) == Path(".")
@@ -134,7 +135,11 @@ def _v2_root(tmp_path: Path) -> Path:
 
 
 def test_layout_version_is_read_from_root(tmp_path):
-    assert read_layout_version(tmp_path) == 1
+    assert read_layout_version(tmp_path) == 3
+    assert DataLayout(tmp_path).version == 3
+    assert DataLayout(tmp_path).source_dir("epub", "anthro") == tmp_path / "anthro" / "epub"
+    assert not (tmp_path / ".layout-version").exists()
+    (tmp_path / ".layout-version").write_text("1\n")
     assert DataLayout(tmp_path).version == 1
     root = _v2_root(tmp_path)
     assert DataLayout(root).version == 2
@@ -166,7 +171,7 @@ def test_v2_layout_is_domain_first(tmp_path):
 
 
 def test_v1_has_no_domain_or_system_dirs(tmp_path):
-    layout = DataLayout(tmp_path)
+    layout = DataLayout(tmp_path, version=1)
     with pytest.raises(LayoutError):
         layout.domains_root()
     with pytest.raises(LayoutError):
@@ -174,7 +179,7 @@ def test_v1_has_no_domain_or_system_dirs(tmp_path):
 
 
 def test_domain_names(tmp_path):
-    v1 = DataLayout(tmp_path / "v1")
+    v1 = DataLayout(tmp_path / "v1", version=1)
     for path in (v1.source_dir(MARKDOWN, "Anthro"), v1.source_dir(PDF, "politik"), v1.domain_state_dir("hd")):
         path.mkdir(parents=True)
     assert v1.domain_names() == ["Anthro", "hd", "politik"]

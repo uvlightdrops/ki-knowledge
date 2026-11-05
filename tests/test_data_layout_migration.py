@@ -19,6 +19,7 @@ def v1_root(tmp_path):
     (cloud / "sstk" / "a.md").write_text("# A")
 
     (root / "md" / "human-design" / "prompt-library").mkdir(parents=True)
+    (root / ".layout-version").write_text("1\n")
     (root / "md" / "human-design" / "prompt-library" / "p.md").write_text("p")
     (root / "md" / "anthro").symlink_to(cloud, target_is_directory=True)
     (root / "pdf" / "Anthro").mkdir(parents=True)
@@ -130,6 +131,7 @@ def test_relative_symlink_is_recreated_absolute(tmp_path):
     root = tmp_path / "data"
     (tmp_path / "shared" / "politik").mkdir(parents=True)
     (root / "md").mkdir(parents=True)
+    (root / ".layout-version").write_text("1\n")
     (root / "md" / "politik").symlink_to(Path("..") / ".." / "shared" / "politik", target_is_directory=True)
 
     apply_plan(plan_v1_to_v2(root, tmp_path / "nohome"))
@@ -242,6 +244,7 @@ def test_migration_blocks_relative_links_that_escape_moved_tree(tmp_path):
     root = tmp_path / "data"
     tree = root / "md" / "anthro"
     tree.mkdir(parents=True)
+    (root / ".layout-version").write_text("1\n")
     (root / "outside").mkdir()
     (tree / "external").symlink_to(Path("../../../outside"), target_is_directory=True)
 
@@ -257,6 +260,7 @@ def test_migration_blocks_relative_links_that_escape_moved_tree(tmp_path):
 def test_migration_rejects_reserved_domain_name(tmp_path):
     root = tmp_path / "data"
     (root / "md" / "system").mkdir(parents=True)
+    (root / ".layout-version").write_text("1\n")
 
     plan = plan_migration(root)
 

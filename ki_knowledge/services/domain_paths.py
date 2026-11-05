@@ -8,7 +8,24 @@ import time
 from pathlib import Path
 
 from ki_knowledge.app_config import AppConfig as Config
-from ki_knowledge.data_layout import DOMAIN_STATE_FILES, EPUB, JIRA, MARKDOWN, MIX, ONTOLOGY, PDF, DataLayout
+from ki_knowledge.data_layout import DOMAIN_STATE_FILES, EPUB, JIRA, MARKDOWN, MIX, ONTOLOGY, PDF, SOURCE_TYPES, DataLayout, source_type_dir_name
+
+
+_RESERVED_DOMAIN_NAMES = frozenset(SOURCE_TYPES) | {
+    source_type_dir_name(kind) for kind in SOURCE_TYPES
+} | {
+    "ontology", "rdf", "ttl", "n3", "jsonld", "csv", "tsv", "ods", "xlsx",
+    "png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "webp", "tei", "xml",
+}
+
+
+def validate_domain_name(value: str) -> None:
+    """Validate a domain slug without changing the existing normalization policies."""
+    slug = value.strip().casefold()
+    if len(slug) < 3:
+        raise ValueError("Domain names must contain at least 3 characters.")
+    if slug in _RESERVED_DOMAIN_NAMES:
+        raise ValueError(f"Domain name '{value}' is reserved for a source type or file format.")
 
 
 def default_semantic_domain() -> str:
@@ -91,6 +108,7 @@ def infer_domain_from_path(path: Path | str | None) -> str | None:
 def domain_source_dir(source_type: str, domain: str | None = None) -> Path:
     """Source directory of a type for a domain (existing folder name preferred)."""
     resolved = normalize_semantic_domain(domain or default_semantic_domain())
+    validate_domain_name(resolved)
     return data_layout().source_dir(source_type, domain_dir_name(resolved, source_type))
 
 

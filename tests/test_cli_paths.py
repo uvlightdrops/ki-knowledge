@@ -60,7 +60,7 @@ def test_paths_list_only_existing_source_dirs(paths_cli, monkeypatch, tmp_path, 
     markdown.mkdir(parents=True)
     result = CliRunner().invoke(paths_cli, ["paths", "Anthro"])
     assert result.exit_code == 0, result.output
-    assert result.output == f"data_root: {tmp_path}\nmd: {markdown}\nepub: {epub}\n"
+    assert result.output == f"data_root: {tmp_path}\nlayout_version: {version}\nmd: {markdown}\nepub: {epub}\n"
     assert not layout.source_dir("pdf", "anthro").exists()
 
 
@@ -79,5 +79,13 @@ def test_paths_show_effective_root_when_config_value_is_empty(paths_cli, monkeyp
     assert result.exit_code == 0, result.output
     assert result.output == (
         f"data_root: {tmp_path / 'dev_data' / 'ki-knowledge'}\n"
+        "layout_version: 3\n"
         "No source directories exist for this domain.\n"
     )
+
+
+@pytest.mark.parametrize("domain", ["ab", "md", "pdf", "EPUB", "jira", "csv", "markdown"])
+def test_paths_reject_invalid_domain_names(paths_cli, domain):
+    result = CliRunner().invoke(paths_cli, ["paths", domain])
+    assert result.exit_code == 1
+    assert "Domain name" in result.output

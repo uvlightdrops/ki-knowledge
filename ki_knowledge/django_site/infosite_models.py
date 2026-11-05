@@ -9,6 +9,7 @@ from taggit.managers import TaggableManager
 
 from wagtail.models import DraftStateMixin, RevisionMixin, WorkflowMixin
 from wagtail.search import index
+from ki_knowledge.services.domain_paths import validate_domain_name
 
 
 class Domain(models.Model):
@@ -41,6 +42,20 @@ class Domain(models.Model):
 
     def __str__(self) -> str:
         return self.display_name or self.slug
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+
+        try:
+            validate_domain_name(self.slug)
+        except ValueError as exc:
+            raise ValidationError({"slug": str(exc)}) from exc
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            validate_domain_name(self.slug)
+        return super().save(*args, **kwargs)
 
 
 def ensure_domain_registered(slug: str | None, *, display_name: str | None = None) -> Domain | None:

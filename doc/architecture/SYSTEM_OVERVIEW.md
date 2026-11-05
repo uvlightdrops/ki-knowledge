@@ -3,7 +3,7 @@ project: "ki-knowledge"
 scope: "architecture"
 created: "2026-09-02 18"
 updated: "2026-11-05 13"
-update_reason: "Distinguish empty configured roots from effective paths and list domain source folders"
+update_reason: "Use current layout by default and separate legacy layout documentation"
 status: "active"
 agent_project: "ki-knowledge"
 ---
@@ -471,7 +471,9 @@ names; use `DataLayout.from_config(cfg)` (honours `KNOWLEDGE_*_ROOT` /
 `KICLI_*_ROOT` env overrides) or, inside Django,
 `ki_knowledge.django_site.domain_paths.data_layout()`.
 
-The layout version is read from `<data_root>/.layout-version` (missing = v1).
+The layout version is read from `<data_root>/.layout-version`; without that
+file the current layout (v3) applies. For existing installations with older
+layouts, see [Legacy System Overview: data layouts and migration](../archive/SYSTEM_OVERVIEW_LEGACY.md).
 
 #### Inspect the effective paths before adding sources
 
@@ -498,7 +500,8 @@ secrets: do not paste that output into tickets or logs. See the
 An empty `knowledge.data_root` is not an empty filesystem path. The app's
 resolver then checks `KNOWLEDGE_DATA_ROOT`, followed by `KICLI_DATA_ROOT`, and
 otherwise uses `~/dev_data/ki-knowledge`. To see the effective absolute root
-and only the source directories that already exist for a domain:
+and only the source directories that already exist for a domain, together
+with the detected layout version:
 
 ```bash
 KI_STAGE=prod-uberspace7 .venv/bin/kictl paths anthro
@@ -512,10 +515,13 @@ with the intended knowledge domain's slug (not the web hostname):
 KI_STAGE=prod-uberspace7 .venv/bin/kictl paths anthro epub
 ```
 
-Only with layout v3 and no EPUB-root override is this
-`<data_root>/anthro/epub/`. With v2 it is
-`<data_root>/domains/anthro/sources/epub/`; with v1 it is
-`<data_root>/epub/anthro/`. `KNOWLEDGE_EPUB_ROOT` overrides these defaults.
+Domain slugs must have at least three characters and must not equal a source
+type or file format name (case-insensitive), e.g. `md`, `pdf`, `epub`, `jira`,
+`owl`, `mix` or `csv`. New registry entries and source path resolution enforce
+this rule; existing data is not renamed or migrated automatically.
+
+With the current layout and no EPUB-root override this is
+`<data_root>/anthro/epub/`. `KNOWLEDGE_EPUB_ROOT` overrides this default.
 Use the returned path rather than constructing one from the table. Do not
 manually set `.layout-version` to force a different layout on an existing root.
 The same command supports `md`, `pdf`, `jira`, `owl` and `mix` in place of
@@ -535,7 +541,7 @@ in the knowledge store. Copying a file alone does not import it.
 
 #### Layout reference
 
-**v3 – direct domain roots (current target):**
+**Current layout (v3) – direct domain roots:**
 
 | Path | Content |
 |------|---------|
@@ -547,22 +553,6 @@ in the knowledge store. Copying a file alone does not import it.
 | `<domain>/output/<working_title>/` | Generated InfoSite output |
 | `system/` | `knowledge.db`, `django.sqlite3`, `pdf_import_jobs.sqlite`, `pipeline_jobs.db`, `block_store.db`, global Jira DBs, migration journal |
 | `archive/` | Unexpected files found during migration; reserved at the root |
-
-**v2 – nested domain roots (legacy supported):** `domains/<domain>/sources/{md,pdf,jira,owl,mix}/`,
-with `derived/`, `output/` and global databases in `system/`.
-
-**v1 – source type first (legacy):** `md/<domain>/`, `pdf/<domain>/`,
-`jira/<domain>/` (CSV + derived DBs), `owl/<domain>/`, `data_out/<domain>/`,
-global DBs in the root, pipeline jobs and block store in `~/.ki-knowledge/`.
-
-**Migration to v3:** `python manage.py migrate_data_layout` prints a read-only
-plan; `--target-version 2` selects the compatibility layout. Applying requires
-`--apply --confirm-services-stopped` after the dev server and all workers have
-been stopped. The planner blocks destination collisions, reserved domain names,
-unsafe relative symlinks, external source-root/database overrides and
-non-SQLite Django databases. It rewrites stored paths in PDF jobs, InfoSite
-records, and the knowledge store (including JSON provenance), and journals
-every executed step to `system/layout-migration.jsonl`.
 
 `DataLayout.locate_source()` / `domain_paths.infer_domain_from_path()` map a
 file back to its domain, including files reached through symlinked folders.

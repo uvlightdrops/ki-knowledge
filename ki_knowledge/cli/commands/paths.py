@@ -3,7 +3,7 @@
 import click
 
 from ki_knowledge.data_layout import LayoutError, SOURCE_TYPES, source_type_dir_name
-from ki_knowledge.services.domain_paths import data_root, domain_source_dir
+from ki_knowledge.services import domain_paths
 
 
 @click.command()
@@ -18,13 +18,16 @@ def paths(domain: str, kind: str | None) -> None:
     if not domain.strip():
         raise click.UsageError("DOMAIN must not be empty.")
     try:
+        domain_paths.validate_domain_name(domain_paths.normalize_semantic_domain(domain))
         if kind is not None:
-            click.echo(str(domain_source_dir(kind, domain).resolve()))
+            click.echo(str(domain_paths.domain_source_dir(kind, domain).resolve()))
             return
-        click.echo(f"data_root: {data_root().resolve()}")
+        layout = domain_paths.data_layout()
+        click.echo(f"data_root: {layout.root.resolve()}")
+        click.echo(f"layout_version: {layout.version}")
         found = False
         for source_type in SOURCE_TYPES:
-            path = domain_source_dir(source_type, domain)
+            path = domain_paths.domain_source_dir(source_type, domain)
             if path.is_dir():
                 click.echo(f"{source_type_dir_name(source_type)}: {path.resolve()}")
                 found = True
