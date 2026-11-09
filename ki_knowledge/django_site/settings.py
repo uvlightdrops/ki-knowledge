@@ -188,6 +188,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "ki_knowledge.django_site.context_processors.active_domain",
                 "ki_knowledge.django_site.context_processors.nav_areas",
+                "ki_knowledge.django_site.context_processors.wissenswiki_link",
             ],
         },
     }

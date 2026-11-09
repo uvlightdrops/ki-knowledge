@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ipaddress
+from urllib.parse import urlsplit
+
 from .layout_targets import nav_areas_config
 from .services import default_semantic_domain, normalize_semantic_domain
 
@@ -35,3 +38,14 @@ def nav_areas(request):
         "nav_active_area": best_key,
         "nav_areas": all_areas,
     }
+
+
+def wissenswiki_link(request):
+    """Link to the standalone workspace without exposing a remote localhost."""
+    host = urlsplit("//" + request.get_host()).hostname
+    try:
+        if host != "localhost":
+            ipaddress.IPv4Address(host)
+    except (ValueError, TypeError):
+        return {"wissenswiki_url": ""}
+    return {"wissenswiki_url": f"http://{host}:8765/workspace/"}

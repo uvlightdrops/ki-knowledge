@@ -1,0 +1,11 @@
+body{margin:0;color:#26323a;background:#f6f7f5;font:16px/1.6 system-ui,sans-serif}
+.app-links{padding:.5rem 0}.app-links a{margin-right:1rem}
+nav{padding:1.3rem;background:#e9efeb}nav ul{padding-left:1.2rem}nav li{overflow-wrap:anywhere}
+nav summary{cursor:pointer;font-weight:600}
+main{max-width:900px;padding:1.5rem 2rem}a{color:#245e63}h1,h2{line-height:1.25}
+section{background:white;border:1px solid #dbe3dd;border-radius:10px;padding:1.2rem 1.5rem;margin:1.3rem 0}
+section h2{margin:0}.id{font-size:.8rem;color:#596e68}.relations{border-left:3px solid #8eaca0;padding-left:1.5rem}
+dt{font-weight:600}dd{margin:0 0 .4rem}pre{overflow:auto;background:#edf2ef;padding:1rem}
+table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd6cf;padding:.4rem}
+@media(min-width:850px){body{display:grid;grid-template-columns:280px 1fr}nav{height:100vh;overflow:auto;position:sticky;top:0;box-sizing:border-box}}
+@media(min-width:850px){body:has(nav details:not([open])){grid-template-columns:auto 1fr}}

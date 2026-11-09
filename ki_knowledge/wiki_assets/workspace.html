@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wissenswiki – Arbeitsraum</title>
+<meta name="workspace-token" content="__WORKSPACE_TOKEN__">
+<link rel="stylesheet" href="/assets/workspace.css">
+</head><body><main>
+<header class="app-links"><a href="__DJANGO_URL__">Django-App</a> · <a href="/">Dokumentation</a> · <a href="/workspace/graph/">Wissensnetz</a></header>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<div class="workspace">
+<details class="sidebar" id="block-browser" open>
+<summary>Blöcke</summary>
+<label>Suchen <input id="block-search" type="search" autocomplete="off"></label>
+<fieldset><legend>Öffnen in</legend>
+<label><input type="radio" name="open-side" value="left" checked> Links</label>
+<label><input type="radio" name="open-side" value="right"> Rechts</label>
+</fieldset>
+<ul id="block-list"></ul><p id="block-list-empty"></p>
+</details>
+<div class="columns">
+<section id="left" aria-label="Linker Block">
+<label>Block <select class="select"></select></label>
+<label>Titel <input class="title" placeholder="Optional"></label>
+<label>Text <textarea class="text"></textarea></label>
+<button class="save">Speichern</button> <button class="new">Neuer Block</button>
+<p class="identity"></p>
+<details><summary>Beziehungen und Bestandteile</summary>
+<strong>Beziehungen</strong><ul class="relations"></ul>
+<strong>Bestandteile in Reihenfolge</strong><ol class="parts"></ol><div class="preview"></div>
+</details>
+</section>
+<div class="linking">
+<label>Beziehungstyp <input id="type" list="relation-types" value="hängt zusammen"></label>
+<datalist id="relation-types">
+<option value="hängt zusammen"><option value="part-of"><option value="composed-of">
+<option value="extends"><option value="depends-on"><option value="reference">
+</datalist>
+<button id="relate">Links → rechts verbinden</button>
+<button id="relate-reverse">Rechts → links verbinden</button>
+<button id="part">Rechts als Bestandteil von links</button>
+</div>
+<section id="right" aria-label="Rechter Block">
+<label>Block <select class="select"></select></label>
+<label>Titel <input class="title" placeholder="Optional"></label>
+<label>Text <textarea class="text"></textarea></label>
+<button class="save">Speichern</button> <button class="new">Neuer Block</button>
+<p class="identity"></p>
+<details><summary>Beziehungen und Bestandteile</summary>
+<strong>Beziehungen</strong><ul class="relations"></ul>
+<strong>Bestandteile in Reihenfolge</strong><ol class="parts"></ol><div class="preview"></div>
+</details>
+</section></div></div>
+</main><script src="/assets/workspace.js" defer></script></body></html>

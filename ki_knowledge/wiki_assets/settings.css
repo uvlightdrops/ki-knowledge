@@ -1,0 +1,9 @@
+*{box-sizing:border-box}body{margin:0;color:#e3ebe9;background:#151c1e;font:16px/1.5 system-ui,sans-serif;color-scheme:dark}
+header{display:flex;flex-wrap:wrap;gap:.4rem 1rem;padding:.6rem 1rem;background:#202c2e}
+header nav{margin-left:auto}header nav a{margin-left:.6rem}a{color:#94d9d0}
+main{max-width:70rem;padding:1rem}h2{font-size:1.15rem;margin:.5rem 0}
+#status{color:#ffaaa0;min-height:1.5em;margin:0}
+button{font:inherit;padding:.3rem .6rem;color:#e3ebe9;background:#2c3b3d;border:1px solid #627775;border-radius:.3rem;cursor:pointer}
+.actions{display:flex;gap:.5rem;margin-bottom:.75rem}
+#attribute-options{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:.3rem 1rem}
+#attribute-options label{overflow-wrap:anywhere;cursor:pointer}

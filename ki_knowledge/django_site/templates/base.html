@@ -21,6 +21,7 @@
         <a href="/" title="Return to main dashboard">🏠 Ki-Knowledge <span class="muted">(Dashboard)</span></a>
       </div>
       <div class="header-user">
+        {% if wissenswiki_url %}<a href="{{ wissenswiki_url }}" title="Lokalen Wissenswiki-Arbeitsraum öffnen">Wissenswiki</a>{% endif %}
         <a id="node-connectivity" class="node-connectivity" href="{% url 'settings' %}"
            data-endpoint="{% url 'node-connectivity' %}" data-sync-url="{% url 'admin-sync' %}"
            data-settings-url="{% url 'settings' %}"

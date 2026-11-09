@@ -63,7 +63,7 @@ include = ["ki_knowledge", "ki_knowledge.*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-ki_knowledge = ["widgetkit_templates/*.html"]
+ki_knowledge = ["widgetkit_templates/*.html", "wiki_assets/*.html", "wiki_assets/*.css", "wiki_assets/*.js"]
 "ki_knowledge.cli" = ["cli.yaml"]
 "ki_knowledge.django_site" = ["templates/**/*.html", "static/**/*.css", "static/**/*.js", "static/**/*.ico", "static/django_site/workbench/**/*.ttf", "static/django_site/workbench/*.json", "static/django_site/workbench/*.txt"]
 "ki_knowledge.wagtail_cms" = ["templates/**/*.html"]

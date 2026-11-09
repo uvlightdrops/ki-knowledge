@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="workspace-token" content="__WORKSPACE_TOKEN__">
+<title>Wissensnetz</title>
+<link rel="stylesheet" href="/assets/graph.css">
+</head><body>
+<header><a href="/workspace/">Arbeitsraum</a> · <a href="/">Dokumentation</a> · <nav aria-label="Domänen">__DOMAIN_LINKS__</nav>
+<button id="reload" type="button">Neu laden</button></header>
+<main>
+<section class="controls">
+<p id="status" role="status" aria-live="polite"></p>
+<label>Dokumente und Blöcke suchen <input id="filter" type="search"></label>
+<label>Seite <select id="page"></select></label>
+<p id="count"></p>
+<details class="settings"><summary>Ansichtseinstellungen</summary>
+<label>Blasenfarbe <select id="color-mode"><option value="uniform">Einheitlich</option><option value="folder">Nach Ordner</option></select></label>
+<div id="folder-legend" aria-label="Ordnerfarben"></div>
+<label>Ordner <select id="folder-filter"><option value="">Alle Ordner</option></select></label>
+<label>Datei <select id="file-filter" disabled><option value="">Alle Dateien</option></select></label>
+<label>Beziehungsfilter <select id="relation-filter"><option value="">Alle Beziehungen und Blöcke</option></select></label>
+<label>Attribut <select id="attribute-filter"><option value="">Alle Attribute</option></select></label>
+<label>Attributwert enthält <input id="attribute-value" type="search" disabled></label>
+<button id="reset-settings" type="button">Ansicht zurücksetzen</button>
+</details>
+<div class="selection source-selection"><output id="source-label" aria-label="Ausgang">Nicht gewählt</output></div>
+<fieldset class="legend"><legend>Farben und Richtung</legend>__RELATION_OPTIONS__</fieldset>
+<div class="selection target-selection"><output id="target-label" aria-label="Ziel">Nicht gewählt</output></div>
+<button id="connect" type="button">Beziehung anlegen</button>
+<button id="clear" type="button">Auswahl löschen</button>
+</section>
+<section class="network" aria-label="Animiertes Wissensnetz">
+<svg id="graph" role="img" aria-label="Wissensblöcke und ihre gerichteten Beziehungen"></svg>
+<p id="empty"></p>
+<ul id="unresolved"></ul>
+</section>
+</main>
+<details class="attributes-widget" open><summary>Blockattribute</summary><dl id="detail-attributes"></dl></details>
+<script src="/assets/attribute-settings.js" defer></script>
+<script src="/assets/graph.js" defer></script></body></html>
