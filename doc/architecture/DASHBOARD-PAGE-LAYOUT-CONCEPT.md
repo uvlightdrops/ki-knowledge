@@ -1,10 +1,31 @@
+---
+title: "Dashboard and Page-Level Layout Concept"
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: architecture
+purpose: "Describes the proposed page-specific dashboard layout model and builder workflow."
+created: "2026-09-09T22:03:55+02:00"
+updated: "2026-11-07T22:27:24+01:00"
+update_reason: "Dokumentationsstruktur und Verweise nach gemeinsamen Skills überarbeitet"
+status: draft
+semantic_blocks:
+  - goal
+  - layout-model
+  - design-rules
+  - builder-workflow
+  - rendering-contract
+  - design-rationale
+  - implementation-steps
+relations: []
+---
+
 # Dashboard and page-level layout concept
 
-## Goal
+## Goal [goal]
 
 We want a single layout system for the application, but with separate persistent layouts per page area instead of one global ad-hoc layout state.
 
-## Model
+## Model [layout-model]
 
 Each page area owns a `DashboardDefinition` record:
 
@@ -24,7 +45,7 @@ Each area stores a ordered list of widget placements (`DashboardWidgetPlacement`
 
 This keeps the layout state independent from the page contents while still allowing a clean drag-and-drop editor.
 
-## Design rules
+## Design rules [design-rules]
 
 1. Layout state is area-scoped, not global.
    - A layout change on `/data-sources/` must not mutate the layout of `/knowledge/`.
@@ -37,7 +58,7 @@ This keeps the layout state independent from the page contents while still allow
 5. Unused widgets are kept in a dedicated stash.
    - This allows a “parked but not deleted” workflow before the widget is placed elsewhere.
 
-## Builder workflow
+## Builder workflow [builder-workflow]
 
 - Open `/settings/layout/builder/?area=<area_key>`.
 - Select the page area from the dropdown.
@@ -45,7 +66,7 @@ This keeps the layout state independent from the page contents while still allow
 - Save order updates the persisted layout for that area only.
 - The saved layout is loaded by the corresponding page view when rendering the page.
 
-## Rendering contract
+## Rendering contract [rendering-contract]
 
 Page views should call a shared helper to resolve the configured widget IDs for the current area and render them with the consistent dashboard-grid template.
 
@@ -58,12 +79,12 @@ Example contract:
 
 The layout builder is the only place that edits the placements; page views simply consume them.
 
-## Why this is the right split
+## Why this is the right split [design-rationale]
 
 This keeps the system flexible without coupling layout state to one single page or one homepage fragment.
 It also matches the user workflow: configure a page layout in place, then reuse the same widget registry across all major areas without mixing page-specific content into the builder state.
 
-## Next implementation steps
+## Next implementation steps [implementation-steps]
 
 1. Ensure every major landing page resolves its own `area_key` and loads persisted placements.
 2. Keep the builder UI as the canonical editor for all page-area layouts.

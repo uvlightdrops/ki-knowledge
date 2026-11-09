@@ -1,7 +1,20 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: tracking
+created: "2026-10-07 19"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Widgets als Legacy eingeordnet"
+status: active
+---
+
 # Widget catalog preview audit
 
+> Jira-specific counts and widgets in this historical audit are legacy. Jira
+> is intended as an equal input/import format alongside other sources.
+
 > The leading Data Sources interaction model is
-> [Source Workspace and Workflow Concept](../architecture/source-workspace-and-workflow-concept.md).
+> [Source Workspace and Workflow Concept](../architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md).
 > This audit documents current renderers, not a requirement to retain every
 > existing intake widget as an independent view.
 

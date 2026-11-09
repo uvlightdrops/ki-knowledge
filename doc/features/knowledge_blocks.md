@@ -1,23 +1,60 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-02 07"
+updated: "2026-11-08 03"
+update_reason: "Bestehende Records vom neuen fachlichen Wissensblockmodell abgegrenzt"
+status: active
+semantic_blocks:
+  - purpose
+  - capabilities
+  - components
+  - usage
+  - extensions
+  - curation-guidelines
+relations:
+  - target: archiv/KNOWLEDGE_BLOCKS_BOOK_CONCEPT.md
+    type: reference
+    reason: "Archivierter älterer Buch- und Kuratierungsansatz"
+---
+
 # Knowledge Blocks
 
 > Source intake and UI are defined in
-> [Source Workspace and Workflow Concept](../architecture/source-workspace-and-workflow-concept.md).
+> [Source Workspace and Workflow Concept](../architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md).
 > Block extraction is downstream of discovery and import; structural parsing
 > alone does not constitute semantic understanding.
 
-## Zweck
+<a id="zweck"></a>
+<a id="purpose"></a>
+## Zweck [purpose]
 
-Dieses Modul extrahiert hierarchische Elemente aus Markdown-Dateien und speichert sie als einzelne Wissensbausteine.
+Diese Seite beschreibt die automatische Zerlegung von Markdown und den
+allgemeinen KnowledgeStore. Die manuell angelegten Markierungen und
+Relationen der Textwerkstatt sind ein eigener Arbeitsweg; siehe
+[Textwerkstatt-Anleitung](../guides/text-workbench.md) und
+[Content-Modell](../architecture/CONTENT-MODEL-MATRIX.md).
+Weder ein extrahierter `KnowledgeBlockRecord` noch eine Markierung ist
+automatisch ein fachlicher Wissensblock im
+[neuen Konzept](../architecture/TEXT-AND-KNOWLEDGE-BLOCKS.md#distinction).
 
-## Was es kann
+<a id="was-es-kann"></a>
+<a id="capabilities"></a>
+## Was es kann [capabilities]
 
 - Markdown in Blöcke zerlegen (Heading, Paragraph, List Item, Code Block)
-- Blöcke in SQLite speichern
-- semantische Relationen anlegen
-- einfache lokale Embeddings erzeugen
-- Graph-Struktur über Blöcke aufbauen
+- Records im KnowledgeStore speichern (SQLite oder PostgreSQL)
+- Relationen zwischen Records speichern und daraus einen Graphen aufbauen
+- im Beispielskript einfache lokale Bag-of-Words-Vektoren erzeugen
 
-## Hauptkomponenten
+Die Zerlegung und ein angelegter Graph sind für sich genommen kein Nachweis
+semantischen Verstehens. Der InfoSite-Blockspeicher ist ein separater
+Verbraucher des Stores, nicht automatisch dieselbe Datenbank.
+
+<a id="hauptkomponenten"></a>
+<a id="components"></a>
+## Hauptkomponenten [components]
 
 - `ki_knowledge/integrations/markdown_blocks.py` – Parser und Datenmodell
 - `ki_knowledge/integrations/knowledge_store.py` – persistente Speicherung
@@ -25,7 +62,13 @@ Dieses Modul extrahiert hierarchische Elemente aus Markdown-Dateien und speicher
 - `ki_knowledge/integrations/block_embeddings.py` – lokale Embeddings
 - `ki_knowledge/api/knowledge_app.py` – FastAPI-API
 
-## Nutzung
+<a id="nutzung"></a>
+<a id="usage"></a>
+## Nutzung [usage]
+
+Die folgenden Beispiele verwenden den skriptbasierten Import; sie beschreiben
+nicht die manuelle Textwerkstatt. `--embed` und `--graph` starten zusätzliche
+Schreibvorgänge im gewählten Store beziehungsweise Graphen.
 
 ```bash
 python examples/knowledge_block_import.py path/to/file.md --embed --graph
@@ -41,15 +84,17 @@ stackctl run api
 
 Dann sind die Endpunkte unter `http://localhost:8090/docs` verfügbar.
 
-## Erweiterungen
+<a id="erweiterungen"></a>
+<a id="extensions"></a>
+## Erweiterungen [extensions]
 
-Zusätzlich zu Markdown unterstützt der Store:
+Im Wissensmodell gibt es unter anderem:
 
 - `KnowledgeSource`
 - `KnowledgeBlockRecord`
 - `KnowledgeArtifact`
-- `iasem`-Quiz-YAML als Importformat
-- Ontology-Import
+
+Es gibt außerdem Importadapter für `iasem`-Quiz-YAML und Ontologien.
 
 Aus denselben Wissensbausteinen können Lernartefakte erzeugt werden:
 
@@ -61,19 +106,14 @@ Aus denselben Wissensbausteinen können Lernartefakte erzeugt werden:
 
 Zusätzlich gibt es:
 
-- eine Streamlit-Oberfläche für Source-/Record-/Artifact-Inspektion
+- ein Streamlit-Beispiel für Source-/Record-/Artifact-Inspektion
 - Graph-Visualisierung
 - eine FastAPI unter `/api/knowledge/...`
 
-## Leitlinien für Review und Kuratierung
+<a id="leitlinien-für-review-und-kuratierung"></a>
+<a id="curation-guidelines"></a>
+## Frühere Leitlinien für Review und Kuratierung [curation-guidelines]
 
-Hintergrund war eine externe Einschaetzung mit dem Titel
-"Wissen semantische Blocks workflow". Diese Datei ist nicht Bestandteil des
-Repositorys; der bisherige relative Verweis war nicht aufloesbar. Die folgenden
-Punkte beschreiben Leitlinien, nicht einen durchgaengig nachgewiesenen Ist-Stand.
-
-- Die Extraktion (OCR, Segmentierung, LLM) läuft asynchron in den bestehenden Job-Queues; die UI zeigt nur Status und Ergebnis.
-- Ein Buch hat eine natürliche Hierarchie (Buch → Kapitel → Unterkapitel → Blöcke). Sie wird als eigenes Strukturmodell gespeichert, nicht als Wagtail-Seitenbaum, damit Inhaltsverzeichnisse vergleichbar bleiben.
-- Blöcke sind einzelne Datensätze (`KnowledgeBlockRecord`) mit `block_type` (z. B. Definition, Argumentation, Beispiel), Reihenfolge und Herkunft (Seite/Position), keine Wagtail-Seiten und kein StreamField.
-- Human-in-the-loop: Redakteure prüfen extrahierte Blöcke, fassen sie zusammen, teilen, verschieben, korrigieren und geben sie frei. Wagtail-Workflow greift auf Buch-/Kapitelebene, pro Block genügt ein Review-Status.
-- Embeddings können nach der PostgreSQL-Umstellung mit pgvector direkt beim Block liegen.
+Der frühere buchzentrierte Ansatz ist [archiviert](archiv/KNOWLEDGE_BLOCKS_BOOK_CONCEPT.md).
+Er legt das neue Wissensmodell nicht fest. Für die gemeinsam erarbeitete
+Produktrichtung siehe [Product Direction](../architecture/SYSTEM_OVERVIEW.md#product-direction).

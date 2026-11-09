@@ -1,9 +1,26 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-10-29 09"
+updated: "2026-11-07 23"
+update_reason: "Konfigurationsgrundlagen und Betriebsabschnitte gekennzeichnet"
+status: active
+semantic_blocks:
+  - shared-foundations
+  - project-configuration
+  - operation-and-editing
+  - documentation-maintenance
+---
+
 # YAML-Konfiguration in ki-knowledge
 
 Stand: 2026-10-29. Diese Seite ist der projektspezifische Einstieg, keine zweite
 Kopie der gemeinsamen Konfigurationsdokumentation.
 
-## Gemeinsame Grundlagen
+<a id="gemeinsame-grundlagen"></a>
+<a id="shared-foundations"></a>
+## Gemeinsame Grundlagen [shared-foundations]
 
 - [Kanonischer Sysadmin-Leitfaden](../../../yaml_cfg_wizard/doc/YAML_CONFIG_SYSADMIN.md):
   Schichten, CLI, Editor-Grenzen, Identitaet und Betrieb im gesamten Workspace.
@@ -17,7 +34,9 @@ mit der kanonischen Quelle im Wizard-Repository. Sie wird hier nicht weiter
 dupliziert. Historische Statusaussagen in der gemeinsamen Anleitung sind kein
 Nachweis eines aktuellen Rollouts dieses Projekts.
 
-## Was fuer dieses Projekt gilt
+<a id="was-fuer-dieses-projekt-gilt"></a>
+<a id="project-configuration"></a>
+## Was fuer dieses Projekt gilt [project-configuration]
 
 `ki_knowledge.app_config.AppConfig` liest die ueber ki-core aufgeloeste
 Konfiguration. Die Reihenfolge von niedrig nach hoch ist:
@@ -35,7 +54,9 @@ Kommandos aus Dokumenten werden im **Projektverzeichnis** ausgefuehrt, nicht im
 Verzeichnis der Anleitung. Hostlokale Dateien und Secrets bleiben ausserhalb
 der Dokumentation.
 
-## Betrieb und Bearbeitung
+<a id="betrieb-und-bearbeitung"></a>
+<a id="operation-and-editing"></a>
+## Betrieb und Bearbeitung [operation-and-editing]
 
 - [Django-/Stack-Betrieb](DJANGO_DEV.md): Start, Vordergrundmodus, Stages,
   Port-Overrides, lokale Dienste und Cluster-Ziele.
@@ -53,7 +74,9 @@ der Dokumentation.
   Ein bestehender `NodeConfig`-Eintrag hat fuer die dort verwalteten Felder
   Vorrang.
 
-## Dokumentationspflege
+<a id="dokumentationspflege"></a>
+<a id="documentation-maintenance"></a>
+## Dokumentationspflege [documentation-maintenance]
 
 Generische Regeln werden an der verlinkten gemeinsamen Quelle gepflegt.
 Projektspezifische Abweichungen werden hier oder im Betriebsleitfaden ergaenzt.

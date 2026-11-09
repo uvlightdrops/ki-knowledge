@@ -1,9 +1,26 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-02 18"
+updated: "2026-11-08 03"
+update_reason: "Import-Control-Vertrag und ungeprüfte Refinement-Angaben eingeordnet"
+status: active
+---
+
 # 📥 Import & AI Refinement - Django Site Feature
 
 > Leitendes Dokument für Quellenaufnahme und UI:
-> [Source Workspace and Workflow Concept](../architecture/source-workspace-and-workflow-concept.md).
+> [Source Workspace and Workflow Concept](../architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md).
 > Diese Seite beschreibt projektspezifische InfoSite-Aktionen, keine zweite
 > allgemeine Quellenverwaltung.
+
+> **Teilweise überholt / Strukturprüfung offen:** Die folgenden H2-Abschnitte
+> haben noch keine semantischen IDs. Der ältere Import-Workflow und seine
+> vereinfachten Codebeispiele beschreiben nicht zuverlässig den heutigen
+> Ausführungsvertrag. Refinement-Aussagen sind nicht vollständig geprüft und
+> beschreiben nicht automatisch die kontrollierte Vorschlagsannahme der
+> Textwerkstatt.
 
 ## Overview
 
@@ -17,6 +34,13 @@ Der Django Site wurde um zwei mächtige Features erweitert:
 ## 🎯 Features
 
 ### 1. Import Control (`/infosite/project/<id>/import/`)
+
+**Korrektur zum Ablauf:** Das Absenden führt eine synchrone Statusübergabe
+für bestehende `SourceDocument`-Einträge aus; es extrahiert keine Inhalte und
+legt keinen Hintergrundauftrag zur Verarbeitung an. Verbindliche Details:
+[Import-Control-Vertrag](INFOSITE.md#import-control-current-execution-contract).
+Der folgende ältere Workflow ist nicht als Beschreibung einer Inhaltsaufnahme
+oder automatischen Neuanlage von Einträgen zu lesen.
 
 **Was es tut:**
 - Scannt das konfigurierte Source-Verzeichnis
@@ -42,6 +66,10 @@ Der Django Site wurde um zwei mächtige Features erweitert:
 ---
 
 ### 2. AI Refinement (`/infosite/project/<id>/refine/`)
+
+**Abgrenzung:** Dies ist ein älterer InfoSite-Schreibweg, kein Nachweis des
+neuen Wissensblockmodells oder der prüfbaren Vorschlagsannahme der
+[Textwerkstatt](../guides/text-workbench.md).
 
 **Was es tut:**
 - Zeigt alle generierten Markdown-Dateien

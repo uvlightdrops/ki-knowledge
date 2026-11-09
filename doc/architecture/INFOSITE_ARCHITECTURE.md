@@ -1,19 +1,46 @@
+---
+title: "InfoSite Architecture Analysis and Refactoring Plan"
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: architecture
+purpose: "Historical analysis and proposed architecture for the InfoSite presentation pipeline."
+created: "2026-09-02T18:17:58+02:00"
+updated: "2026-11-08 00"
+update_reason: "Jira-Implementierungen als Legacy eingeordnet"
+status: archived
+semantic_blocks:
+  - current-state
+  - core-concepts
+  - django-architecture
+  - implementation-roadmap
+  - design-patterns
+  - next-steps
+relations:
+  - target: "SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md"
+    type: reference
+    reason: "Führendes Konzept für Quellenaufnahme"
+---
+
 # Infosite Architecture Analysis & Refactoring Plan
 
+> Jira-spezifische Implementierungen gehören zum Legacy-Bestand. Jira soll
+> künftig ein gleichberechtigtes Eingabe-/Importformat sein; das ist ein Ziel,
+> keine Aussage über eine bereits abgeschlossene Umstellung. Analysis & Refactoring Plan
+
 > Historical architecture plan. The leading source-intake/UI document is
-> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
+> [Source Workspace and Workflow Concept](SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md).
 > Its shared inventory model takes precedence over separate intake screens
 > proposed here.
 
-## Current State Assessment
+## Current State Assessment [current-state]
 
-### 🎯 Problem
+### Problem
 - Admin models created (InfoSiteProject, SourceDocument) but Django views/URLs not architected
 - Input documents in the configured domain markdown directory are not auto-discovered
 - Architecture is "arbitrary" - models without clear integration with rest of Django site
 - Logic similar to "data sources" but not unified
 
-### 📊 Data Structure (Example: anthro/sstk)
+### Data Structure (Example: anthro/sstk)
 ```
 ~/dev_data/ki-knowledge/
 ├── anthro/
@@ -29,7 +56,7 @@
 
 ---
 
-## Core Concepts (from docs)
+## Core Concepts (from docs) [core-concepts]
 
 ### InfoSite vs Data Sources
 - **Data Sources**: Import, manage raw source documents (Markdown, PDF, OWL, Jira)
@@ -54,7 +81,7 @@
 
 ---
 
-## Django Architecture (Current vs Desired)
+## Django Architecture (Current vs Desired) [django-architecture]
 
 ### Current State (Incorrect)
 ```
@@ -97,9 +124,9 @@ Services (unified)
 
 ---
 
-## Implementation Roadmap
+## Implementation Roadmap [implementation-roadmap]
 
-### Phase 1: Architecture & Auto-Discovery ✅ Ready to implement
+### Phase 1: Architecture & Auto-Discovery Ready to implement
 - [ ] Create `DocumentDiscoveryService` (unified file finder)
 - [ ] Implement `find_infosite_documents(domain, working_title)` 
 - [ ] Add InfoSite project views (list, detail, manage)
@@ -121,7 +148,7 @@ Services (unified)
 
 ---
 
-## Key Design Patterns
+## Key Design Patterns [design-patterns]
 
 ### 1. Service Layer (not views directly)
 - `DocumentDiscoveryService` - Find files
@@ -145,7 +172,7 @@ path("infosite/", include([
 
 ---
 
-## Next Steps
+## Next Steps [next-steps]
 
 1. **Create DiscoveryService** (reusable for data sources + infosite)
 2. **Test with anthro/sstk** (find documents, display in UI)

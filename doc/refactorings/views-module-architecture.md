@@ -1,4 +1,18 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: refactorings
+created: "2026-10-29 09"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Refactorings als Legacy eingeordnet"
+status: active
+---
+
 # Views module split
+
+> **Jira-Legacy:** Die dokumentierte Jira-spezifische Implementierung und ihre
+> Refactorings beschreiben vorhandenen Altbestand, nicht die Zielarchitektur.
+> Jira soll künftig als gleichberechtigtes Eingabe-/Importformat dienen.
 
 ## Goal
 
@@ -212,7 +226,7 @@ still separate work.
 ## P2: InfoSite/Wagtail ownership boundary (2026-10-28)
 
 The second P2 slice makes the existing ownership contract explicit in the
-[content model matrix](../architecture/content-model-matrix.md#0-verbindliche-speicher--und-adaptergrenze-p2).
+[content model matrix](../architecture/CONTENT-MODEL-MATRIX.md#0-verbindliche-speicher--und-adaptergrenze-p2).
 Input/output files remain authoritative content. The existing
 `SourceDocument`/`GeneratedDocument` rows are shared with Wagtail snippets;
 there is no second CMS document registry. Pipeline statuses, editorial
@@ -258,10 +272,11 @@ The canonical interface is the central `stackctl` command, invoked in the
 project checkout; its tool environment is separate from application dependencies.
 Project config loaders and `{python}` service commands use the project interpreter.
 
-`kistack` is retained only as a compatibility alias. Like Assist, it prefers
-`~/.local/bin/stackctl`, otherwise PATH, always with the selected project as
-cwd. It preserves arguments and exit status, works through a symlink, and
-reports a missing central tool instead of cloning/installing anything.
+`kistack` is retained only as a compatibility alias. **Current behavior
+(2026-11-07):** it first runs `.venv/bin/python -m stackctl`; if the project
+interpreter is absent, it uses `~/.local/bin/stackctl` or, failing that,
+`stackctl` from PATH. It uses this project as cwd, preserves arguments and exit
+status, works through a symlink, and installs or clones nothing.
 `stackctl install` alone owns project environment/dependency setup.
 The two `examples/run_knowledge_*.py` aliases continue forwarding to local
 foreground mode; API environment overrides remain compatible.

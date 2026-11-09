@@ -1,3 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: integration
+created: "2026-10-05 16"
+updated: "2026-11-08 07"
+update_reason: "Historische Vertragsbeschreibung mit aktuellem Architekturüberblick verbunden"
+status: active
+relations:
+  - target: ../architecture/DJANGO-WAGTAIL-WIDGETKIT.md
+    type: reference
+    reason: "Aktuelle Einbindung und Grenzen in ki-knowledge"
+---
+
 # widgetkit-django host integration
 
 This guide shows what a host Django application must provide to use `widgetkit_django`.
@@ -6,6 +20,13 @@ The package is now an external sibling dependency. This document describes the
 host contract; the earlier extraction and packaging plans are retained in
 [the archive](../archive/widgetkit-django-extraction.md), not as current
 in-repository package instructions.
+
+**Status:** This older contract summary is not a complete current API reference.
+In particular, the layout-state contract distinguishes a missing layout from
+an explicitly empty one via `load_layout` and `load_shared_layout`. For current
+package details see [widgetkit-django's host integration](../../../widgetkit-django/docs/host-integration.md).
+The [ki-knowledge architecture overview](../architecture/DJANGO-WAGTAIL-WIDGETKIT.md)
+describes the actual host adapters and remaining local rendering code.
 
 ## 1. Install the app
 

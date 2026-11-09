@@ -1,14 +1,47 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-09 22"
+updated: "2026-11-08 01"
+update_reason: "Domain-Chat semantisch gegliedert und altes Jira-Beispiel ausgelagert"
+status: active
+semantic_blocks:
+  - purpose
+  - capabilities
+  - availability
+  - compatibility
+  - legacy-example
+  - use-cases
+  - references
+relations:
+  - target: knowledge_retrieval.md
+    type: reference
+    reason: "Einordnung von Retrieval und Jira-Altpfaden"
+  - target: archiv/RETRIEVAL_JIRA_ALTPFADE.md
+    type: reference
+    reason: "Ausgelagertes Jira-Chatbeispiel"
+---
+
 # Domain Chat
 
-## Purpose
+> **Legacy-Grenze:** Jira-spezifische Kompatibilitätswege und Beispiele sind
+> veraltet; Jira ist künftig als gleichberechtigtes Eingabe-/Importformat
+> vorgesehen. Chat als Funktion bleibt ausdrücklich gewünscht; diese Einordnung
+> betrifft nicht pauschal den bestehenden Domain-Chat.
+
+<a id="purpose"></a>
+## Purpose [purpose]
 
 The knowledge submenu has one **Chat**, at `/knowledge/chat/support/`
 (`support-chat`). It converses with the texts and extracted knowledge of the
 active domain, not a free-standing general chat. The provider and model come
-from `llm.default_provider` / `llm.providers.*` via `ki_knowledge.llm_provider`;
+from `llm.provider` / `llm.providers.*` via `ki_knowledge.llm_provider`;
 provider selection remains in Settings.
 
-## What it does
+<a id="what-it-does"></a>
+<a id="capabilities"></a>
+## What it does [capabilities]
 
 - Retrieves KnowledgeStore records using semantic similarity and the active
   domain's registered **source IDs**. All source types are included by default,
@@ -28,7 +61,9 @@ provider selection remains in Settings.
   domain leaves the others intact. The form pins its domain so another browser
   tab's domain selection does not change a submitted question's scope.
 
-## Availability and limits
+<a id="availability-and-limits"></a>
+<a id="availability"></a>
+## Availability and limits [availability]
 
 GET only reads configuration, session history and local index counts: it neither
 discovers provider models nor calls chat/embedding providers or the automatic
@@ -53,7 +88,9 @@ The second command creates embeddings; opening Chat does not create any. The
 legacy aggregate `default` registry is narrowed for Chat to default-owned sources,
 never treated as permission to search other domains.
 
-## Compatibility and existing free-chat data
+<a id="compatibility-and-existing-free-chat-data"></a>
+<a id="compatibility"></a>
+## Compatibility and existing free-chat data [compatibility]
 
 `jira-support-chat` and `ollama-chat` URL names remain valid. GET redirects to
 `support-chat`, preserving domain, notices and optional source filters. Jira
@@ -72,23 +109,26 @@ domain ownership cannot be established safely. Such history remains stored,
 and legacy untagged entries can still be explicitly saved/imported through the
 compatibility POST endpoint; entries tagged to another domain are rejected.
 
-## Example
+<a id="example"></a>
+<a id="legacy-example"></a>
+## Earlier Jira example [legacy-example]
 
-```bash
-python examples/jira_support_chat.py
-```
+The [archived Jira example](archiv/RETRIEVAL_JIRA_ALTPFADE.md#jira-chat-example)
+is not the current domain-scoped KnowledgeStore chat.
 
-This script still uses the Jira-compatible example name for historical reasons, but the chat flow is designed to work with any indexed knowledge source.
-
-## Best use cases
+<a id="best-use-cases"></a>
+<a id="use-cases"></a>
+## Best use cases [use-cases]
 
 - ask domain questions in natural language
 - get brief, evidence-based answers from imported content
 - compare multiple source types when troubleshooting or summarizing
 - build a conversational layer over the knowledge base without coupling to one source system
 
-## See also
+<a id="see-also"></a>
+<a id="references"></a>
+## See also [references]
 
 - [knowledge_retrieval.md](knowledge_retrieval.md)
-- [hybrid_search.md](hybrid_search.md)
-- [graph_explorer.md](graph_explorer.md)
+- [hybrid_search.md](archiv/hybrid_search.md) (Jira-Legacy)
+- [graph_explorer.md](archiv/graph_explorer.md) (Jira-Legacy)

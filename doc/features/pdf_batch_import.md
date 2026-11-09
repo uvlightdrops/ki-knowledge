@@ -1,8 +1,23 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-02 07"
+updated: "2026-11-08 03"
+update_reason: "PDF-Altpfade und unstrukturierte Abschnitte eingeordnet"
+status: active
+---
+
 # PDF Batch Import System
 
 > Leading UI/workflow document:
-> [Source Workspace and Workflow Concept](../architecture/source-workspace-and-workflow-concept.md).
+> [Source Workspace and Workflow Concept](../architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md).
 > PDF-specific inventory and jobs are views/stages of the shared source workflow.
+
+> **Gemischter Bestand / Strukturprüfung offen:** Dieses Dokument enthält
+> ältere PDF-Job- und Buch-Pipeline-Beschreibungen, deren aktuelle Ausführung,
+> URLs und Befehle noch einzeln zu prüfen sind. Die H2-Abschnitte haben noch
+> keine semantischen IDs. PDF-Import als Eingabe bleibt davon unberührt.
 
 ## Quick Start
 
@@ -156,6 +171,11 @@ done ✓  or  failed ✗
 - Multiple workers can be added in future for true parallelism
 
 ## Buch-Pipeline (Verarbeitungsstand pro Buch)
+
+Dieser buchzentrierte Pfad beschreibt einen älteren Implementierungsstand, kein
+Zielmodell für Wissensblöcke. Der verwandte frühere
+[Buch- und Kuratierungsansatz](archiv/KNOWLEDGE_BLOCKS_BOOK_CONCEPT.md) ist
+archiviert; die neue Struktur wird unabhängig davon geplant.
 
 Übersicht: `/knowledge/pipeline/` (Navigation *Knowledge → Buch-Pipeline*).
 

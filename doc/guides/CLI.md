@@ -1,3 +1,25 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-09-02 18"
+updated: "2026-11-07 23"
+update_reason: "Abschnitte gekennzeichnet und CLI-Aussagen am Code abgeglichen"
+status: active
+semantic_blocks:
+  - features
+  - installation
+  - usage
+  - configuration
+  - architecture
+  - extension
+  - dynamic-architecture
+  - debugging
+  - examples
+  - tests
+  - references
+---
+
 # Ki-Knowledge CLI
 
 Robuste Click-basierte CLI mit **dynamischer YAML-Konfiguration** für die Infosite-Verwaltung und andere Funktionen.
@@ -7,15 +29,15 @@ mitinstalliert. Eine eigene `cli.yaml` im Arbeitsverzeichnis ersetzt diese
 Defaults; fehlerhafte Overrides werden mit Pfad gemeldet, nicht ignoriert.
 Details zum [Paket-Build](packaging.md).
 
-## Features
+<a id="features"></a>
+## Features [features]
 
-✨ **Dynamische Hierarchie** - Kommando-Struktur aus `cli.yaml` konfigurierbar  
-📦 **Auto-Discovery** - Findet Callbacks automatisch aus Python-Modulen  
-🎨 **Strukturiert** - Haupt-Kommandos und Untergruppen  
-🔧 **Erweiterbar** - Neue Kommandos einfach in YAML hinzufügen  
-⚡ **Schnell** - Click-basierte native CLI  
+Die Kommandohierarchie ist in YAML konfigurierbar und unterstützt Gruppen.
+Angegebene Python-Callbacks werden importiert; neue Funktionalität benötigt
+eine entsprechende Implementierung.
 
-## Installation
+<a id="installation"></a>
+## Installation [installation]
 
 Die CLI ist bereits im Projekt integriert:
 
@@ -24,7 +46,9 @@ cd ki-knowledge
 source .venv/bin/activate
 ```
 
-## Verwendung
+<a id="verwendung"></a>
+<a id="usage"></a>
+## Verwendung [usage]
 
 ### Help anzeigen
 
@@ -53,10 +77,10 @@ infosite:
 
 **Infosite Management:**
 ```bash
-ki infosite init           # Neues Projekt initialisieren
-ki infosite generate       # Infosite aus Dokumenten generieren
-ki infosite list          # Projekte auflisten (mit Django)
-ki infosite discover      # Dokumentquellen scannen
+kictl infosite init       # Dialog; legt derzeit kein Projekt an
+kictl infosite generate   # Infosite generieren
+kictl infosite list       # Projekte auflisten (mit Django)
+kictl infosite discover   # Verzeichnis interaktiv einlesen
 ```
 
 **Nextcloud (WebDAV, siehe [NEXTCLOUD.md](../integration/NEXTCLOUD.md)):**
@@ -68,14 +92,17 @@ kictl nextcloud import -d <domain> <datei.md>  # Markdown importieren (--all: Or
 kictl nextcloud upload -d <domain> <ausgabe>   # erzeugte Datei hochladen, nie überschreiben
 ```
 
-**Knowledge Base:**
+**Knowledge Base:** Die folgenden Einträge sind aktuell Platzhalter ohne
+fachlichen Callback. Sie geben lediglich den Kommandonamen aus:
 ```bash
-ki knowledge import       # Dokumente importieren
-ki knowledge search       # Knowledge Base durchsuchen
-ki knowledge graph        # Knowledge-Graph visualisieren
+kictl knowledge import
+kictl knowledge search
+kictl knowledge graph
 ```
 
-## Konfiguration
+<a id="konfiguration"></a>
+<a id="configuration"></a>
+## Konfiguration [configuration]
 
 Die CLI-Hierarchie ist in `ki_knowledge/cli/cli.yaml` definiert. Fuer lokale
 Anpassungen kann eine eigene `cli.yaml` im Arbeitsverzeichnis liegen:
@@ -92,7 +119,7 @@ cli:
           help: "Generate infosite from documents"
           callback: "ki_knowledge.cli.commands.infosite:generate_infosite"
         
-        # Oberflächliches Kommando (ohne Callback)
+        # Weiterer Callback
         init:
           help: "Initialize new project"
           callback: "ki_knowledge.cli.commands.infosite:init_project"
@@ -119,7 +146,9 @@ Der `callback` verweist auf ein Python-Callable im Format `module:function`:
 
 Die Funktion wird automatisch importiert und aufgerufen.
 
-## Architektur
+<a id="architektur"></a>
+<a id="architecture"></a>
+## Architektur [architecture]
 
 ### CLI Framework (`framework.py`)
 
@@ -134,12 +163,14 @@ Kernkomponenten:
 Konkrete Kommandos in `ki_knowledge/cli/commands/`:
 
 - **`infosite.py`** - Infosite-Management
-  - `init_project()` - Neues Projekt
+  - `init_project()` - Initialisierungsdialog ohne persistente Projektanlage
   - `generate_infosite()` - Generation
   - `list_projects()` - Auflistung (optional Django)
   - `discover_documents()` - Dokument-Scanning
 
-## Erweiterung
+<a id="erweiterung"></a>
+<a id="extension"></a>
+## Erweiterung [extension]
 
 ### Neue Kommando-Gruppe hinzufügen
 
@@ -174,7 +205,9 @@ python -m ki_knowledge.cli.main myfeature cmd
 
 ### Neue Kommandos mit Parametern
 
-Click-Parameter funktionieren automatisch:
+Ein einfacher Callback kann beispielsweise interaktiv nach Eingaben fragen.
+Für echte Click-Optionen und Argumente ist ein entsprechend definiertes
+Click-Command erforderlich.
 
 ```python
 import click
@@ -185,15 +218,16 @@ def my_command_with_args():
     click.echo(f"Hello, {name}!")
 ```
 
-## Vorteile der dynamischen Architektur
+<a id="vorteile-der-dynamischen-architektur"></a>
+<a id="dynamic-architecture"></a>
+## Vorteile der dynamischen Architektur [dynamic-architecture]
 
-✅ **Konfigurierbar** - Struktur ändern ohne Code-Modifizierung  
-✅ **Wartbar** - YAML ist einfach zu verstehen  
-✅ **Skalierbar** - Beliebig viele Kommandos/Gruppen  
-✅ **Hierarchisch** - Verschachtelte Kommando-Strukturen  
-✅ **Auto-Discovery** - Callbacks werden automatisch geladen  
+Die YAML-Datei legt die verschachtelte Struktur fest und verweist auf die
+Callbacks. Sie kann vorhandene Funktionen neu kombinieren, implementiert aber
+keine neuen Funktionen selbst.
 
-## Debugging
+<a id="debugging"></a>
+## Debugging [debugging]
 
 ### Config validieren
 
@@ -215,32 +249,29 @@ from ki_knowledge.cli.commands.infosite import generate_infosite
 generate_infosite()  # Ruft die Funktion direkt auf
 ```
 
-## Beispiele
+<a id="beispiele"></a>
+<a id="examples"></a>
+## Beispiele [examples]
 
 ### Infosite mit CLI generieren
 
 ```bash
-# 1. Config vorbereiten
-cat > ki.yaml << 'EOF'
-infosite:
-  enabled: true
-  title: "My Knowledge"
-  domain: "docs"
-  output_base_dir: "./output"
-EOF
-
-# 2. Generieren
+# Vorhandene Konfiguration prüfen und Werte für infosite.title,
+# infosite.domain und infosite.output_base_dir bei Bedarf setzen.
+# Danach generieren:
 python -m ki_knowledge.cli.main infosite generate
-
-# 3. Ergebnis prüfen
-ls -la output/docs/my-knowledge/
 ```
+
+Die CLI verwendet `<knowledge.data_root>/documents`, wenn dieses Verzeichnis
+existiert; andernfalls erzeugt sie Standardseiten. Das ist nicht automatisch
+gleichbedeutend mit der aktuellen Data-Sources- oder Textwerkstatt-Pipeline.
 
 ### Neue Kommandogruppe hinzufügen
 
 Siehe "Erweiterung" oben.
 
-## Tests
+<a id="tests"></a>
+## Tests [tests]
 
 ```bash
 pytest tests/test_cli.py -v
@@ -253,7 +284,9 @@ Test-Abdeckung:
 - Callback-Laden
 - Kommando-Ausführung
 
-## Referenzen
+<a id="referenzen"></a>
+<a id="references"></a>
+## Referenzen [references]
 
 - Click Dokumentation: https://click.palletsprojects.com/
 - YAML Format: https://yaml.org/

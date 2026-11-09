@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: refactorings
+created: "2026-09-09 22"
+updated: "2026-11-08 00"
+update_reason: "Jira-Widgets im Plan als Legacy eingeordnet"
+status: draft
+---
+
 # Dashboard-Builder-Plan für die Django-WebUI
+
+> Jira-spezifische Widgets und Workflows im Plan sind Legacy; Jira soll künftig
+> als gleichberechtigtes Eingabe-/Importformat behandelt werden.
 
 ## Zielbild
 

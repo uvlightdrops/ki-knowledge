@@ -1,11 +1,44 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: deployment
+created: "2026-10-31 02"
+updated: "2026-11-08 01"
+update_reason: "Veraltete normalize- und Provider-Aussagen archiviert"
+status: active
+---
+
 # Deployment Architecture
 
+> **Hinweis:** Dieser Überblick enthält ältere, noch nicht vollständig geprüfte
+> Betriebsangaben. Frühere [Fehlannahmen zu `normalize`](archiv/NORMALIZE_FEHLANNAHMEN.md)
+> sind archiviert; der Befehl ist kein lesender Konfigurationscheck.
+
 This directory documents the deployment infrastructure for ki-knowledge.
+
+[Bereichsarchiv](archiv/README.md) · [Zur Dokumentation](../README.md)
+
+## Dokumentindex
+
+Statusangaben sind keine vollständige Aktualitätsprüfung; Blockkennungen der
+einzelnen Dokumente sind noch offen.
+
+| Datei | Status | Zweck | Semantische Blöcke |
+|---|---|---|---|
+| [CONFIG_MERGE_REFERENCE.md](CONFIG_MERGE_REFERENCE.md) | active | Konfigurationsschichten; Beispiele noch prüfen | offen |
+| [OLLAMA_REQUIREMENTS.md](OLLAMA_REQUIREMENTS.md) | draft | Anforderungen an separaten Ollama-Host | offen |
+| [REFERENCE_FOR_KICLI_ASSIST.md](REFERENCE_FOR_KICLI_ASSIST.md) | draft | Projektübergreifende Referenz; Zuständigkeit prüfen | offen |
+| [STAGES.md](STAGES.md) | active | Stage-Leitfaden; Beispiele noch prüfen | offen |
+| [TESTING.md](TESTING.md) | active | Deployment-Prüfungen; Beispiele noch prüfen | offen |
+| [UBERSPACE7_IMPLEMENTATION.md](UBERSPACE7_IMPLEMENTATION.md) | draft | Uberspace-7-Betrieb und Installation | offen |
+| [UBERSPACE7_REMOTE_DIAGNOSIS.md](UBERSPACE7_REMOTE_DIAGNOSIS.md) | active | Recherche zur Remote-Diagnose | offen |
+| [UBERSPACE8_IMPLEMENTATION.md](UBERSPACE8_IMPLEMENTATION.md) | draft | Uberspace-8-Betrieb und Installation | offen |
 
 ## Quick Links
 
 - **[Ollama: Server-Anforderungen](OLLAMA_REQUIREMENTS.md)** - Dedizierter Inferenzhost, Hardwareprofile und messbare Leistungsziele.
 - **[Uberspace 7: Umsetzung und Installation](UBERSPACE7_IMPLEMENTATION.md)** - Bootstrap, supervisord, PostgreSQL/pgvector und Git-Updates; Hostabnahme offen.
+- **[Recherche: KI-gestuetzte Remote-Diagnose auf U7](UBERSPACE7_REMOTE_DIAGNOSIS.md)** - SSH-Assistenz, Remote-Agenten, Debugger und sichere Betriebsgrenzen.
 - **[Uberspace 8: Umsetzung und Installation](UBERSPACE8_IMPLEMENTATION.md)** - Bootstrap, systemd-User-Services und gemeinsamer Git-Updatepfad; pgvector und Hostabnahme pruefen.
 - **[CONFIG_MERGE_REFERENCE.md](CONFIG_MERGE_REFERENCE.md)** - How configuration layers work
 - **[STAGES.md](STAGES.md)** - Detailed guide for each deployment stage
@@ -58,11 +91,9 @@ export KI_STAGE=dev-lokal
    stackctl -t local status
    ```
 
-3. **Test configuration**:
-   ```bash
-   export KI_STAGE=dev-lokal
-   stackctl -t local normalize  # Validate and print merged config
-   ```
+3. **Konfiguration prüfen:** Die [Projektanleitung](../guides/YAML_CONFIG_SYSADMIN.md)
+   und die führende stackctl-Dokumentation heranziehen; `normalize` ist kein
+   Konfigurationscheck.
 
 ## Key Concepts
 
@@ -88,14 +119,10 @@ Only **one stage** is active at a time. Stages provide environment-specific over
 
 ### Provider Detection
 
-The system includes intelligent LLM provider selection:
-
-```python
-cm = ConfigManager()
-provider = cm.get_llm_provider()  # Returns best available: openai > ollama > ki > mock
-```
-
-This is NOT just reading `llm.provider` from config - it checks availability.
+Die Auswahl liegt in `ki_core.chat`, der Projektadapter in
+`ki_knowledge.llm_provider`. Ein expliziter Provider bleibt maßgeblich;
+`auto` kann bei Client-Erzeugung aufgelöst werden. Die frühere
+[abweichende Annahme](archiv/PROVIDER_DETECTION_ALTKONZEPT.md) ist archiviert.
 
 ## Infrastructure
 
@@ -159,19 +186,13 @@ stackctl -t local status
 ```
 
 **"Config validation failed"**:
-```bash
-# Check merged config
-stackctl -t local normalize > /tmp/merged-config.yaml
-# Review for invalid values
-```
+Fehlermeldung und aktive Konfigurationsschichten anhand der
+[Projektanleitung](../guides/YAML_CONFIG_SYSADMIN.md) prüfen; vertrauliche
+Konfigurationswerte nicht in Ausgaben oder Dateien kopieren.
 
-**"Provider detection failing"**:
-```python
-from ki_core.config import ConfigManager
-cm = ConfigManager()
-print(cm.load().get_path("llm.provider"))        # Raw config
-print(cm.get_llm_provider())                     # Detected provider
-```
+**"Provider detection failing"**: Provider-Konfiguration und Fehlermeldung
+prüfen. Die [Projektanleitung](../guides/YAML_CONFIG_SYSADMIN.md) beschreibt
+den Konfigurationsweg; Secrets dabei nicht ausgeben.
 
 ## Next Steps
 

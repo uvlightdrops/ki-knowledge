@@ -1,8 +1,31 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-10-30 03"
+updated: "2026-11-08 00"
+update_reason: "Jira-Einstellungen als Legacy eingeordnet"
+status: active
+semantic_blocks:
+  - overview
+  - persistence-and-precedence
+  - credentials
+  - activation-boundaries
+  - other-owners
+  - shared-implementation
+  - compact-view
+---
+
 # Live-Konfiguration
+
+> Jira-spezifische Einstellungen beziehen sich auf Legacy-Funktionen; Jira ist
+> künftig als gleichberechtigtes Eingabe-/Importformat vorgesehen.
 
 Stand: 2026-10-29.
 
-## Einstieg
+<a id="einstieg"></a>
+<a id="overview"></a>
+## Einstieg [overview]
 
 **Settings → Live-Konfiguration** (`/settings/config/`) ersetzt die bisherige
 schreibgeschützte Auswahl einzelner `AppConfig`-Attribute. Zugang haben nur
@@ -15,7 +38,9 @@ einen weiteren eigenen Formularkatalog anzulegen. Nicht definierte oder
 unsicher darstellbare Strukturen dürfen nicht als beliebiger Roh-YAML-Baum
 bearbeitet werden.
 
-## Speichern und Vererbung
+<a id="speichern-und-vererbung"></a>
+<a id="persistence-and-precedence"></a>
+## Speichern und Vererbung [persistence-and-precedence]
 
 Nicht geheime Änderungen landen in `config/runtime/runtime.yaml`. Die Datei
 ist host-lokal und gehört nicht ins Repository. „Entfernen“ nimmt nur den
@@ -42,7 +67,9 @@ Konflikt neu laden und die Änderung erneut prüfen. Speichern verwendet
 Dateisperre und atomaren Dateiaustausch; Kommentare und ursprüngliche
 YAML-Formatierung werden nicht erhalten.
 
-## Zugangsdaten ohne Klartextanzeige
+<a id="zugangsdaten-ohne-klartextanzeige"></a>
+<a id="credentials"></a>
+## Zugangsdaten ohne Klartextanzeige [credentials]
 
 Schema-definierte Zugangsdaten haben separate **Write-only-Eingabefelder**.
 Ein neuer Wert wird ausschließlich in die projekteigene `creds.yaml`
@@ -60,7 +87,9 @@ Provider-Schlüssel werden vom nächsten neuen Client verwendet. Ein
 Django-`secret_key`-Wechsel ist dagegen eine Neustart-/Sessionentscheidung;
 ein Datenbank-DSN-Wechsel erfordert einen geplanten Verbindungswechsel.
 
-## Was ist wirklich live?
+<a id="was-ist-wirklich-live"></a>
+<a id="activation-boundaries"></a>
+## Was ist wirklich live? [activation-boundaries]
 
 | Bereich | Aktivierung |
 | --- | --- |
@@ -78,7 +107,9 @@ Die Anzeige „Wirksam“ bezeichnet die aktuell aufgelöste Konfiguration,
 nicht die rückwirkende Umkonfiguration bereits erzeugter Verbindungen,
 Tasks oder Django-Settings.
 
-## Andere Eigentümer
+<a id="andere-eigentümer"></a>
+<a id="other-owners"></a>
+## Andere Eigentümer [other-owners]
 
 Node-Rolle, Aktivierung, Master-URL und Sync-Verhalten werden durch
 `NodeConfig` in der **Sync-Administration** verwaltet. Die YAML-Oberfläche
@@ -89,7 +120,9 @@ Datenbankzuordnungen bestimmt.
 Widget-Anordnung und -Breite bleiben im **Dashboard Builder**. Benutzer-/
 Domainlayouts sind Datenbankobjekte und keine hostweiten YAML-Einstellungen.
 
-## Gemeinsame Implementierung
+<a id="gemeinsame-implementierung"></a>
+<a id="shared-implementation"></a>
+## Gemeinsame Implementierung [shared-implementation]
 
 `ki_core.runtime_settings.RuntimeSettings` übernimmt Auflösung, Feldinventar,
 Validierung und Speicherung. `widgetkit_django.runtime_settings` stellt die
@@ -105,7 +138,9 @@ Der ältere begrenzte Sync-Editor bleibt unter `/settings/config/sync/`
 erreichbar. Beide Oberflächen schreiben dieselbe Runtime-Datei; sie
 erzeugen keine parallelen Konfigurationsspeicher.
 
-## Kompakte Ansicht C2
+<a id="kompakte-ansicht-c2"></a>
+<a id="compact-view"></a>
+## Kompakte Ansicht C2 [compact-view]
 
 Direkt neben **Configuration** steht **C2** (`/settings/config/c2/`).
 Die zusätzliche Tabellenansicht nutzt dieselbe Konfiguration, Berechtigungen

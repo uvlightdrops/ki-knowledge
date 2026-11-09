@@ -1,4 +1,18 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: deployment
+created: "2026-10-31 03"
+updated: "2026-11-08 01"
+update_reason: "Falsche normalize- und Provider-Empfehlungen archiviert"
+status: draft
+---
+
 # Ki-Knowledge as Reference for kicli-code-assist
+
+> **Warnung:** Diese projektübergreifende Referenz muss insgesamt noch auf
+> Aktualität und Zuständigkeit geprüft werden. Die
+> [Fehlannahmen zu normalize](archiv/NORMALIZE_FEHLANNAHMEN.md) sind archiviert.
 
 **Date**: 2026-10-31
 **Purpose**: kicli-code-assist team should use this reference when implementing their own deployment infrastructure.
@@ -41,18 +55,11 @@ The config resolution pipeline has 8 layers (highest to lowest priority):
 # This means stage files should be MINIMAL - only override what's different!
 ```
 
-### 3. Provider Detection ✅
+### 3. Provider Detection
 
-`ConfigManager.get_llm_provider()` is NOT just reading `llm.provider` from config!
-
-It has intelligent fallback:
-1. Check if provider explicitly set (non-"auto")
-2. Check if OpenAI key available
-3. Check if Ollama reachable
-4. Check if KI key available
-5. Fallback to "mock"
-
-**Design implication**: Stage can say `provider: ollama` but app might detect `provider: openai` if OpenAI key exists in creds.yaml. This is FEATURE - use what's available.
+Die frühere [Annahme eines automatischen Wechsels trotz expliziter Auswahl](archiv/PROVIDER_DETECTION_ALTKONZEPT.md)
+ist archiviert. Provider-Auswahl und Client-Erzeugung liegen in `ki_core.chat`;
+die konkrete Integration des Schwesterprojekts ist dort gesondert zu prüfen.
 
 ### 4. CI/CD Testing ✅
 
@@ -240,9 +247,6 @@ stackctl -t local start
 # Check status
 stackctl -t local status
 
-# Validate config (don't start services)
-stackctl -t local normalize
-
 # Stop all services
 stackctl -t local stop
 
@@ -260,11 +264,6 @@ for stage in dev-lokal dev-compose ci-test prod; do
     export KI_STAGE=$stage
     python -c "from ki_core.config import load_config; load_config(); print('✓ $stage')"
 done
-
-# 2. Validate merge order
-export KI_STAGE=dev-lokal
-stackctl -t local normalize > /tmp/merged.yaml
-# Review the merged config
 
 # 3. Run health checks
 python scripts/health_check.py
@@ -284,7 +283,7 @@ stackctl -t local stop
 | Secrets in config files | Security leak, can be committed | Put secrets ONLY in creds.yaml (.gitignored) |
 | Using marker file instead of env var | Inflexible for CI/CD | Always use `export KI_STAGE=...` |
 | Expecting all stages active | Only one is active! | Set `KI_STAGE` env var correctly |
-| Ignoring `get_llm_provider()` | May not use intended provider | Use `ConfigManager.get_llm_provider()` not raw config |
+| Assuming an explicit provider can silently change | Misleading provider expectations | Check the project's integration and `ki_core.chat` |
 | Wrong env var nesting (use . not __) | Env var not recognized | Use `KI_CFG_LLM__PROVIDERS__KI__API_KEY` with __ |
 | Not validating in CI/CD | Config errors caught late | Use ki-knowledge test.yml as template |
 
@@ -300,7 +299,8 @@ A: Use `config/runtime/runtime.yaml` or environment variables. These override st
 A: Minimal placeholders. ki.yaml is the base for ALL stages. Production-specific values go in `config/stages/prod.yaml`.
 
 **Q: How do I know if my config is valid?**
-A: Run `stackctl normalize` or use the CI/CD test workflow. Both validate against schema.
+A: Consult the current ki-core and yaml-cfg-wizard documentation for the
+appropriate validation method. `stackctl normalize` is not a read-only check.
 
 **Q: Can my app use different stages per module?**
 A: No, only one global stage. If you need per-module config, use profiles or nested YAML keys.
@@ -319,7 +319,7 @@ A: No, only one global stage. If you need per-module config, use profiles or nes
 3. **Write** minimal stage files (just the overrides)
 4. **Setup** creds.yaml (.gitignored) for secrets
 5. **Test** with `KI_STAGE=dev-lokal` env var
-6. **Validate** with `stackctl normalize` or Python scripts
+6. **Validate** using the current config tooling and its documentation
 7. **Integrate** config loading in your app
 
 ---

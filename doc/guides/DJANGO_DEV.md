@@ -1,3 +1,24 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-09-02 18"
+updated: "2026-11-08 00"
+update_reason: "Stackctl-Schnellstart an führende Dokumentation und Projekt-venv angepasst"
+status: active
+semantic_blocks:
+  - quick-start
+  - initial-setup
+  - important-urls
+  - start-options
+  - database
+  - troubleshooting
+  - tips
+  - workflow
+  - environment-overrides
+  - conclusion
+---
+
 # 🚀 Django Dev - Quick Start Guide
 
 YAML-Schichten, Editor-Grenzen und projektuebergreifende Bedienung:
@@ -5,44 +26,42 @@ YAML-Schichten, Editor-Grenzen und projektuebergreifende Bedienung:
 kein Nachweis eines getesteten oder installierten Rollouts. Generisches
 Engineering: [yaml-cfg-wizard](../../../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md).
 
-## ⚡ SCHNELLSTART
+<a id="-schnellstart"></a>
+<a id="quick-start"></a>
+## Schnellstart [quick-start]
 
 ```bash
-# Voraussetzung: globales stackctl installiert, ~/.local/bin im PATH.
-# Einmalig im stackctl-Checkout: ./scripts/install-user.sh
-# Im ki-knowledge-Projekt:
-stackctl install        # Projekt-.venv + Geschwister-Repos + Projekt (siehe README)
-# Option 1: ganzer Stack (Postgres, Ollama-Check, API :8090, Django :8000)
-stackctl start          # startet nur, was noch nicht läuft (Django: migrate + runserver)
-stackctl status         # was läuft, PIDs, URLs
-stackctl stop           # verwaltete Dienste stoppen, Daten bleiben erhalten
-stackctl restart django # einzelne Dienste: postgres | ollama | api | django
-stackctl logs django -f # Logs unter var/log/, PIDs unter var/run/
-stackctl spec           # aufgelöste Stack-Spec (Ports, Kommandos, Env)
+# Im ki-knowledge-Projekt: vorhandene Projekt-venv mit stackctl verwenden.
+.venv/bin/python -m stackctl spec
+.venv/bin/python -m stackctl start
+.venv/bin/python -m stackctl status
+.venv/bin/python -m stackctl logs django -f
+.venv/bin/python -m stackctl stop
 
-# Option 2: Einzelner Dienst im Vordergrund (gleiche Konfiguration wie start)
-stackctl run django     # migrate + runserver; Strg+C beendet den Dienst
-stackctl run api        # alternativ: API im Vordergrund
-# Andere benötigte Dienste bei Bedarf separat: stackctl start api
+# Ein lokaler Dienst im Vordergrund; Abhängigkeiten müssen bereit sein:
+.venv/bin/python -m stackctl run django
+.venv/bin/python -m stackctl run api
 
-# Nur Kompatibilität, keine eigenen Server-Implementierungen:
+# Kompatibilitätseinstiege:
 ./kistack run django
 python examples/run_knowledge_django.py
 python examples/run_knowledge_api.py
 
-# Direkter Django-Aufruf (umgeht die Stack-Konfiguration):
+# Direkter Django-Aufruf (umgeht die Stack-Konfiguration, aktivierte venv):
 python manage.py migrate
 python manage.py runserver
 ```
 
-Der Haupteinstieg ist das zentrale [stackctl](../../../stackctl/README.md),
-aufgerufen im Projektverzeichnis oder einem Unterverzeichnis. Seine eigene
-Tool-venv ist von der Projekt-.venv getrennt: Konfigurationsloader und
-`{python}`-Dienstkommandos laufen mit dem Projektinterpreter. Eine Aktivierung
-der Projekt-.venv ist für den globalen Aufruf nicht erforderlich.
+Installation, Aufrufvarianten und allgemeines Verhalten stehen in der
+[stackctl-Dokumentation](../../../stackctl/README.md) und ihrem
+[Betriebsleitfaden](../../../stackctl/doc/OPERATIONS_GUIDE.md). Standard im
+KI-Ecosystem ist der Aufruf aus der Projekt-venv; `stackctl install` erstellt
+diese venv nicht. `spec` kann vertrauliche Konfigurationswerte enthalten und
+ist kein Start-Dry-Run.
 
 `kistack` bleibt ein projektgebundener Kompatibilitätsalias, auch als Symlink:
-zuerst `~/.local/bin/stackctl`, andernfalls `stackctl` aus dem PATH. Er setzt
+zuerst `.venv/bin/python -m stackctl`, ohne Projektinterpreter
+`~/.local/bin/stackctl` und danach `stackctl` aus dem PATH. Er setzt
 das Arbeitsverzeichnis auf dieses Projekt und reicht Argumente/Exitcode durch.
 Er installiert oder klont nichts und legt selbst keine `.venv` mehr an;
 das macht bei Bedarf ausschließlich `stackctl install`. Fehlt das Tool,
@@ -50,20 +69,8 @@ bricht der Alias mit Installationshinweis ab. Die alten Python-Launcher
 delegieren nur über diesen Alias zu `stackctl -t local run api|django`;
 ihre bestehenden `KI_API_*`-Overrides bleiben kompatibel.
 
-Dies entspricht der aktuellen Assist-Anbindung: `kicli-assist server` und
-die Server-UI rufen dasselbe zentrale Tool mit dem ausgewählten Projekt
-als cwd auf, ohne Wrapper oder Installation in jeder Projekt-venv.
-Der ältere Option-C-Entwurf in Assist ist kein zweiter Lifecycle-Vertrag.
 Der Stack steht in `config/defaults/stack.yaml` (Abschnitt `stack:`). Er wird über ki-core
 geladen, Stages und `KI_CFG_*`-Env gelten also auch hier.
-
-`start` startet Dienste im Hintergrund; `run <dienst>` bindet genau einen lokalen
-Prozess-Dienst ans Terminal. Beide verwenden dasselbe Kommando, dieselbe Umgebung,
-Vorbereitung und Bereitschaftspruefung aus der aufgeloesten Stack-Konfiguration.
-Der Vordergrundmodus schreibt ebenfalls nach `var/log/`, laesst sich aus einem
-zweiten Terminal mit `stop` beenden und startet keine Abhaengigkeiten automatisch.
-Deklarierte Abhaengigkeiten muessen bereits bereit sein. `run` wird fuer
-Compose-/External-Dienste und Cluster-Ziele explizit abgelehnt.
 
 Die API startet direkt als `python -m uvicorn ki_knowledge.api.knowledge_app:app`;
 das Example-Skript enthaelt keine eigene Uvicorn-Konfiguration mehr. Reload wird
@@ -84,21 +91,6 @@ Django bekommt `KNOWLEDGE_API_URL` passend zum API-Port. Auch der Prod-Host läu
 `runserver --insecure`, damit statische Dateien ohne DEBUG funktionieren. Das ist bewusst
 einfach gehalten und nicht für das offene Internet gedacht.
 
-Maschinenlesbarer Status und Log-Ausschnitte fuer die Assist-Serveransicht:
-
-```bash
-stackctl --json status
-stackctl --json logs api
-stackctl --json projects
-```
-
-`start`, `run` und `restart` registrieren den Projektpfad in
-`${XDG_STATE_HOME:-~/.local/state}/stackctl/projects.json`. Das ist nur ein
-Projektverzeichnis, keine zweite PID-/Dienstkonfiguration. Assist fragt den
-tatsaechlichen Status beim zentralen `stackctl` mit dem Projekt als cwd ab und delegiert
-Start/Stop/Restart dorthin. Ports, Startkommandos und Secrets werden nicht in
-die projektuebergreifende Registry kopiert.
-
 ### Wagtail-Kataloge explizit einrichten
 
 Nach Anlage neuer InfoSite-Projekte bei Bedarf im Projekt mit aktivierter
@@ -118,7 +110,7 @@ Standard-Wagtail-Site bricht das Kommando mit einem Fehler ab.
 erzeugen keinen Blockstore und starten keine Extraktion. Fehlt der
 Blockspeicher, zeigt der Katalog einen Fehler statt „0 Blöcke“.
 InfoSite-Extraktion bleibt ein eigener Pipeline-Schritt. Details zu den
-[führenden Speichern und Redaktionsgrenzen](../architecture/content-model-matrix.md#0-verbindliche-speicher--und-adaptergrenze-p2).
+[führenden Speichern und Redaktionsgrenzen](../architecture/CONTENT-MODEL-MATRIX.md#0-verbindliche-speicher--und-adaptergrenze-p2).
 
 ### Stages und Host-Overrides
 
@@ -259,7 +251,9 @@ wird beim ersten Start geladen. Der Chat (`/knowledge/chat/ollama/`) zeigt den a
 
 ---
 
-## 📋 SETUP (erste Mal)
+<a id="-setup-erste-mal"></a>
+<a id="initial-setup"></a>
+## Setup beim ersten Mal [initial-setup]
 
 ### Schritt 1: Migrations ausführen
 ```bash
@@ -283,19 +277,23 @@ python manage.py runserver
 
 ---
 
-## 🎯 WICHTIGE URLS
+<a id="-wichtige-urls"></a>
+<a id="important-urls"></a>
+## Wichtige URLs [important-urls]
 
 | URL | Beschreibung |
 |-----|-------------|
 | `http://localhost:8000/` | Startseite |
 | `http://localhost:8000/admin/` | Admin Panel |
-| `http://localhost:8000/infosite/` | Infosite Dashboard |
-| `http://localhost:8000/infosite/projects/` | Projekte |
-| `http://localhost:8000/infosite/discover/` | Datei-Entdeckung |
+| `http://localhost:8000/data-sources/` | Quellen und Import |
+| `http://localhost:8000/knowledge/workbench/` | Textwerkstatt |
+| `http://localhost:8000/output/infosite/` | InfoSite-Projekte |
 
 ---
 
-## 🔧 VERSCHIEDENE STARTOPTIONEN
+<a id="-verschiedene-startoptionen"></a>
+<a id="start-options"></a>
+## Verschiedene Startoptionen [start-options]
 
 ### Default (Port 8000)
 ```bash
@@ -320,9 +318,14 @@ python manage.py runserver --nothreading
 
 ---
 
-## 📦 DATENBANK-STRUKTUR
+<a id="-datenbank-struktur"></a>
+<a id="database"></a>
+## Datenbankstruktur [database]
 
-**Pfad:** `~/dev_data/ki-knowledge/django.sqlite3`
+Die Datenbank hängt von der aufgelösten Konfiguration ab: Eine konfigurierte
+PostgreSQL-DSN aktiviert PostgreSQL; andernfalls wird SQLite verwendet.
+Der SQLite-Pfad wird aus Datenwurzel und Datenlayout bestimmt und kann
+über `DJANGO_DB_PATH` überschrieben werden.
 
 **Tabellen:**
 - `django_session` - Session-Daten
@@ -333,7 +336,9 @@ python manage.py runserver --nothreading
 
 ---
 
-## 🛠️ TROUBLESHOOTING
+<a id="-troubleshooting"></a>
+<a id="troubleshooting"></a>
+## Troubleshooting [troubleshooting]
 
 ### "no such table: django_session"
 ```bash
@@ -353,7 +358,9 @@ python manage.py createsuperuser
 
 ---
 
-## 💡 TIPPS
+<a id="-tipps"></a>
+<a id="tips"></a>
+## Tipps [tips]
 
 ✅ Immer mit Virtual Environment starten:
 ```bash
@@ -369,7 +376,7 @@ python manage.py migrate
 ✅ Django Shell für schnelle Tests:
 ```bash
 python manage.py shell
->>> from ki_knowledge.django_site.models import InfoSiteProject
+>>> from ki_knowledge.django_site.infosite_models import InfoSiteProject
 >>> InfoSiteProject.objects.all()
 ```
 
@@ -380,7 +387,9 @@ python manage.py collectstatic --noinput
 
 ---
 
-## 🔄 WORKFLOW
+<a id="-workflow"></a>
+<a id="workflow"></a>
+## Workflow [workflow]
 
 ```
 1. venv aktivieren
@@ -396,12 +405,14 @@ python manage.py collectstatic --noinput
    http://localhost:8000/admin/
 
 5. Infosite nutzen
-   http://localhost:8000/infosite/
+   http://localhost:8000/output/infosite/
 ```
 
 ---
 
-## 📝 ENVIRONMENT VARIABLES
+<a id="-environment-variables"></a>
+<a id="environment-overrides"></a>
+## Environment Variables [environment-overrides]
 
 Normalerweise nicht nötig – Django-Werte stehen in `ki.yaml` unter
 `apps.ki_knowledge.django.*`. Umgebungsvariablen überschreiben sie pro Prozess:
@@ -411,11 +422,13 @@ export DJANGO_DB_PATH=/custom/path/django.sqlite3
 export DJANGO_SECRET_KEY=your-secret-key-here
 export DJANGO_DEBUG=true
 export DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-export KI_CFG_LLM__DEFAULT_PROVIDER=mock   # jeder ki-core-Wert: KI_CFG_<pfad mit __>
+export KI_CFG_LLM__PROVIDER=mock   # ki-core-Override: KI_CFG_<pfad mit __>
 ```
 
 ---
 
-## ✨ Fertig!
+<a id="-fertig"></a>
+<a id="conclusion"></a>
+## Fertig [conclusion]
 
 Die Django Site ist jetzt ready für Development. Viel Erfolg! 🎉

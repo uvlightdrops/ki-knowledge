@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: refactorings
+created: "2026-09-09 22"
+updated: "2026-11-08 00"
+update_reason: "Jira-Workflows im Plan als Legacy eingeordnet"
+status: draft
+---
+
 # Widget-Migration und Admin-Area-Umbau
+
+> Jira-spezifische Workflows und ihre Kompatibilität in diesem Plan sind
+> Legacy; Jira soll künftig ein gleichberechtigtes Eingabe-/Importformat sein.
 
 ## Ziel
 

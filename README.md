@@ -1,9 +1,27 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: overview
+created: "2026-09-02 07"
+updated: "2026-11-08 00"
+update_reason: "Jira-Altbestand und beabsichtigte Importrolle eingeordnet"
+status: active
+---
+
 # Ki Knowledge
 
-Knowledge Base System with Graph, Ingestion, and Django UI.
+Ki-Knowledge is an extensible application for working with knowledge in
+domains. Its first workbench prototype supports working with text blocks,
+metadata and relations; importing sources and producing content are integral
+parts of the application.
 
 **Status:** 🔄 Under Development
-**Purpose:** Extract knowledge from PDFs, JIRA, Ontologies and build a queryable knowledge graph
+**Direction:** Provide useful defaults while allowing domain-specific knowledge
+structures and additional knowledge technologies to evolve.
+
+**Jira:** Existing Jira-specific workflows are legacy. Jira is intended to
+become an input/import format alongside other sources, not a privileged core
+workflow; that future integration is not claimed to be complete.
 
 ## Documentation
 

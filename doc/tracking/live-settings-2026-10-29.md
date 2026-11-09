@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: tracking
+created: "2026-10-30 03"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Konfiguration als Legacy eingeordnet"
+status: active
+---
+
 # Live-Konfiguration: Umsetzung und Providerprüfung
+
+> Jira-spezifische Konfiguration im Bericht betrifft Legacy; Jira ist künftig
+> als gleichberechtigtes Eingabe-/Importformat vorgesehen.
 
 Stand: 2026-10-29. Dieser Bericht unterscheidet implementierte Schnittstellen,
 isoliert geprüfte Funktionen und tatsächlich erreichbare Anbieter.

@@ -1,6 +1,28 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-09-02 18"
+updated: "2026-11-07 23"
+update_reason: "Abschnitte gekennzeichnet und veraltete Einstiegspfade korrigiert"
+status: active
+semantic_blocks:
+  - cli-interface
+  - django-interface
+  - interface-comparison
+  - quick-commands
+  - recommendations
+---
+
 # Click CLI vs Django Web Interface
 
-## 🎯 CLICK CLI - Command Line Interface
+> Dieser Vergleich ist ein älterer Überblick, keine vollständige
+> Funktionsprüfung. Aktuelle Details stehen in der [CLI-Anleitung](CLI.md)
+> und der [Textwerkstatt-Anleitung](text-workbench.md).
+
+<a id="click-cli---command-line-interface"></a>
+<a id="cli-interface"></a>
+## Click CLI - Command Line Interface [cli-interface]
 
 ### Starten:
 ```bash
@@ -22,11 +44,14 @@ python -m ki_knowledge.cli.main infosite discover
 - `ki_knowledge/cli/cli.yaml` - Mitinstallierte Standard-Kommandohierarchie
 - `cli.yaml` im Arbeitsverzeichnis - Optionaler lokaler Override
 - Vollständig YAML-basiert & veränderbar
-- Keine Code-Änderungen nötig für neue Kommandos
+- YAML kann vorhandene Callbacks einbinden; neue Funktionalität benötigt
+  eine entsprechende Implementierung.
 
 ---
 
-## 🌐 DJANGO WEB - Web Interface
+<a id="django-web---web-interface"></a>
+<a id="django-interface"></a>
+## Django Web - Web Interface [django-interface]
 
 ### Starten:
 ```bash
@@ -37,8 +62,9 @@ KI_CFG_STACK__SERVICES__DJANGO__PORT=8001 stackctl run django
 
 ### Öffnen in Browser:
 - Admin: http://localhost:8000/admin/
-- Dashboard: http://localhost:8000/infosite/
-- Projekte: http://localhost:8000/infosite/projects/
+- Dashboard: http://localhost:8000/
+- InfoSite-Projekte: http://localhost:8000/output/infosite/
+- Textwerkstatt: http://localhost:8000/knowledge/workbench/
 
 ### Verwenden für:
 ✅ Benutzer-freundliche GUI
@@ -55,7 +81,12 @@ KI_CFG_STACK__SERVICES__DJANGO__PORT=8001 stackctl run django
 
 ---
 
-## ⚙️ VERGLEICH
+<a id="vergleich"></a>
+<a id="interface-comparison"></a>
+## Vergleich [interface-comparison]
+
+Die folgende Bewertung ist eine subjektive historische Einschätzung, kein
+aktueller Funktionsvergleich.
 
 | Feature | CLI | Django Web |
 |---------|-----|-----------|
@@ -69,7 +100,8 @@ KI_CFG_STACK__SERVICES__DJANGO__PORT=8001 stackctl run django
 
 ---
 
-## 🚀 QUICK COMMANDS
+<a id="quick-commands"></a>
+## Quick Commands [quick-commands]
 
 ### CLI - Nur Terminal
 ```bash
@@ -82,7 +114,7 @@ python -m ki_knowledge.cli.main infosite discover
 # Projekte auflisten
 python -m ki_knowledge.cli.main infosite list
 
-# Neues Projekt initialisieren
+# Initialisierungsdialog anzeigen (legt derzeit kein Projekt an)
 python -m ki_knowledge.cli.main infosite init
 ```
 
@@ -93,12 +125,17 @@ stackctl run django
 
 # Dann Browser öffnen:
 # http://localhost:8000/admin/
-# http://localhost:8000/infosite/
+# http://localhost:8000/
 ```
 
 ---
 
-## 💡 EMPFEHLUNG
+<a id="empfehlung"></a>
+<a id="recommendations"></a>
+## Empfehlung [recommendations]
+
+Historische Orientierung; die tatsächliche Abdeckung der beiden Oberflächen
+ist nicht vollständig verglichen.
 
 **Für Anfang:** Django Web Interface
 - Leichter zu verstehen

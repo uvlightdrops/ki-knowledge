@@ -1,4 +1,21 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-02 18"
+updated: "2026-11-08 03"
+update_reason: "InfoSite-Bestand vom neuen Ausgabeziel und ungeprüften Abschnitten abgegrenzt"
+status: active
+---
+
 # Infosite Feature - Knowledge Presentation
+
+> **Gemischter Bestand / Strukturprüfung offen:** Der Import-Control-Vertrag
+> unten beschreibt einen konkreten bestehenden Pfad. Die übrigen älteren
+> Funktions-, Konfigurations- und Roadmapaussagen sind nicht vollständig auf
+> Aktualität geprüft; ihre H2-Abschnitte haben noch keine semantischen IDs.
+> Diese InfoSite-Ausgabe legt die [künftigen Ausgabeformen](../architecture/KI-KNOWLEDGE-KONZEPT.md#discovery-and-output)
+> nicht abschließend fest.
 
 The **infosite** feature (Knowledge Presentation) generates a browsable, markdown-based knowledge website from structured content. It's designed to be version-controllable, static-site-generator-compatible, and ready for AI-assisted content enhancement.
 

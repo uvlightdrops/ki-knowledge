@@ -1,4 +1,43 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-02 18"
+updated: "2026-11-08 03"
+update_reason: "Historische Output-Anforderungen semantisch gegliedert"
+status: draft
+semantic_blocks:
+  - vision
+  - historical-scope
+  - historical-exclusions
+  - configuration
+  - source-requirements
+  - content-generation
+  - versioning
+  - quality
+  - architecture-sketch
+  - implementation-questions
+  - roadmap
+  - acceptance-criteria
+  - references
+relations:
+  - target: ../architecture/KI-KNOWLEDGE-KONZEPT.md
+    type: reference
+    reason: "Neues fachliches Zielbild und offene Ausgabeplanung"
+---
+
 # Knowledge Presentation Feature – Anforderungen
+
+> **Historischer Anforderungsentwurf, nicht aktueller Produkt-Scope:** Die
+> folgenden Abschnitte beschreiben einen 2026 vorgeschlagenen Markdown-Output.
+> Insbesondere der Ausschluss von Wissensblöcken in Abschnitt 3 ist keine
+> Vorgabe für die [neue Ausgabeplanung](../architecture/KI-KNOWLEDGE-KONZEPT.md#discovery-and-output).
+> Format, Struktur, Freigabe und Implementierungsstand sind gesondert zu
+> prüfen; mögliche weiterhin nützliche Anforderungen bleiben erhalten.
+
+**Agentenbearbeitung, 2026-11-08:** Die Abschnitts-IDs strukturieren den
+historischen Entwurf; sie bestätigen weder die Anforderungen noch den
+Implementierungsstand. Eine fachliche Übernahme erfordert Prüfung.
 
 **Arbeitstitel:** Knowledge Presentation (Wissenspräsentation)  
 **Status:** Anforderungsphase (Phase 1)  
@@ -6,7 +45,9 @@
 
 ---
 
-## 1. Zielbild
+<a id="1-zielbild"></a>
+<a id="vision"></a>
+## 1. Zielbild [vision]
 
 Eine **browsbare Wissens-Website als Markdown-Quellbestand** erzeugen, die später mit einem Static Site Generator (SSG) gebaut und aktualisiert werden kann.
 
@@ -14,7 +55,9 @@ Im ersten Schritt geht es **nur um Inhalte und Dateistruktur**, nicht um semanti
 
 ---
 
-## 2. Scope (Phase 1)
+<a id="2-scope-phase-1"></a>
+<a id="historical-scope"></a>
+## 2. Scope (Phase 1) [historical-scope]
 
 1. Ausgabe als Markdown-Dateien inkl. sinnvoller Ordnerstruktur.
 2. Navigierbare Struktur über Seitenhierarchie und interne Links.
@@ -24,7 +67,12 @@ Im ersten Schritt geht es **nur um Inhalte und Dateistruktur**, nicht um semanti
 
 ---
 
-## 3. Nicht im Scope (jetzt explizit ausgeschlossen)
+<a id="3-nicht-im-scope-jetzt-explizit-ausgeschlossen"></a>
+<a id="historical-exclusions"></a>
+## 3. Nicht im Scope (jetzt explizit ausgeschlossen) [historical-exclusions]
+
+**Überholt als allgemeine Produktgrenze:** Der folgende Ausschluss gilt nur
+für den damaligen Entwurf, nicht für das neue Wissensmodell.
 
 1. Keine semantische Technologie-Integration.
 2. Keine Knowledge-Blocks-Anbindung.
@@ -32,7 +80,9 @@ Im ersten Schritt geht es **nur um Inhalte und Dateistruktur**, nicht um semanti
 
 ---
 
-## 4. Konfiguration
+<a id="4-konfiguration"></a>
+<a id="configuration"></a>
+## 4. Konfiguration [configuration]
 
 ### 4.1 Config-Eintrag
 
@@ -53,7 +103,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 5. Input-/Quellenanforderungen
+<a id="5-input-quellenanforderungen"></a>
+<a id="source-requirements"></a>
+## 5. Input-/Quellenanforderungen [source-requirements]
 
 1. Es gibt definierte Quelldokumente als Referenzbasis für den ersten Entwurf.
 2. Inhalte sollen **sinngemäß möglichst vollständig** übernommen werden.
@@ -65,7 +117,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 6. Content-Generierung (Phase 1 Verhalten)
+<a id="6-content-generierung-phase-1-verhalten"></a>
+<a id="content-generation"></a>
+## 6. Content-Generierung (Phase 1 Verhalten) [content-generation]
 
 1. Erzeuge Startseite und thematische Unterseiten als Markdown.
 2. Lege eine klare Informationsarchitektur fest:
@@ -77,7 +131,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 7. Versionierung & Evolvierbarkeit
+<a id="7-versionierung--evolvierbarkeit"></a>
+<a id="versioning"></a>
+## 7. Versionierung & Evolvierbarkeit [versioning]
 
 1. Originalversion wird als baseline versioniert (z. B. `v1-original`).
 2. Spätere KI-unterstützte Überarbeitungen bauen darauf auf.
@@ -87,7 +143,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 8. Qualitätsanforderungen
+<a id="8-qualitätsanforderungen"></a>
+<a id="quality"></a>
+## 8. Qualitätsanforderungen [quality]
 
 1. **Markdown-Format:** SSG-freundlich
    - Saubere ATX-Überschriften (#, ##, ###, …)
@@ -111,7 +169,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 9. Architektur-Skizze
+<a id="9-architektur-skizze"></a>
+<a id="architecture-sketch"></a>
+## 9. Architektur-Skizze [architecture-sketch]
 
 ```
 <domain>/output/<working_title>/
@@ -133,7 +193,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 10. Offene Punkte für die Umsetzung
+<a id="10-offene-punkte-für-die-umsetzung"></a>
+<a id="implementation-questions"></a>
+## 10. Offene Punkte für die Umsetzung [implementation-questions]
 
 1. **Config-Key-Benennung:**
    - Vorschlag: `knowledge_presentation_title` in ki-core
@@ -163,7 +225,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 11. Implementation-Roadmap (Phaseneinteilung)
+<a id="11-implementation-roadmap-phaseneinteilung"></a>
+<a id="roadmap"></a>
+## 11. Implementation-Roadmap (Phaseneinteilung) [roadmap]
 
 ### Phase 1: Grundgerüst
 - [ ] Config-Eintrag hinzufügen
@@ -190,7 +254,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 12. Akzeptanzkriterien
+<a id="12-akzeptanzkriterien"></a>
+<a id="acceptance-criteria"></a>
+## 12. Akzeptanzkriterien [acceptance-criteria]
 
 - [ ] Feature-Flag/Config-Eintrag für Wissenspräsentation ist functional
 - [ ] Markdown-Output wird im konfigurierten Verzeichnis erzeugt
@@ -201,7 +267,9 @@ Neuer Config-Eintrag für den Arbeitstitel der Präsentation und Ausgabeziel.
 
 ---
 
-## 13. Referenzen
+<a id="13-referenzen"></a>
+<a id="references"></a>
+## 13. Referenzen [references]
 
 - Ki-Knowledge Config System: `ki_core.config.Config`
 - Knowledge Blocks: (später)

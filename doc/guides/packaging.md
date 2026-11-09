@@ -1,8 +1,24 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-10-29 09"
+updated: "2026-11-07 23"
+update_reason: "Abschnitte zu Quellbaum, Distribution und Prüfung gekennzeichnet"
+status: active
+semantic_blocks:
+  - source-tree
+  - distribution-content
+  - build-and-verification
+---
+
 # Paket-Build und kanonischer Quellbaum
 
 Stand: 2026-10-28.
 
-## Ein Quellbaum
+<a id="ein-quellbaum"></a>
+<a id="source-tree"></a>
+## Ein Quellbaum [source-tree]
 
 `ki_knowledge/` ist der kanonische Python-Paketbaum. Setuptools entdeckt
 ausdruecklich nur dieses Paket und seine Unterpakete, nicht beliebige
@@ -22,7 +38,9 @@ Der zuvor getrackte Baum `src/ki_knowledge/integrations/` wurde entfernt:
   Es gibt deshalb keinen neuen Alias fuer `src.ki_knowledge`; der
   unterstuetzte Import bleibt `ki_knowledge.integrations`.
 
-## Inhalt der Distribution
+<a id="inhalt-der-distribution"></a>
+<a id="distribution-content"></a>
+## Inhalt der Distribution [distribution-content]
 
 Der alte Build nahm mit `packages = ["ki_knowledge"]` nur die obersten Module
 auf. Ein Editable-Checkout verdeckte dadurch fehlende CLI-/API-/Django-Pakete.
@@ -45,7 +63,9 @@ Die externe Konfigurationslinie bleibt unveraendert. Insbesondere brauchen
 projektbezogene Entwicklungs-/Stackbefehle weiterhin das Checkout und dessen
 Konfiguration; ihre gesamte Funktion ist nicht durch einen Paketimport belegt.
 
-## Bauen und absichern
+<a id="bauen-und-absichern"></a>
+<a id="build-and-verification"></a>
+## Bauen und absichern [build-and-verification]
 
 Aus einer eingerichteten Entwicklungsumgebung:
 

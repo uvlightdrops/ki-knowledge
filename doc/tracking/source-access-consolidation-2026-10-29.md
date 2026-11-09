@@ -1,3 +1,13 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: tracking
+created: "2026-10-29 09"
+updated: "2026-11-07 23"
+update_reason: "YAML-Header für datierten Umsetzungsbericht ergänzt"
+status: active
+---
+
 # Quellenzugriff: Data Sources und Textwerkstatt
 
 **Stand: 29.10.2026. Priorität 1 implementiert und isoliert geprüft.**

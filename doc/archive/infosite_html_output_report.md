@@ -1,3 +1,13 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-09 22"
+updated: "2026-11-07 23"
+update_reason: "Historischen Umsetzungsbericht als Archiv gekennzeichnet"
+status: archived
+---
+
 # InfoSite HTML Output Report
 
 ## Goal

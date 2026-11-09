@@ -1,3 +1,22 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-09-02 07"
+updated: "2026-11-08 03"
+update_reason: "Unstrukturierte Aufgaben und offene Produktbegriffe eingeordnet"
+status: draft
+---
+
+# Client- und Produktnotizen
+
+> **Unstrukturiert / gemischter Stand:** Diese Notizen enthalten erledigt
+> markierte UI-Aufgaben und fachlich offene Fragen ohne semantische
+> Abschnitts-IDs. Häkchen sind keine erneute Implementierungsprüfung.
+> Der Begriff „Projekt“ für eine konkrete Ausgabe ist im
+> [Gesamtentwurf](../architecture/KI-KNOWLEDGE-KONZEPT.md) noch nicht neu
+> entschieden; Domänengrenzen sind ebenfalls offen.
+
 ### GUI intelligence
 - [ ] Dashboard build-link ein settings entfernen -
 

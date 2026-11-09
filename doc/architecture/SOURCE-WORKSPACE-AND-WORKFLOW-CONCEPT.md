@@ -1,10 +1,61 @@
+---
+title: "Source Workspace and Workflow Concept"
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: architecture
+purpose: "Defines the source intake inventory, preparation workspace, and workflow boundaries."
+created: "2026-09-09T22:03:55+02:00"
+updated: "2026-11-08 00"
+update_reason: "Jira-Workflow als Legacy und Importziel eingeordnet"
+status: active
+semantic_blocks:
+  - shared-inventory
+  - related-documentation
+  - purpose
+  - core-idea
+  - workspace-meaning
+  - workflow-separation
+  - generated-output
+  - gui-implications
+relations:
+  - target: "../features/IMPORT_AI_REFINEMENT.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "../features/knowledge_blocks.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "../features/pdf_batch_import.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "../tracking/widget-catalog-preview-audit.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "CONTENT-MODEL-MATRIX.md"
+    type: reference
+    reason: "Ergänzendes Architekturkonzept"
+  - target: "INFOSITE_ARCHITECTURE.md"
+    type: reference
+    reason: "Ergänzendes Architekturkonzept"
+  - target: "KNOWLEDGE-WORKBENCH-CONCEPT.md"
+    type: reference
+    reason: "Ergänzendes Architekturkonzept"
+  - target: "SYSTEM_OVERVIEW.md"
+    type: reference
+    reason: "Ergänzendes Architekturkonzept"
+---
+
 # Source Workspace and Workflow Concept
+
+> **Jira-Legacy:** Der im Folgenden beschriebene gesonderte Jira-Workflow
+> dokumentiert den Altbestand, nicht das Zielbild. Jira soll künftig als
+> gleichberechtigtes Eingabe-/Importformat integriert werden; dies ist noch
+> nicht als umgesetzt nachgewiesen.
 
 **Leading document for the Data Sources UI and source-intake workflow.**
 Related documents describe implementation details; this document defines the
 shared functionality and intended interaction model.
 
-## One functionality, multiple views
+## One functionality, multiple views [shared-inventory]
 
 Data Sources brings files in their domain and directory hierarchy into a
 controlled workflow. Markdown, PDF, ontology, tables, images, and Jira inputs
@@ -52,9 +103,9 @@ Discovery status, import-job status, semantic processing, and editorial review
 are distinct dimensions. An imported file is not automatically semantically
 understood, reviewed, or published. The UI must not imply otherwise.
 
-## Related documentation
+## Related documentation [related-documentation]
 
-- [Textwerkstatt-Entwurf](knowledge-workbench-concept.md): proposed annotation,
+- [Textwerkstatt-Entwurf](KNOWLEDGE-WORKBENCH-CONCEPT.md): proposed annotation,
   authoring and AI discussion surface; not a replacement for intake discovery
   or this pre-import preparation workflow.
 - [System overview](SYSTEM_OVERVIEW.md): system boundaries and integration.
@@ -64,16 +115,16 @@ understood, reviewed, or published. The UI must not imply otherwise.
   InfoSite operations, not an alternative general source inventory.
 - [InfoSite architecture](INFOSITE_ARCHITECTURE.md): presentation pipeline and
   historical architecture plan.
-- [Content model matrix](content-model-matrix.md): source, record, output and
+- [Content model matrix](CONTENT-MODEL-MATRIX.md): source, record, output and
   editorial ownership.
 - [Widget preview audit](../tracking/widget-catalog-preview-audit.md): rendering
   inventory, subordinate to the interaction model defined here.
 
-## Purpose
+## Purpose [purpose]
 
 The Data Sources area is the intake and preparation layer for raw inputs. It covers discovery, validation, preparation, and registration before a source is imported or handed over to another workflow.
 
-## Core idea
+## Core idea [core-idea]
 
 - A source is first **captured**.
 - Then it is **checked**.
@@ -82,7 +133,7 @@ The Data Sources area is the intake and preparation layer for raw inputs. It cov
 - Import is then triggered **explicitly**; any later automation must be
   configured separately and must not run merely because a list is opened.
 
-## Workspace meaning
+## Workspace meaning [workspace-meaning]
 
 The workspace is the pre-import work area. It is not the whole Data Sources section.
 It is the place where a source can be reviewed, transformed, normalized, or staged before import.
@@ -93,7 +144,7 @@ This applies to:
 - PDF sources
 - and, where relevant, other source types such as OWL or Jira-backed inputs
 
-## Workflow separation
+## Workflow separation [workflow-separation]
 
 ### Data Sources workflow
 
@@ -117,7 +168,7 @@ There are two separate editorial workflows:
 These workflows are conceptually related, but they remain separate.
 Both model a status-driven lifecycle around preparation, review, and publication.
 
-## Relationship to generated output
+## Relationship to generated output [generated-output]
 
 Generated output documents follow the same general idea: content passes through workflow states before it becomes visible or publishable.
 
@@ -130,7 +181,7 @@ That means the same mental model can be reused:
 
 But the source side and the output side must not be collapsed into one mixed bucket.
 
-## GUI implication
+## GUI implication [gui-implications]
 
 The GUI should reflect the workflow order:
 

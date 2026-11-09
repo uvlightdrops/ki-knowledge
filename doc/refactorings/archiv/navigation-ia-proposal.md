@@ -1,11 +1,28 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: refactorings
+created: "2026-09-03 10"
+updated: "2026-11-08 07"
+update_reason: "Historischen Navigationsvorschlag ins Refactoringarchiv verschoben"
+status: archived
+relations:
+  - target: README.md
+    type: parent
+    reason: "Archiv der Refactoringberichte"
+---
+
 # Navigation-IA-Neuordnung — Vorschlag
+
+> Jira-spezifische Sichten und Routen im historischen Vorschlag sind Legacy;
+> Jira soll künftig ein gleichberechtigtes Eingabe-/Importformat sein.
 
 Status: **Umgesetzt** (URL-Reorganisation abgeschlossen: `/data-sources/`,
 `/output/` inkl. `output_landing_view`, Jira-Routen unter `/data-sources/jira/`
 etc.). Die Wagtail-Spiegel-Ebene (Zeile "🗂️ CMS Catalog", unten) ist seither
 kein reines Read-only-Mirror mehr, sondern besitzt echte Snippet-Editing- und
 Freigabe-Workflows für `SourceDocument`/`GeneratedDocument` (siehe
-`doc/architecture/content-model-matrix-from-docs.md`, Abschnitte 2, 2a, 4). Dieses Dokument bleibt
+`doc/architecture/CONTENT-MODEL-MATRIX.md`, Abschnitte 2, 2a, 4). Dieses Dokument bleibt
 als historischer Ist-Zustand/Vorschlag zum Zeitpunkt der Reorg erhalten.
 Datum: 2026-09-03
 
@@ -37,10 +54,10 @@ separate "Quicklinks"-Leiste mit 7 weiteren Links. Insgesamt gibt es
   nicht sichtbar — genau die Trennung, die Sie mit "Data sources area" vs.
   "Internal knowledge" ansprechen.
 - YAML-Status dieses alten Vorschlags wurde ersetzt durch
-  [YAML_CONFIG_SYSADMIN.md](../guides/YAML_CONFIG_SYSADMIN.md): ki-core liefert
+  [YAML_CONFIG_SYSADMIN.md](../../guides/YAML_CONFIG_SYSADMIN.md): ki-core liefert
   `load_config()`, und aktueller Code bietet einen optionalen Allowlist-Editor
   für zwei Sync-Felder, keine Vollbaum-GUI. Der alte YAML-Auszug ist im
-  [zentralen Archiv](../../../yaml_cfg_wizard/doc/YAML_CONFIG_ARCHIVE.md) erhalten.
+  [zentralen Archiv](../../../../yaml_cfg_wizard/doc/YAML_CONFIG_ARCHIVE.md) erhalten.
 - "Infosite" (Markdown-Präsentationen) ist heute ihre eigene Top-Level-
   Sektion, obwohl sie konzeptionell nur *ein* "Output"-Format unter
   mehreren ist (Sie erwähnen Quiz als Beispiel für ein weiteres Format).
@@ -78,7 +95,7 @@ separate "Quicklinks"-Leiste mit 7 weiteren Links. Insgesamt gibt es
 
 Dieser Abschnitt ist ein historischer UI-Entwurf, keine aktuelle API- oder
 Routenreferenz. YAML-Engineering wird in
-[YAML_CONFIG_CONCEPTS.md](../../../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md)
+[YAML_CONFIG_CONCEPTS.md](../../../../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md)
 gepflegt; insbesondere `ki_core.Config`, die flachen Sektionen und die
 vorgeschlagene Raw-YAML-Seite sind keine Zusage des heutigen Editors.
 

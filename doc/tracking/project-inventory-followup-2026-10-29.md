@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: tracking
+created: "2026-10-29 21"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Befunde als Legacy eingeordnet"
+status: active
+---
+
 # Kurzinventur: Ist ki-knowledge besser beherrschbar?
+
+> Die beschriebenen Jira-spezifischen Dienste und Sichten sind Legacy; Jira
+> soll künftig ein gleichberechtigtes Eingabe-/Importformat sein.
 
 Stand: **2026-10-29**, nach den Strukturarbeiten und der E4-Ergänzung.
 Vergleichsbasis ist die [Bestandsaufnahme vom 28.10.2026](project-inventory-2026-10-28.md),

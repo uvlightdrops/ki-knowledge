@@ -1,4 +1,18 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: deployment
+created: "2026-10-31 02"
+updated: "2026-11-08 01"
+update_reason: "Falsche normalize- und Manifestbeispiele archiviert"
+status: active
+---
+
 # Deployment Stages - Detailed Guide
+
+> **Warnung:** Die Stage-Angaben und übrigen Beispiele müssen noch überprüft
+> werden. Die [Fehlannahmen zu normalize](archiv/NORMALIZE_FEHLANNAHMEN.md)
+> sind archiviert; der Befehl erzeugt keine Deployment-Manifeste.
 
 Reference guide for each deployment stage in ki-knowledge.
 
@@ -296,23 +310,8 @@ Configuration comes from:
 # 4. Merged config used by pods via volume mount
 ```
 
-Deploy:
-
-```bash
-export KI_STAGE=prod-k8s
-
-# Generate manifests
-stackctl -t k8s normalize > /tmp/prod-k8s-manifest.yaml
-
-# Apply to cluster
-kubectl apply -f /tmp/prod-k8s-manifest.yaml -n ki-knowledge
-
-# Wait for rollout
-kubectl rollout status deployment/ki-knowledge -n ki-knowledge
-
-# Check status
-kubectl -n ki-knowledge get all
-```
+Für den tatsächlichen Deploymentablauf die führende stackctl-Dokumentation
+verwenden. Der frühere Befehl zur angeblichen Manifest-Erzeugung war falsch.
 
 ### LLM Provider (Company KI)
 
@@ -564,11 +563,7 @@ print(config.get_path('llm.provider'))  # prod uses "ki"
 Before deploying to a new stage, validate:
 
 ```bash
-# Validate config compiles
-export KI_STAGE=prod-k8s
-stackctl -t k8s normalize > /tmp/merged.yaml
-
-# Check for required fields
+# Historisches Beispiel; API und benötigte Werte sind noch zu prüfen.
 python -c "
 from ki_core.config import load_config
 c = load_config()

@@ -1,6 +1,23 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-10-07 08"
+updated: "2026-11-07 23"
+update_reason: "Frontend-Regeln, Bestandsaufnahme und Prüfung gekennzeichnet"
+status: active
+semantic_blocks:
+  - code-location
+  - template-boundaries
+  - cleanup-inventory
+  - validation
+---
+
 # Frontend asset rules
 
-## Where code belongs
+<a id="where-code-belongs"></a>
+<a id="code-location"></a>
+## Where code belongs [code-location]
 
 - Put executable page behavior in page-specific static JavaScript files, not
   multi-line template `<script>` blocks. Put stylesheet rules in static CSS,
@@ -15,7 +32,9 @@
   `form="..."` outside the form. Preview/import/refinement workflows remain
   page-specific.
 
-## What stays in templates
+<a id="what-stays-in-templates"></a>
+<a id="template-boundaries"></a>
+## What stays in templates [template-boundaries]
 
 - Small declarative dynamic style attributes are appropriate: e.g.
   `style="grid-column: span {{ card.width }};"`, CSS custom properties for
@@ -39,7 +58,9 @@ cascade, preserve dynamic dimensions, and extract compound/repeated static
 styles when working on that page. Existing small/legacy presentation
 attributes may remain until that page is deliberately restyled.
 
-## Cleanup inventory (2026-10-07)
+<a id="cleanup-inventory-2026-10-07"></a>
+<a id="cleanup-inventory"></a>
+## Cleanup inventory (2026-10-07) [cleanup-inventory]
 
 All 107 HTML templates under `ki_knowledge/` were scanned. There were no
 remaining `<style>` blocks. Executable script blocks were extracted from:
@@ -62,7 +83,8 @@ attributes (258 style attributes and 23 short event handlers in this snapshot).
 No executable `<script>` bodies or stylesheet blocks remain in
 the repository's HTML templates. External script references remain.
 
-## Validation
+<a id="validation"></a>
+## Validation [validation]
 
 `tests/test_frontend_assets.py` checks template rendering, escaping, payload
 types, static references and the no-inline-block inventory without database

@@ -1,3 +1,13 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: integration
+created: "2026-10-11 23"
+updated: "2026-11-07 23"
+update_reason: "YAML-Header ergänzt; fachliche Aktualität noch zu prüfen"
+status: active
+---
+
 # Nextcloud storage backend (WebDAV)
 
 First remote storage backend of ki-knowledge: direct WebDAV access to **one**

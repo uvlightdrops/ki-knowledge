@@ -1,3 +1,31 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: features
+created: "2026-10-29 09"
+updated: "2026-11-08 03"
+update_reason: "Werkstattentwurf semantisch gegliedert und fachlich abgegrenzt"
+status: draft
+semantic_blocks:
+  - workspace
+  - marking-workflow
+  - ai-conversation
+  - review-changes
+  - error-states
+  - reading-accessibility
+  - scope-boundary
+relations:
+  - target: ../architecture/KNOWLEDGE-WORKBENCH-CONCEPT.md
+    type: reference
+    reason: "Architektur und technisches Zielbild der Textwerkstatt"
+  - target: ../architecture/TEXT-AND-KNOWLEDGE-BLOCKS.md
+    type: reference
+    reason: "Fachliche Unterscheidung von Text- und Wissensblöcken"
+  - target: ../guides/text-workbench.md
+    type: reference
+    reason: "Bedienung der vorhandenen Textwerkstatt"
+---
+
 # Textwerkstatt: Editor-Entwurf
 
 **Status: Markdown-Zielbild und Wireframes.**
@@ -6,6 +34,15 @@ Dieses Dokument ist ein Markdown-Wireframe, keine laufende Anwendung.
 Die erste echte Umsetzung E0–E4 ist separat in der
 [Bedienungs- und Betriebsanleitung](../guides/text-workbench.md) beschrieben;
 die konkrete Oberfläche muss nicht wortgetreu diesen Wireframes entsprechen.
+
+**Begriffsgrenze:** „Block“ und B-Nummern in den
+Wireframes bezeichnen Werkstattmarkierungen an Textstellen, nicht automatisch
+eigenständige Wissensblöcke im [neuen Konzept](../architecture/TEXT-AND-KNOWLEDGE-BLOCKS.md).
+Auch das vorgeschlagene Relationsvokabular ist dafür nicht entschieden.
+
+**Agentenbearbeitung, 2026-11-08:** Die Abschnitts-IDs wurden anhand der
+Wireframes ergänzt. Die Aussagen über den Implementierungsstand wurden dabei
+nicht erneut gegen Code geprüft und benötigen weiterhin menschliche Prüfung.
 
 **Umsetzungsstand 29.10.2026:** Die Quellenauswahl der ersten Oberfläche verwendet
 jetzt das allgemeine Data-Sources-Inventar statt projektgebundener InfoSite-
@@ -18,9 +55,11 @@ abgeschlossener InfoSite-Gesamtaudit. Inzwischen ist E4 als expliziter
 Einzelpassagen-Vorschlag mit Vergleich, manuell bearbeitbarem Ersatztext,
 Annahme/Verwerfen und erhaltenem Herkunftsnachweis ergänzt. E5/E6 bleiben offen.
 
-[Architektur, Datenmodell und Etappen](../architecture/knowledge-workbench-concept.md)
+[Architektur, Datenmodell und Etappen](../architecture/KNOWLEDGE-WORKBENCH-CONCEPT.md)
 
-## 1. Die Arbeitsfläche
+<a id="1-die-arbeitsfläche"></a>
+<a id="workspace"></a>
+## 1. Die Arbeitsfläche [workspace]
 
 Die Werkstatt verbindet Material, Text und Kontext. Sie ist kein zweites
 Quelleninventar: Man öffnet sie aus der bestehenden Quellen- oder Output-Ansicht.
@@ -63,7 +102,9 @@ die Mitte ein schreibgeschützter, versionierter Markdown-Snapshot mit Markierun
 Bearbeitbare Arbeitskopien und KI-Vorschläge kommen danach. Der Einstieg darf nicht
 auf eine vollständige NotebookLM- oder IDE-Nachbildung warten.
 
-## 2. Der erste vollständige Bedienablauf
+<a id="2-der-erste-vollständige-bedienablauf"></a>
+<a id="marking-workflow"></a>
+## 2. Der erste vollständige Bedienablauf [marking-workflow]
 
 1. In der bestehenden Quellenliste eine Markdown-Datei öffnen und
    **In Textwerkstatt markieren** wählen. Falls noch kein Snapshot existiert,
@@ -129,7 +170,9 @@ Das erste Relationsvokabular bleibt klein: **bezieht sich auf**, **stützt**,
 **widerspricht**, **abgeleitet aus**. Gerichtete Verbindungen zeigen ihre Richtung
 auch in der Rückansicht.
 
-## 3. Mit der KI über Text sprechen
+<a id="3-mit-der-ki-über-text-sprechen"></a>
+<a id="ai-conversation"></a>
+## 3. Mit der KI über Text sprechen [ai-conversation]
 
 Die rechte Spalte wechselt zwischen Blockinspektor und Gespräch; auf breiten
 Bildschirmen können beide übereinander sichtbar sein.
@@ -163,7 +206,9 @@ Arbeitskopie enthalten. Dann steht dort **Ungespeicherter Entwurf**, nicht
 „Revision 12“. Vor einer dauerhaft annehmbaren Überarbeitung muss dieser Stand
 als Basis gesichert sein.
 
-## 4. Überarbeitung prüfen statt überschreiben
+<a id="4-überarbeitung-prüfen-statt-überschreiben"></a>
+<a id="review-changes"></a>
+## 4. Überarbeitung prüfen statt überschreiben [review-changes]
 
 ```text
 Vorschlag P-08                       Basis: Arbeitskopie / Revision 12
@@ -187,7 +232,9 @@ Der allgemeine Rückgängig-Befehl arbeitet im Editorpuffer. Ein bereits bestät
 Serverstand wird durch eine neue Wiederherstellungsrevision rückgängig gemacht,
 nicht aus dem Verlauf gelöscht.
 
-## 5. Fehlerzustände gehören zum Design
+<a id="5-fehlerzustände-gehören-zum-design"></a>
+<a id="error-states"></a>
+## 5. Fehlerzustände gehören zum Design [error-states]
 
 | Zustand | Anzeige | Sichere Handlung |
 |---|---|---|
@@ -205,7 +252,9 @@ Eine Ursprungsmarkierung auf Snapshot 12 bleibt dort gültig, auch wenn Snapshot
 13 keinen passenden Absatz mehr hat. „Nicht zugeordnet“ betrifft dann die
 Darstellung auf dem neueren Stand, nicht den Verlust des historischen Wissens.
 
-## 6. Lesemodus, Markdown und Zugänglichkeit
+<a id="6-lesemodus-markdown-und-zugänglichkeit"></a>
+<a id="reading-accessibility"></a>
+## 6. Lesemodus, Markdown und Zugänglichkeit [reading-accessibility]
 
 **Erste Etappe:** Auswahl direkt im Markdown. Keine unsichtbare Konvertierung
 von DOM-Positionen in Quelltextpositionen. Vorschau ohne vertrauenswürdige
@@ -225,9 +274,11 @@ Auf kleinen Bildschirmen wechseln **Material / Text / Kontext** als Ansichten.
 Kein Zusammendrücken dreier Spalten zu unlesbarem Text. Auswahl und ungespeicherte
 Formulardaten bleiben beim Ansichtswechsel erhalten.
 
-## 7. Was dieser Entwurf bewusst nicht ist
+<a id="7-was-dieser-entwurf-bewusst-nicht-ist"></a>
+<a id="scope-boundary"></a>
+## 7. Was dieser Entwurf bewusst nicht ist [scope-boundary]
 
 Kein zweites Quelleninventar, keine Wagtail-Inhaltskopie, kein neuer Graph-Store,
 keine automatisch laufende KI und keine Aussage, dass Assist bereits alle diese
 Funktionen fertig besitzt. Der konkrete technische Weg und seine Grenzen stehen
-im [Architekturkonzept](../architecture/knowledge-workbench-concept.md).
+im [Architekturkonzept](../architecture/KNOWLEDGE-WORKBENCH-CONCEPT.md).

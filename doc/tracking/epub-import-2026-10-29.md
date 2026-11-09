@@ -1,3 +1,13 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: tracking
+created: "2026-10-29 21"
+updated: "2026-11-07 23"
+update_reason: "YAML-Header für datierten Umsetzungsbericht ergänzt"
+status: active
+---
+
 # EPUB-Import: Umsetzung und erster echter Buchimport
 
 Stand: **2026-10-29**.

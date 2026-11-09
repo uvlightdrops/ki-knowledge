@@ -1,4 +1,24 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-10 19"
+updated: "2026-11-08 08"
+update_reason: "Historisches Widget-Konzept ins Refactoringarchiv verschoben"
+status: archived
+relations:
+  - target: README.md
+    type: parent
+    reason: "Archiv der Refactoringberichte"
+  - target: ../../architecture/DJANGO-WAGTAIL-WIDGETKIT.md
+    type: reference
+    reason: "Technischer Überblick über die heutige Einbindung"
+---
+
 # Widget Building the Wagtail Way
+
+> Historical proposal, not a description of the current widget integration.
+> See the [technical overview](../../architecture/DJANGO-WAGTAIL-WIDGETKIT.md).
 
 This note describes the intended direction for widget building in ki-knowledge:
 use Wagtail for the editorial basics, but keep widgets data-driven and reusable.

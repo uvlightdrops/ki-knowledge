@@ -13,7 +13,7 @@ from .node_connectivity import node_connectivity_view
 from .identity_views import identity_admin_view, identity_sync_api
 
 # URL layout follows the navigation IA documented in
-# doc/refactorings/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
+# doc/refactorings/archiv/navigation-ia-proposal.md: Dashboard | Data Sources | Internal
 # Knowledge | Info Output | CMS Catalog | Settings. View names (the `name=`
 # kwarg) are unchanged from the pre-reorganization layout so all internal
 # reverse()/{% url %} usages keep working; only the URL *paths* moved under

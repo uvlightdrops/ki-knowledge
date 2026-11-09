@@ -1,10 +1,31 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-10-29 21"
+updated: "2026-11-08 00"
+update_reason: "Bestehenden EPUB-Import vom künftigen Wissensmodell abgegrenzt"
+status: active
+semantic_blocks:
+  - epub-operation
+  - epub-provenance
+  - epub-limitations
+---
+
 # EPUB-Bücher als Markdown-Quellen importieren
 
 EPUB ist für Textarbeit normalerweise der bessere Eingang als ein gescanntes
 PDF: Der Text liegt bereits digital vor und die Lesereihenfolge ist im
 EPUB-Paket festgelegt. Eine OCR wird bei diesem Import nicht ausgeführt.
 
-## Ordner und Bedienung
+Die beschriebene Kapitelzerlegung ist ein bestehender Importweg und keine
+Festlegung für das neu zu planende Wissensmodell. Der frühere
+[buchzentrierte Blockansatz](../features/archiv/KNOWLEDGE_BLOCKS_BOOK_CONCEPT.md)
+ist archiviert.
+
+<a id="ordner-und-bedienung"></a>
+<a id="epub-operation"></a>
+## Ordner und Bedienung [epub-operation]
 
 Im aktuellen Datenlayout liegt das Original unter:
 
@@ -39,7 +60,9 @@ Einzelimport über die bestehende Django-Verwaltung:
 `--file` ist relativ zum EPUB-Ordner dieser Domain, kein beliebiger Serverpfad.
 Ohne `--file` werden alle EPUBs des Domainordners importiert.
 
-## Ergebnis und Herkunft
+<a id="ergebnis-und-herkunft"></a>
+<a id="epub-provenance"></a>
+## Ergebnis und Herkunft [epub-provenance]
 
 ```text
 <Domain>/
@@ -71,7 +94,9 @@ der Festplatte verändert, bricht ein erneuter Buchimport ausdrücklich ab,
 statt die Änderungen zu überschreiben. Für eigene Änderungen daher die
 Arbeitskopie in der Werkstatt verwenden.
 
-## Grenzen
+<a id="grenzen"></a>
+<a id="epub-limitations"></a>
+## Grenzen [epub-limitations]
 
 - EPUB ist kein garantierter Klartext: Verschlüsselte Inhalte bzw. DRM werden
   ausdrücklich abgewiesen, nicht umgangen.

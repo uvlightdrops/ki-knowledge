@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-02 07"
+updated: "2026-11-08 00"
+update_reason: "Veraltetes Jira-Chatbeispiel gekennzeichnet"
+status: archived
+---
+
 # Deprecated Jira naming: support chat
+
+> Historical note: the Jira-specific example is legacy and is not the current
+> domain-scoped KnowledgeStore chat.
 
 The older Jira-specific name remains only for compatibility. The canonical documentation is now source-agnostic and lives here:
 

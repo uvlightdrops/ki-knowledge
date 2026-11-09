@@ -1,3 +1,53 @@
+---
+title: "Textwerkstatt: Markdown, Wissensblöcke und KI-Gespräch"
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: architecture
+purpose: "Beschreibt Architektur, Datenmodell und Entwicklungsschritte der Textwerkstatt als Zielbild."
+created: "2026-10-29T09:10:22+01:00"
+updated: "2026-11-08 03"
+update_reason: "Älteren Werkstattentwurf vom fachlichen Wissensblockmodell abgegrenzt"
+status: draft
+semantic_blocks:
+  - recommendation
+  - vision
+  - existing-functionality
+  - application-integration
+  - three-column-layout
+  - django-react-stack
+  - editor-choice
+  - domain-model
+  - proposed-data-model
+  - persistent-selection
+  - metadata-and-relations
+  - storage-ownership
+  - api-and-conflicts
+  - ai-context-and-changes
+  - assist-reuse
+  - implementation-stages
+  - acceptance-cases
+  - open-decisions
+relations:
+  - target: "../../../../dev_doc/architecture/ki-ecosystem-workbench.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "../features/knowledge-workbench-design.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "../guides/text-workbench.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "../tracking/source-access-consolidation-2026-10-29.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "CONTENT-MODEL-MATRIX.md"
+    type: reference
+    reason: "Speicherzuständigkeiten und Wagtail"
+  - target: "SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md"
+    type: reference
+    reason: "Quellenaufnahme und Vorbereitung"
+---
+
 # Textwerkstatt: Markdown, Wissensblöcke und KI-Gespräch
 
 **Status: Architektur- und Zielbildentwurf. E0–E4 sind inzwischen als erste
@@ -27,13 +77,13 @@ ki-knowledge erneut mit konkurrierenden Oberflächen und Speichern zu überladen
 |---|---|
 | [Editor-Entwurf mit Markdown-Wireframes](../features/knowledge-workbench-design.md) | Konkrete Oberfläche und Bedienabläufe |
 | [Gemeinsame Ökosystem-Architektur](../../../../dev_doc/architecture/ki-ecosystem-workbench.md) | Projektübergreifende Stack-, Paket- und Editorstrategie |
-| [Bestehender Quellen-/Workspace-Prozess](source-workspace-and-workflow-concept.md) | Weiterhin führend für Aufnahme und Vorbereitung von Quellen |
-| [Content-Modell-Matrix](content-model-matrix.md) | Bestehende Speicher- und Wagtail-Verantwortung |
+| [Bestehender Quellen-/Workspace-Prozess](SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md) | Weiterhin führend für Aufnahme und Vorbereitung von Quellen |
+| [Content-Modell-Matrix](CONTENT-MODEL-MATRIX.md) | Bestehende Speicher- und Wagtail-Verantwortung |
 
 Der externe Link setzt das bekannte Workspace-Layout voraus. Dieses
 Projektkonzept und die Wireframes bleiben auch ohne `~/dev_doc` verständlich.
 
-## 1. Empfehlung in einem Satz
+## 1. Empfehlung in einem Satz [recommendation]
 
 **Eine Textwerkstatt mit React-Oberfläche innerhalb der bestehenden
 Django-Anwendung: zuerst versionierte Markdown-Passagen markieren, mit Metadaten
@@ -45,7 +95,7 @@ Frontend mit Assist ist eine mögliche Entwicklung, kein Grund für einen
 sofortigen Backend-Neubau. Der erste Erfolg ist kein Chat-Demo, sondern:
 **Markierung und Relation überleben Neuladen und Änderungen der Quelldatei.**
 
-## 2. Fachliche Vision: mehr als Chat neben einer Datei
+## 2. Fachliche Vision: mehr als Chat neben einer Datei [vision]
 
 NotebookLM ist eine hilfreiche Orientierung für die Nähe von Quellen, Notizen
 und Gespräch. Wir streben hier keine Funktionskopie und keine Abhängigkeit von
@@ -79,7 +129,7 @@ Beobachtung aus einer Simulation → markierte Evidenz → Hypothese →
 Entwurf einer neuen Spielregel. Das ist zunächst ein Beispiel für Herkunft und
 Relationen, kein Auftrag, Simulationsschnittstellen schon jetzt einzubauen.
 
-## 3. Was heute vorhanden ist
+## 3. Was heute vorhanden ist [existing-functionality]
 
 Die folgende Bestandsaufnahme trennt verifizierte Implementierung von Zielbild.
 Codeverweise beziehen sich auf den untersuchten Arbeitsstand; Zeilen können
@@ -115,7 +165,7 @@ verwenden Eltern- und Editorzustand den Inhalt nicht durchgehend als getrennten
 gespeicherten Basisstand und Entwurf. Deshalb **Tabs und Diff-Bedienung übernehmen,
 nicht ungeprüft Save/Autosave als gelöst voraussetzen**.
 
-## 4. Einordnung in die bestehende Anwendung
+## 4. Einordnung in die bestehende Anwendung [application-integration]
 
 Die Werkstatt ist eine neue Bearbeitungsfläche, kein neues Inventar.
 
@@ -134,15 +184,16 @@ Die Textwerkstatt bearbeitet Erkenntnisse und Entwürfe rund um ausgewähltes
 Material; sie kann auch nach dem Import verwendet werden. UI-Bezeichnungen
 müssen diese beiden Bedeutungen von „Workspace“ auseinanderhalten.
 
-Vorgeschlagener neuer Bereich: `/knowledge/workbench/`.
-Das ist ein Routenvorschlag, noch kein vorhandener Endpunkt.
+Der ursprüngliche Entwurf schlug `/knowledge/workbench/` als neuen Bereich vor.
+Die umgesetzten Routen und ihren Funktionsumfang beschreibt die
+[Betriebsanleitung](../guides/text-workbench.md).
 
 Aus bestehendem Chat kann später „Mit diesem Kontext in der Werkstatt öffnen“
 führen. Der ältere Refinement-Dialog bleibt bis zur fachlich vollständigen
 Ablösung erreichbar und weist dann auf den prüfbaren neuen Arbeitsweg hin.
 Er wird nicht in diesem Konzept heimlich umgedeutet oder entfernt.
 
-## 5. Drei Spalten, ein nachvollziehbarer Arbeitsstand
+## 5. Drei Spalten, ein nachvollziehbarer Arbeitsstand [three-column-layout]
 
 **Links: Material.** Gewählte Quellen und deren Snapshot, Arbeitskopien,
 vorhandene Markierungen. Kein zweiter Discovery-/Importbrowser.
@@ -160,7 +211,7 @@ Die detaillierten Zustände, Relationensuche und Fehleranzeigen stehen im
 **Gespeicherter Text**, **gespeicherte Metadaten**, **aktueller Auswahlzustand**
 und **noch nicht angenommener Vorschlag** sind verschiedene Zustände.
 
-## 6. Stack: Django und React müssen sich nicht ersetzen
+## 6. Stack: Django und React müssen sich nicht ersetzen [django-react-stack]
 
 ### Empfohlener erster Integrationsweg
 
@@ -212,7 +263,7 @@ sinnvoll. Keines davon verlangt eine zweite Anmeldung oder einen Flask-Proxy.
 Ein umfassender React-Shell-Wechsel bleibt möglich. Er ist eine eigenständige
 Produktentscheidung nach Bewährung der Werkstatt, keine Vorbedingung.
 
-## 7. Editorentscheidung: Quelltext zuerst, nicht zwei Engines sofort
+## 7. Editorentscheidung: Quelltext zuerst, nicht zwei Engines sofort [editor-choice]
 
 **Empfehlung:** Für den ersten Integrationsversuch Monaco verwenden, weil Assist
 damit tatsächlich arbeitet. Nicht die gesamte Assist-App einbetten, sondern
@@ -253,7 +304,13 @@ nur zur Absicherung einer noch nicht getroffenen Entscheidung.
 Offizielle Belege und die projektübergreifende Einordnung stehen im
 [gemeinsamen Konzept](../../../../dev_doc/architecture/ki-ecosystem-workbench.md).
 
-## 8. Das entscheidende Modell: fünf Dinge nicht vermischen
+## 8. Das entscheidende Modell: fünf Dinge nicht vermischen [domain-model]
+
+**Geltungsbereich:** Die Tabelle beschreibt den älteren Werkstattentwurf und
+seine technischen Objekte, nicht das vollständige fachliche Wissensmodell.
+Eine Markierung ist nicht automatisch ein Wissensblock; dieser kann auch ohne
+Quelldatei oder Textrevision bestehen. Siehe
+[Text- und Wissensblöcke](TEXT-AND-KNOWLEDGE-BLOCKS.md#distinction).
 
 | Begriff | Bedeutung | Führende Ablage im Vorschlag |
 |---|---|---|
@@ -280,7 +337,7 @@ Wagtail-Snippetrevisionen sind ebenfalls kein Ersatz für dieses Modell:
 Die Quelldatei liegt außerhalb ihres Textinhalts. Wir hängen neue Markdown-
 Arbeitskopien deshalb nicht als angeblich identischen Inhalt in CMS-Seiten.
 
-## 9. Vorgeschlagenes additives Datenmodell
+## 9. Vorgeschlagenes additives Datenmodell [proposed-data-model]
 
 Namen sind Arbeitsnamen, keine bereits angelegten Django-Modelle.
 
@@ -369,7 +426,7 @@ kann zusätzlich als Herkunftsmetadatum gespeichert werden. Bytegenaue
 Originalarchivierung wäre ein gesondertes Artefakt mit eigener Aufbewahrung.
 Die vorhandene Quelldatei wird in der ersten Etappe nie zurückgeschrieben.
 
-## 10. Dauerhafte Auswahl: mehr als Start- und Endposition
+## 10. Dauerhafte Auswahl: mehr als Start- und Endposition [persistent-selection]
 
 Eine Auswahl bezieht sich immer auf **eine konkrete Revision in einer konkreten
 Repräsentation**. Beispiel mit zur Erklärung gekürzten IDs:
@@ -428,7 +485,13 @@ Stabile eigene Abschnitts-IDs können später die Zuordnung unterstützen.
 Bestehende extrahierte IDs sind dafür nicht geeignet. Wir müssen nicht zuerst
 alle Parser umbauen oder unsichtbare Marker in jede Quelldatei schreiben.
 
-## 11. Metadaten und Relationen
+## 11. Metadaten und Relationen [metadata-and-relations]
+
+**Geltungsbereich:** Die folgenden Vorgaben sind Vorschläge für
+Werkstattannotation und deren Relationen, keine beschlossenen Pflichtfelder,
+Domain-Grenzen oder Beziehungstypen für fachliche Wissensblöcke.
+Im neuen Konzept sind Titel und Kategorie optional und eine allgemeine
+Beziehung möglich; weitere Typen sind offen.
 
 Erste Metadaten: Titel, kleiner Kategorie-Satz, Tags, freie Notiz, Ersteller,
 Zeitstempel und Versionsnummer. Kategorien etwa **Aussage**, **Frage**,
@@ -458,7 +521,7 @@ auch nicht über Titel, Suchvorschlag, Graph oder KI-Kontext offengelegt werden.
 Aufbewahrungs-/Löschregeln für endgültiges Entfernen sind vor Produktivbetrieb
 festzulegen; Tombstones sind keine unbegrenzte Aufbewahrungsgarantie.
 
-## 12. Speicherhoheit und vorhandene Knowledge Stores
+## 12. Speicherhoheit und vorhandene Knowledge Stores [storage-ownership]
 
 Die zusätzliche Ablage ist kein zweiter Schreibmaster für bestehende Quellen:
 
@@ -493,7 +556,7 @@ bestätigen und Fehler wiederaufnehmbar speichern. Ein „teilweise exportiert�
 darf nicht „veröffentlicht“ heißen. Bestehende Refinement-Schreibwege bleiben
 bis zu ihrer expliziten Migration gesondert kenntlich.
 
-## 13. API-Entwurf und Konfliktverhalten
+## 13. API-Entwurf und Konfliktverhalten [api-and-conflicts]
 
 Alle Pfade sind Vorschläge unter `/api/workbench/v1/`.
 IDs sind opak; Dateipfade werden nicht vom Browser als Schreibziel vorgegeben.
@@ -569,7 +632,7 @@ Für den ersten Lieferumfang kein Autosave. Explizites Speichern und korrektes
 Fehlerverhalten sind wichtiger. Späteres Autosave verwendet denselben
 Konfliktvertrag und einen getrennten bestätigten Basisstand.
 
-## 14. KI-Kontext und Änderungsprotokoll
+## 14. KI-Kontext und Änderungsprotokoll [ai-context-and-changes]
 
 Zwei getrennte Aktionen:
 
@@ -621,7 +684,7 @@ Aufbewahrung von Chat, Promptkontext und Modellantworten ist vor Implementierung
 festzulegen. Geheimnisse gehören weder in Browserzustand noch in Exporte/Logs.
 Lokale und interne Provider müssen ohne Cloud-Zwang funktionieren.
 
-## 15. Wiederverwendung mit Assist: mechanisch gemeinsam, fachlich getrennt
+## 15. Wiederverwendung mit Assist: mechanisch gemeinsam, fachlich getrennt [assist-reuse]
 
 Gute erste Kandidaten sind Editor-Tabs, Auswahlereignisse, Dirty-State-Anzeige
 und Diff-/Annehmen-/Verwerfen-Bedienung. Die Mechanik braucht Hostcallbacks statt
@@ -643,7 +706,7 @@ Registry, Layout und Django-Flächen, sind aber keine vorhandene React-Bibliothe
 Die gemeinsame [Ökosystemstrategie](../../../../dev_doc/architecture/ki-ecosystem-workbench.md)
 vertieft diese Grenzen.
 
-## 16. Etappen mit klaren Ausstiegskriterien
+## 16. Etappen mit klaren Ausstiegskriterien [implementation-stages]
 
 | Etappe | Umfang | Fertig, wenn |
 |---|---|---|
@@ -665,7 +728,7 @@ vollständiger React-Neubau, Ontologieeditor, automatische semantische Wahrheit,
 beliebige PDF-/Bildbereiche, gemeinsamer Login über alle Anwendungen oder
 automatisches Publizieren im Hintergrund.
 
-## 17. Abnahmefälle, an denen die Entscheidung geprüft wird
+## 17. Abnahmefälle, an denen die Entscheidung geprüft wird [acceptance-cases]
 
 1. Zwei Quellen derselben Domain erfassen, je eine Passage markieren, Metadaten
    speichern, Relation setzen, Anwendung neu öffnen: alles vollständig wiederfinden.
@@ -688,7 +751,7 @@ automatisches Publizieren im Hintergrund.
 12. Wheel-/Staticfiles-Auslieferung enthält Editorbundle und Worker; keine
     stillen CDN-/Devserverabhängigkeiten im Zielbetrieb.
 
-## 18. Was vor der Implementierung noch entschieden werden muss
+## 18. Was vor der Implementierung noch entschieden werden muss [open-decisions]
 
 | Frage | Empfehlung dieses Entwurfs |
 |---|---|
@@ -703,7 +766,7 @@ automatisches Publizieren im Hintergrund.
 | Vorschau mit beliebigem HTML? | Nein; bereinigte, begrenzte Markdown-Vorschau |
 | Chat-Aufbewahrung und endgültiges Löschen? | Eigene Produktentscheidung vor Einführung |
 
-E0–E3 wurden anschließend als Implementierung beauftragt. Die verbleibenden
-Empfehlungen sind keine pauschale Freigabe für E4–E6 oder einen vollständigen
+E0–E4 wurden anschließend als erste Implementierung ergänzt. Die verbleibenden
+Empfehlungen sind keine pauschale Freigabe für E5–E6 oder einen vollständigen
 Frontendwechsel. Migrationen und Einführungsgrenzen der ersten Umsetzung stehen
 in der [Betriebsanleitung](../guides/text-workbench.md).

@@ -1,4 +1,18 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: deployment
+created: "2026-10-31 02"
+updated: "2026-11-08 01"
+update_reason: "Falsche normalize-Testbefehle archiviert"
+status: active
+---
+
 # Testing Deployment Configurations
+
+> **Warnung:** Die übrigen Prüfkommandos sind nicht auf Aktualität und
+> Seiteneffekte überprüft. Die früheren
+> [Fehlannahmen zu normalize](archiv/NORMALIZE_FEHLANNAHMEN.md) sind archiviert.
 
 Guide for testing stage configurations locally and in CI/CD.
 
@@ -8,9 +22,6 @@ Guide for testing stage configurations locally and in CI/CD.
 # Test current stage
 export KI_STAGE=dev-lokal
 stackctl -t local status
-
-# Validate merged config
-stackctl -t local normalize
 
 # Run health checks
 python scripts/health_check.py
@@ -68,9 +79,10 @@ kubectl -n ki-knowledge get pods
 
 # 4. Test connectivity (via port-forward)
 kubectl -n ki-knowledge port-forward svc/ki-knowledge 8090:8090 &
+port_forward_pid=$!
 sleep 2
 curl http://localhost:8090/docs
-pkill -f port-forward
+kill "$port_forward_pid"
 
 # 5. Test in-cluster LLM
 kubectl -n ki-knowledge exec -it deployment/ki-knowledge-app -- \
@@ -85,13 +97,7 @@ stackctl -t minikube stop
 ```bash
 export KI_STAGE=prod-k8s
 
-# 1. Validate config (doesn't require live cluster)
-stackctl -t k8s normalize > /tmp/prod-k8s-merged.yaml
-
-# 2. Check for required secrets
-grep -E "api_key|secret_key" /tmp/prod-k8s-merged.yaml | head -5
-
-# 3. Validate against schema
+# Historisches Beispiel; API und benötigte Werte sind noch zu prüfen.
 python -c "
 from ki_core.config import load_config
 config = load_config()
@@ -99,7 +105,7 @@ required = ['llm.provider', 'apps.ki_knowledge.django.secret_key']
 for key in required:
     val = config.get_path(key)
     assert val, f'Missing required: {key}'
-    print(f'✓ {key} = {val[:20]}...')
+    print(f'✓ {key} ist gesetzt')
 "
 ```
 
@@ -107,9 +113,6 @@ for key in required:
 
 ```bash
 export KI_STAGE=prod
-
-# 1. Validate config structure
-stackctl -t local normalize | head -30
 
 # 2. Check Systemd service definitions are present
 ls -la systemd/*.service 2>/dev/null || echo "Systemd files not found"
@@ -481,12 +484,9 @@ docker logs ki_knowledge-django 2>&1 | tail -20
 
 ### "Merge order seems wrong"
 
-```bash
-# Print stage-by-stage merge results
-export KI_STAGE=dev-lokal
-stackctl -t local normalize > /tmp/merged.yaml
-grep -A5 "apps:" /tmp/merged.yaml | head -20
-```
+Konfigurationsschichten anhand der
+[Projektanleitung](../guides/YAML_CONFIG_SYSADMIN.md) prüfen; Geheimnisse nicht
+in Ausgaben oder temporäre Dateien kopieren.
 
 ## References
 

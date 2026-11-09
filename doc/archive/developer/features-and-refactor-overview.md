@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-09 22"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Altpfade ausdrücklich eingeordnet"
+status: archived
+---
+
 # Feature Inventory and Localization Status
+
+> Jira-spezifische Einträge und Workflows sind Legacy; Jira soll künftig ein
+> gleichberechtigtes Eingabe-/Importformat sein.
 
 ## Ziel
 
@@ -20,8 +33,8 @@ Diese Übersicht zeigt, welche Features im Projekt bereits klar im Dateisystem l
 | Semantic Layer / Terms / Jobs | Teilweise klar | `ki_knowledge/integrations/semantic_terms.py`, `ki_knowledge/django_site/views.py`, `ki_knowledge/django_site/templates/kicli_django/jobs*.html` | Job-Management und Semantik sind überwiegend klar, aber die orchestrierende Sicht bleibt noch in `services.py`. |
 | Knowledge graph + artifacts | Teilweise gemischt | `ki_knowledge/integrations/knowledge_graph.py`, `ki_knowledge/knowledge/generate.py`, `ki_knowledge/integrations/knowledge_store.py`, `ki_knowledge/django_site/services.py` | Repräsentation und Generierung sind klar, die Gesamtkoordination ist noch breit verteilt. |
 | Knowledge API / overview / purge | Klar lokalisiert | `ki_knowledge/django_site/views.py`, `ki_knowledge/django_site/templates/kicli_django/knowledge_api.html` | Der fachliche Workflow ist gut sichtbar; einzelne backend-Details bleiben noch im Sammelmodul. |
-| Wagtail workflow / output workflow | Klar konzeptionell, aber noch nicht vollständig getrennt | `ki_knowledge/wagtail_cms/*`, `doc/architecture/source-workspace-and-workflow-concept.md` | Das Konzept ist dokumentiert; die technische Trennung im UI/Code ist besser geworden, aber noch nicht überall vollständig ausgeprägt. |
-| Data Sources / Workspace | Klar konzeptionell, UI noch im Fluss | `ki_knowledge/django_site/views.py`, templates under `ki_knowledge/django_site/templates/`, `doc/architecture/source-workspace-and-workflow-concept.md` | Der Begriff Workspace ist nun als Vorbereitungs-/Staging-Konzept definiert, aber die UI-Teile sind noch nicht überall konsistent. |
+| Wagtail workflow / output workflow | Klar konzeptionell, aber noch nicht vollständig getrennt | `ki_knowledge/wagtail_cms/*`, `doc/architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md` | Das Konzept ist dokumentiert; die technische Trennung im UI/Code ist besser geworden, aber noch nicht überall vollständig ausgeprägt. |
+| Data Sources / Workspace | Klar konzeptionell, UI noch im Fluss | `ki_knowledge/django_site/views.py`, templates under `ki_knowledge/django_site/templates/`, `doc/architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md` | Der Begriff Workspace ist nun als Vorbereitungs-/Staging-Konzept definiert, aber die UI-Teile sind noch nicht überall konsistent. |
 | Jobs overview / cancellation | Klar lokalisiert | `ki_knowledge/django_site/templates/kicli_django/jobs.html`, `jobs_rows_fragment.html`, `job_detail.html`, `ki_knowledge/integrations/semantic_terms.py` | Die Anzeige und der Ablauf sind sichtbar; der bulk-select Bug wurde behoben. |
 
 ## Wo die Verwirrung noch sitzt

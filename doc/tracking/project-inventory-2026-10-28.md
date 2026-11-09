@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: tracking
+created: "2026-10-29 09"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Befunde als Legacy eingeordnet"
+status: active
+---
+
 # Bestandsaufnahme und Bereinigungsreihenfolge
+
+> Jira-spezifische Befunde und Refactorings in diesem Bericht betreffen
+> Legacy. Jira soll künftig ein gleichberechtigtes Eingabe-/Importformat sein.
 
 Stand: **2026-10-28**. Dies ist eine Quellcode- und Strukturaufnahme, kein
 vollstaendiger Funktionstest, keine Sicherheitspruefung und kein Deploymentbericht.
@@ -32,7 +45,7 @@ explizit getrennt; Einzelheiten und verbleibende Aufgaben stehen im
 
 **Nachtrag, zweiter P2-Schnitt:** InfoSite-/Wagtail-Zustaendigkeiten und
 fuehrende Speicher sind in der
-[Content-Matrix](../architecture/content-model-matrix.md#0-verbindliche-speicher--und-adaptergrenze-p2)
+[Content-Matrix](../architecture/CONTENT-MODEL-MATRIX.md#0-verbindliche-speicher--und-adaptergrenze-p2)
 festgehalten. CMS-Kataloge lesen gespeicherte Blocksätze schreibgeschuetzt;
 fehlende CMS-Seiten werden nur explizit per `setup_wagtail_cms` angelegt
 und veroeffentlicht. Dateiinhalte, gemeinsames ORM-Register und
@@ -177,8 +190,8 @@ liest aus `InfoSiteProject`/`InfoSiteSourceAdapter`
 Die Einfuehrung eines weiteren Modells oder einer weiteren UI ist daher nicht
 die erste Bereinigung. Zuerst muss fuer Quelle, Importstatus, Wissensblock und
 editoriale Ausgabe jeweils klar sein, **welcher Speicher fuehrend ist**.
-Die [Content-Matrix](../architecture/content-model-matrix.md) und das
-[Workspace-Konzept](../architecture/source-workspace-and-workflow-concept.md)
+Die [Content-Matrix](../architecture/CONTENT-MODEL-MATRIX.md) und das
+[Workspace-Konzept](../architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md)
 liefern dafuer bereits fachliche Vorarbeit.
 
 ### 4. Ungeklaerter zweiter Quellpfad und Packaging-Vertrag

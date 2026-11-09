@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-09 22"
+updated: "2026-11-08 00"
+update_reason: "Jira-spezifische Altpfade ausdrücklich eingeordnet"
+status: archived
+---
+
 # Services-Modularisierung: Plan und Phase 1
+
+> Jira-spezifische Workflows und Planungsannahmen sind Legacy; Jira soll künftig
+> ein gleichberechtigtes Eingabe-/Importformat sein.
 
 ## Problem
 

@@ -1,10 +1,39 @@
-# Content-Modell-Matrix
+---
+title: "Content-Modell-Matrix: Historische Dokumentauswertung"
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: architecture
+purpose: "Bewahrt die ältere Auswertung der Content-Modelle und ihrer Wagtail-Abbildung."
+created: "2026-09-03T08:58:12+02:00"
+updated: "2026-11-07T22:27:24+01:00"
+update_reason: "Dokumentationsstruktur und Verweise nach gemeinsamen Skills überarbeitet"
+status: archived
+semantic_blocks:
+  - infosite-project
+  - source-document
+  - generated-document
+  - knowledge-blocks
+  - status-models
+  - domain-registry
+  - operational-data
+  - open-questions
+  - summary
+relations:
+  - target: "CONTENT-MODEL-MATRIX-INTRO.md"
+    type: reference
+    reason: "Ergänzende Dokumentation"
+  - target: "CONTENT-MODEL-MATRIX.md"
+    type: reference
+    reason: "Aktuelle Matrix und Speichergrenzen"
+---
 
-> Leitendes Dokument für die Quellen-UI und den Aufnahmeprozess:
-> [Source Workspace and Workflow Concept](source-workspace-and-workflow-concept.md).
-> Diese Matrix ergänzt es um Datenmodelle und Zuständigkeiten.
+# Content-Modell-Matrix: Historische Dokumentauswertung
 
-> Voraussetzung: [`content-model-matrix-intro.md`](content-model-matrix-intro.md)
+> Historische Fassung: Diese Auswertung bewahrt einen früheren Stand und wird
+> nicht als aktuelle Speicher- oder Adaptergrenze gepflegt. Maßgeblich ist
+> die [Content-Modell-Matrix](CONTENT-MODEL-MATRIX.md).
+
+> Voraussetzung: [`CONTENT-MODEL-MATRIX-INTRO.md`](CONTENT-MODEL-MATRIX-INTRO.md)
 > (Zweck, Dimensionen, "Spiegeln statt Duplizieren"-Prinzip).
 >
 > Diese Matrix bildet jedes bestehende Feld der Legacy-/Kern-Modelle auf sein
@@ -20,70 +49,11 @@
 
 ---
 
-## 0. Verbindliche Speicher- und Adaptergrenze (P2)
-
-InfoSite bleibt Pipeline, Wagtail bleibt redaktionelle Oberfläche. Die
-Adapter erzeugen **keine zweite fachliche Datenhaltung**:
-
-| Inhalt/Zustand | Führende Ablage und Schreibweg | Rolle von Wagtail |
-|---|---|---|
-| Eingabeinhalt | Quelldateien; Discovery/Sync verwalten ihre Aufnahme | Zeigt Metadaten, ersetzt keine Quelldatei |
-| Projektkonfiguration und Pipelinezustand | `InfoSiteProject`, bestehende InfoSite-Dienste | Liest über Adapter; kein automatischer Statusabgleich |
-| Eingaberegister und Importstatus | `SourceDocument`, Discovery/Import | Snippet bearbeitet **dieselbe ORM-Zeile**, kein CMS-Duplikat |
-| Extrahierte Projektblöcke | `InfoSiteBlockStorage` schreibt den SQLite-Store aus `DataLayout.block_store_db_path()` | `InfoSiteBlockReader` liest vorhandene Records und berechnet daraus die angezeigten Statistiken |
-| Generierter/verfeinerter Inhalt | Markdown-Dateien im Ausgabeordner | Keine Inhaltskopie in einer Wagtail-Seite |
-| Ausgaberegister und Herkunft | `GeneratedDocument`, Upserts über `services/output_registry.py` | Snippet bearbeitet dieselbe ORM-Zeile; Dateihash und Refinement-Metadaten stammen aus der Pipeline |
-| Redaktionsfelder der Dokumente | `review_status`, `editor_notes`, `tags`, Snippet-Workflow/Revisions auf den bestehenden Dokumentmodellen | Redaktion; Generierung/Verfeinerung überschreibt diese Felder nicht |
-| Katalogseiten | Wagtail-Pages: eigener Titel, Intro/Notizen, Baum, Projekt-ID, Veröffentlichung | Redaktion; Seitentitel ist nach Anlage unabhängig vom Projekttitel |
-
-Der allgemeine `KnowledgeStore` verwendet separat das konfigurierte
-Store-Target (SQLite oder PostgreSQL). Er wird **nicht** mit dem
-InfoSite-Blockspeicher zusammengelegt. `KnowledgeStore` bezeichnet eine
-Speicherimplementierung, nicht automatisch dieselbe Datenbank für jeden
-Verbraucher. Datenpfade und vorhandene Quell-IDs bleiben unverändert.
-
-**Lesen ist nebenwirkungsfrei:** Katalog-/Detailseiten legen weder Pages
-noch Revisionen, Datenbanken oder Schemas an. Sie veröffentlichen nichts
-und führen keine Extraktion aus. Ein fehlender oder unlesbarer Blockstore
-ergibt eine sichtbare Fehlermeldung samt Server-Log, nicht scheinbar
-erfolgreiche „0 Blöcke“. Ein lesbarer Store ohne Records für das Projekt
-ergibt dagegen tatsächlich 0. Anzahl und Statistik stammen ausschließlich
-aus gespeicherten Records, nicht aus erneut geparsten Quelldateien.
-
-Fehlende Katalog- und Projektseiten werden explizit mit
-`python manage.py setup_wagtail_cms` angelegt und dabei veröffentlicht.
-Das Kommando ist wiederholbar; vorhandene Seiten, Notizen und deren
-Veröffentlichungszustand bleiben erhalten. Bestehende Entwürfe müssen im
-CMS veröffentlicht werden. Kataloglinks zeigen nur auf veröffentlichte
-Detailseiten. Neue Projekte erscheinen auch ohne erneutes Setup in der
-Liste, jedoch ohne Detail-Link.
-
-**Bestehende Bearbeitungsrechte bleiben erhalten:** Im Source-Snippet sind
-`title` und `project`, im Output-Snippet `project` und `used_sources`
-weiterhin editierbar. Das sind Änderungen am gemeinsamen Register, keine
-isolierten CMS-Kopien. `used_sources` dokumentiert die von der Pipeline
-übergebene Eingabemenge, keinen automatisch bewiesenen Einfluss jedes
-Inputs auf jeden Absatz. Ein erneuter Generierungslauf mit Quellenliste
-aktualisiert diese Relation; Verfeinerung erhält sie. Eine automatische
-Rücknahme einer bestehenden redaktionellen Freigabe bei Inhaltsänderung
-ist nicht eingeführt.
-
-**Verbleibende Grenzen:** `infosite_project_id` ist eine konventionelle ID,
-kein FK; gelöschte Projekte können verwaiste Seiten hinterlassen.
-InfoSite-Quell-IDs werden weiterhin aus Typ, Titel und Quellort abgeleitet;
-Umbenennen/Verschieben kann deshalb die Zuordnung zu älteren Blocksätzen
-verändern. Eine stabile ID-Migration, restriktivere Snippet-Rechte und die
-Zusammenführung von Speichern sind gesonderte Entscheidungen, nicht Teil
-dieses Adapter-Refactorings. Eine veröffentlichte CMS-Seite ist weder ein
-Importauftrag noch eine Freigabe ihrer jeweils live gelesenen Dateien/Blöcke.
-
----
-
-## 1. `InfoSiteProject` → `DataSourceDescriptor` → `DataSourceIndexPage`/`DataSourceDetailPage`
+## 1. `InfoSiteProject` → `DataSourceDescriptor` → `DataSourceIndexPage`/`DataSourceDetailPage` [infosite-project]
 
 | Legacy-Feld (`InfoSiteProject`) | Kanonisches Äquivalent (`DataSourceDescriptor`) | Wagtail-Äquivalent | Status | Owning System |
 |---|---|---|---|---|
-| `title` | `title` | Projekttitel live via Adapter; `Page.title` separat, bei Anlage vorbelegt und danach redaktionell unabhängig | 🟢 gespiegelt | `InfoSiteProject` für Projekttitel; Wagtail für Seitentitel |
+| `title` | `title` | gelesen zur Laufzeit via Adapter (nicht dupliziert in `DataSourceDetailPage`) | 🟢 gespiegelt | Legacy (`InfoSiteProject`) |
 | `domain` | `metadata["domain"]` | gelesen zur Laufzeit | 🟢 gespiegelt | Legacy |
 | `working_title` | `metadata["working_title"]` | gelesen zur Laufzeit | 🟢 gespiegelt | Legacy |
 | `description` | — (nicht gemappt) | — | 🟡 nur-legacy | Legacy |
@@ -108,7 +78,7 @@ bearbeiten sollen sollen (offene Frage, siehe Abschnitt 6).
 
 ---
 
-## 2. `SourceDocument` → Wagtail-Snippet (`SourceDocumentViewSet`) + `SourceDocumentRecord` (Kanon)
+## 2. `SourceDocument` → Wagtail-Snippet (`SourceDocumentViewSet`) + `SourceDocumentRecord` (Kanon) [source-document]
 
 **Update (Wagtail-Workflow Schritt 1):** `SourceDocument` ist inzwischen
 selbst ein Wagtail-Snippet mit echtem Workflow-Unterbau
@@ -147,7 +117,7 @@ Page).
 
 ---
 
-## 2a. `GeneratedDocument` — neues Modell für die Output-Seite (Wagtail-Workflow Schritt 2)
+## 2a. `GeneratedDocument` — neues Modell für die Output-Seite (Wagtail-Workflow Schritt 2) [generated-document]
 
 Anders als `SourceDocument` (Input-Seite) hatte die Output-Seite
 (generierte/verfeinerte InfoSite-Markdown-Dateien unter `data_out/`) vor
@@ -160,7 +130,7 @@ diese Lücke, mit demselben Wagtail-Mixin-Aufbau wie `SourceDocument`
 | Feld | Zweck | Status |
 |---|---|---|
 | `project` (FK), `file_path`, `generated_at`, `ai_refinement_mode`, `content_hash` | Pipeline-Metadaten, automatisch befüllt von `services/output_registry.py` bei jeder Generierung/Verfeinerung | 🟢 gespiegelt (aber: dieses Modell selbst *ist* die einzige DB-Repräsentation — kein separates Legacy-Modell dahinter) |
-| `used_sources` (M2M → `SourceDocument`) | Herkunft: von der Pipeline übergebene Eingabemenge; bestehende redaktionelle Bearbeitung bleibt möglich | 🟢 gemeinsames Register, keine separate CMS-Relation |
+| `used_sources` (M2M → `SourceDocument`) | Traceability: welche Input-Dateien in dieses Output-Dokument eingeflossen sind | 🔵 nur-wagtail (neu) |
 | `review_status`, `editor_notes`, `tags`, `workflow_status_display` | Editorial-Layer, identisch zum Muster bei `SourceDocument` | 🔵 nur-wagtail |
 
 **Bewusste Trennung:** `SourceDocument` (Input) und `GeneratedDocument`
@@ -174,7 +144,7 @@ einzige Brücke ist die `used_sources`-M2M-Relation für Traceability-Anzeige
 ---
 
 
-## 3. `KnowledgeSource` / `KnowledgeBlockRecord` (Wissens-Ebene) → Wagtail
+## 3. `KnowledgeSource` / `KnowledgeBlockRecord` (Wissens-Ebene) → Wagtail [knowledge-blocks]
 
 | Legacy/Kanonisches Modell | Feld | Wagtail-Äquivalent | Status | Owning System |
 |---|---|---|---|---|
@@ -185,12 +155,10 @@ einzige Brücke ist die `used_sources`-M2M-Relation für Traceability-Anzeige
 `KnowledgeBlockDetailPage` (`ki_knowledge/wagtail_cms/models.py`) schließen
 diese Lücke inzwischen — nach exakt demselben Muster wie
 `DataSourceIndexPage`/`DataSourceDetailPage`: eine editorierbare Katalog-
-/Detailseite in Wagtail. Seit P2 liest deren `get_context()` die vorhandenen
-Records über `InfoSiteBlockReader` mit einer schreibgeschützten
-`KnowledgeStore`-Verbindung. Auch Statistiken stammen aus diesen Records,
-nicht aus `InfoSiteBlockStorage.get_statistics()` (erneute Extraktion).
-Es gibt weiterhin **keine** Datenduplikation — der separate
-InfoSite-Blockspeicher bleibt hier führend, Wagtail besitzt nur die
+/Detailseite in Wagtail, deren `get_context()` die Blöcke live über
+`InfoSiteBlockStorage(project).get_stored_blocks()`/`.get_statistics()`
+liest. Es gibt weiterhin **keine** Datenduplikation — `KnowledgeStore`
+(SQLite) bleibt alleinige Quelle der Wahrheit, Wagtail besitzt nur die
 Editorial-Katalogseite drumherum (Titel, `editorial_notes`,
 Projekt-Verknüpfung via `infosite_project_id`). Einzelne Blöcke sind
 weiterhin **nicht** individuell in Wagtail editierbar — das bleibt
@@ -198,7 +166,7 @@ bewusst so (siehe Abschnitt 6, Frage 4).
 
 ---
 
-## 4. `DataSourceDescriptor.status` / `SourceDocumentRecord.status` vs. Wagtail-Workflow-States
+## 4. `DataSourceDescriptor.status` / `SourceDocumentRecord.status` vs. Wagtail-Workflow-States [status-models]
 
 Ein Spezialfall, der eigene Aufmerksamkeit verdient: Die kanonischen
 Status-Werte (`discovered`, `synced`, `imported`, `failed`, je nach
@@ -252,7 +220,7 @@ schwergewichtigeren, gruppen-basierten Moderationsprozess zu koppeln.
 
 ---
 
-## 4a. Domain-Registry: gemeinsame Klammer, getrennte Speicher
+## 4a. Domain-Registry: gemeinsame Klammer, getrennte Speicher [domain-registry]
 
 Mit der gemeinsamen `Domain`-Registry (`infosite_models.Domain`, siehe
 Commit "Gemeinsame Domain-Registry für beide Pipelines") referenzieren
@@ -270,7 +238,7 @@ eine Pipeline die Daten der anderen lesen oder schreiben muss.
 
 ---
 
-## 5. Bewusst nicht migrationsrelevante Daten (⚪ betriebsintern)
+## 5. Bewusst nicht migrationsrelevante Daten (betriebsintern) [operational-data]
 
 Diese Modelle/Tabellen sind **absichtlich außerhalb** der Content-Modell-
 Matrix, weil sie Betriebsdaten und keine editorierbaren Inhalte sind:
@@ -285,7 +253,7 @@ Matrix, weil sie Betriebsdaten und keine editorierbaren Inhalte sind:
 
 ---
 
-## 6. Offene Fragen (aus der Matrix abgeleitet)
+## 6. Offene Fragen (aus der Matrix abgeleitet) [open-questions]
 
 1. **Betriebsfelder ohne Wagtail-Sicht**: Sollen `sync_status`,
    `last_sync_error`, `generation_status`, `generation_error` jemals in der
@@ -333,7 +301,7 @@ Matrix, weil sie Betriebsdaten und keine editorierbaren Inhalte sind:
 
 ---
 
-## 7. Zusammenfassung
+## 7. Zusammenfassung [summary]
 
 Der Stand hat sich seit der ursprünglichen Fassung dieser Matrix deutlich
 verschoben: Wagtail ist nicht mehr nur eine **read-only Spiegelschicht**

@@ -1,3 +1,13 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-09 22"
+updated: "2026-11-07 23"
+update_reason: "Historischen Integrationsbericht als Archiv gekennzeichnet"
+status: archived
+---
+
 # Wagtail CMS-Umbau und Entitäten-Integration
 
 ## Ziel

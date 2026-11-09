@@ -1,8 +1,21 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-09-02 07"
+updated: "2026-11-08 00"
+update_reason: "Veralteten Jira-Graphpfad und unbelegte Aussage gekennzeichnet"
+status: archived
+---
+
 # Deprecated Jira naming: graph explorer
+
+> Historical note: the Jira-specific graph explorer is legacy, and the claim
+> below that it covers all imported source types is not established.
 
 This legacy file name remains for compatibility. The underlying functionality is datasource-agnostic and is documented here as the canonical graph feature:
 
-- [graph_explorer.md](../../features/graph_explorer.md)
+- [graph_explorer.md](../../features/archiv/graph_explorer.md)
 - [knowledge_retrieval.md](../../features/knowledge_retrieval.md)
 
 ## Status

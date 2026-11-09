@@ -1,3 +1,27 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: guides
+created: "2026-10-29 09"
+updated: "2026-11-08 03"
+update_reason: "Bezug zu den Werkstatt-Wireframes als Relation ergänzt"
+status: active
+semantic_blocks:
+  - sources-and-access
+  - navigation-and-archive
+  - text-revisions
+  - conversations
+  - ai-revisions
+  - installation
+  - frontend-development
+  - isolated-testing
+  - concepts-and-limits
+relations:
+  - target: ../features/knowledge-workbench-design.md
+    type: reference
+    reason: "Wireframes und Bedienentwurf, getrennt von der bestehenden Umsetzung"
+---
+
 # Textwerkstatt betreiben und entwickeln
 
 Einstieg: `/knowledge/workbench/`, außerdem über **Internal Knowledge →
@@ -6,7 +30,9 @@ Textwerkstatt**, die Quellenübersicht oder ein InfoSite-Projekt.
 Die Werkstatt ergänzt die vorhandenen Quellen- und Outputprozesse. Sie ersetzt
 weder Discovery/Import noch Wagtail. Ein Snapshot verändert die Quelldatei nicht.
 
-## Anmeldung und erste Quellen
+<a id="anmeldung-und-erste-quellen"></a>
+<a id="sources-and-access"></a>
+## Anmeldung und erste Quellen [sources-and-access]
 
 Angemeldete Staff-Benutzer dürfen lokale Markdown-Quellen aus dem allgemeinen
 **Data-Sources-Inventar ihrer aktiven Domain** ausdrücklich erfassen. Dazu zählen
@@ -65,7 +91,9 @@ der Originaldatei verschiebt keine bestehende Markierung. Erneutes Erfassen
 eines anderen Inhalts erzeugt einen anderen Snapshot; der ältere bleibt
 erreichbar. Die Oberfläche speichert nicht automatisch im Hintergrund.
 
-## Kompakte Bedienung und Archiv
+<a id="kompakte-bedienung-und-archiv"></a>
+<a id="navigation-and-archive"></a>
+## Kompakte Bedienung und Archiv [navigation-and-archive]
 
 Erfolgsmeldungen belegen keine eigene Zeile oberhalb der Werkstatt mehr;
 Screenreader erhalten sie weiterhin über eine Live-Region. Fehler bleiben sichtbar.
@@ -96,7 +124,9 @@ aktive Domain, CSRF und Versionsprüfung gelten auch für Wiederherstellungen.
 Vor Einsatz ist die additive Datenbankmigration `0024_workbench_archive`
 mit `python manage.py migrate` einzuspielen.
 
-## Eigene Texte und Revisionsverlauf (E2)
+<a id="eigene-texte-und-revisionsverlauf-e2"></a>
+<a id="text-revisions"></a>
+## Eigene Texte und Revisionsverlauf (E2) [text-revisions]
 
 **Eigene Arbeitskopie anlegen** erzeugt aus einem Quellsnapshot einen getrennten,
 bearbeitbaren Text. **Leere Notiz anlegen** startet ohne Quelldatei. Beide liegen
@@ -122,7 +152,9 @@ Für eine Wiederherstellung kann ihr Text in eine neue aktuelle Revision
 übernommen werden; ein eigener automatischer Restore-Workflow ist noch nicht
 Bestandteil dieser ersten Oberfläche.
 
-## Über Text sprechen (E3)
+<a id="über-text-sprechen-e3"></a>
+<a id="conversations"></a>
+## Über Text sprechen (E3) [conversations]
 
 Im Kontextpanel stehen Provider und Modell vor dem Senden. Die Werkstatt
 verwendet die bestehende Konfiguration über `ki_knowledge.llm_provider`.
@@ -156,7 +188,9 @@ Die Oberfläche arbeitet mit vollständigen HTTP-Antworten, noch nicht mit
 Token-Streaming. Ein Gespräch besitzt weiterhin keine Schreibrechte; E4 ist
 eine davon getrennte, ausdrücklich ausgelöste Aktion.
 
-## Überarbeitung prüfen und übernehmen (E4)
+<a id="überarbeitung-prüfen-und-übernehmen-e4"></a>
+<a id="ai-revisions"></a>
+## Überarbeitung prüfen und übernehmen (E4) [ai-revisions]
 
 1. Eine **eigene Arbeitskopie** oder Notiz öffnen und den Text ausdrücklich
    speichern. Historische Revisionen und Quellsnapshots sind keine Schreibziele.
@@ -198,7 +232,9 @@ vor bewusstem Neusenden die Vorschlagsliste aktualisieren. Auch eine unbestätig
 Nicht enthalten: automatische Annahme, Mehrdatei-Patches, Veröffentlichungen,
 neue Extraktion/Embeddings oder ein ausgelagertes Agenten-Framework.
 
-## Installation und Aktualisierung
+<a id="installation-und-aktualisierung"></a>
+<a id="installation"></a>
+## Installation und Aktualisierung [installation]
 
 Die neuen Tabellen werden über normale Django-Migrationen angelegt. Vor dem
 Aktualisieren die Anwendungsdatenbank nach dem üblichen Betriebsverfahren sichern.
@@ -231,7 +267,9 @@ Staticfiles-Aktualisierungsschritte mit ausführen. Anwendung über den bestehen
 stackctl-Lebenszyklus neu starten, nicht zusätzlich einen zweiten Editorserver
 starten.
 
-## Frontend ändern
+<a id="frontend-ändern"></a>
+<a id="frontend-development"></a>
+## Frontend ändern [frontend-development]
 
 Node.js 20.19+ und npm werden nur zum Entwickeln/Bauen benötigt:
 
@@ -254,7 +292,9 @@ Buildwerkzeug weist darauf hin. Das ist keine versteckte CDN-Abhängigkeit;
 weitere Aufteilung oder ein CodeMirror-Vergleich bleiben eigenständige
 Optimierungen nach Messung.
 
-## Isolierte Prüfung
+<a id="isolierte-prüfung"></a>
+<a id="isolated-testing"></a>
+## Isolierte Prüfung [isolated-testing]
 
 ```bash
 .venv/bin/python -m pytest -q --basetemp=.pytest-workbench tests/test_workbench_backend.py tests/test_sources_browser.py tests/test_workbench_assets.py tests/test_django_module_boundaries.py
@@ -272,9 +312,11 @@ Die Browsertests prüfen tatsächliche Serverpersistenz, nicht nur gemockte
 Fetch-Antworten. Die Backendtests decken zusätzlich CSRF, Eigentümer-/Domain-
 Grenzen, Unicode-Koordinaten, Pfadgrenzen und konkurrierende Metadatenstände ab.
 
-## Konzepte und Grenzen
+<a id="konzepte-und-grenzen"></a>
+<a id="concepts-and-limits"></a>
+## Konzepte und Grenzen [concepts-and-limits]
 
-- [Architekturentwurf](../architecture/knowledge-workbench-concept.md).
+- [Architekturentwurf](../architecture/KNOWLEDGE-WORKBENCH-CONCEPT.md).
 - [Editor-Wireframes](../features/knowledge-workbench-design.md).
 - [Quellenzugriff: Umsetzung und geprüfter Befund vom 29.10.2026](../tracking/source-access-consolidation-2026-10-29.md).
 - [E4: Implementierungsbericht und Grenzen](../tracking/workbench-e4-2026-10-29.md).

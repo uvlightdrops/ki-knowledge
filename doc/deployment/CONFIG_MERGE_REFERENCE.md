@@ -1,4 +1,18 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: deployment
+created: "2026-10-31 02"
+updated: "2026-11-08 01"
+update_reason: "Falsche normalize- und Provider-Aussagen archiviert"
+status: active
+---
+
 # Config Merge Reference: ki-knowledge Pattern
+
+> **Hinweis:** Dieser Text enthält weitere ungeprüfte historische
+> Konfigurationsaussagen. Die frühere
+> [Fehlannahme zu normalize](archiv/NORMALIZE_FEHLANNAHMEN.md) ist archiviert.
 
 **Status**: ki-knowledge ist die REFERENZ-IMPLEMENTIERUNG für kicli-code-assist.
 
@@ -116,37 +130,10 @@ Profile funktionieren gleich:
 
 ## Provider Detection Logic
 
-**WICHTIG**: `ConfigManager.get_llm_provider()` ist NICHT einfach nur `config.llm.provider` lesen!
-
-Es gibt intelligente Fallback-Logik:
-
-```python
-def get_llm_provider(self) -> str:
-    # 1. Check explicit provider (if set to non-"auto")
-    explicit = config.get_path("llm.provider", "auto").strip().lower()
-    if explicit and explicit != "auto":
-        return explicit
-    
-    # 2. Priority: OpenAI (if key exists)
-    if has_openai_key_and_valid:
-        return "openai"
-    
-    # 3. Priority: Ollama (if reachable)
-    if ollama_url_reachable:
-        return "ollama"
-    
-    # 4. Priority: Company KI (if key exists)
-    if has_ki_key_and_valid:
-        return "ki"
-    
-    # 5. Fallback: Mock
-    return "mock"
-```
-
-**Implikation für kicli-code-assist**: 
-- Stage kann `llm.provider: ollama` setzen
-- Aber wenn creds.yaml einen OpenAI key hat, kann `get_llm_provider()` trotzdem "openai" returnieren
-- Das ist DESIGN: Stages setzen Defaults, aber Provider-Detection nutzt was verfügbar ist
+Die [frühere Provider-Annahme](archiv/PROVIDER_DETECTION_ALTKONZEPT.md) ist
+archiviert. Ein explizit konfigurierter Provider bleibt maßgeblich; die
+automatische Erkennung für `auto` liegt in ki-core. Die Projektintegration
+verwendet `ki_knowledge.llm_provider` und `ki_core.chat`.
 
 ## Best Practices für Stage-Definitionen
 
@@ -263,13 +250,8 @@ Für kicli-code-assist könnten die Stages sein:
    config = load_config()    # Fully resolved config dict
    ```
 
-3. **Use ConfigManager for LLM provider**:
-   ```python
-   from ki_core.config import ConfigManager
-   
-   cm = ConfigManager()
-   provider = cm.get_llm_provider()  # Intelligente Detection
-   ```
+3. **LLM-Provider**: Die gemeinsame `ki_core.chat`-Schnittstelle verwenden;
+   ki-knowledge adaptiert seine Konfiguration in `ki_knowledge.llm_provider`.
 
 ## Testing Config Changes
 
@@ -287,11 +269,9 @@ python -c "from ki_core.config import load_config; c = load_config(); print(c.ge
 
 ### Validation
 
-```bash
-# Validate against schema
-export KI_STAGE=dev-lokal
-stackctl -t local normalize  # merges config and validates
-```
+Die [Projektanleitung](../guides/YAML_CONFIG_SYSADMIN.md) und die führende
+Dokumentation von ki-core und yaml-cfg-wizard beschreiben den aktuellen
+Konfigurationsweg. `normalize` ist kein lesender Validierungsbefehl.
 
 ## Common Mistakes
 
@@ -302,7 +282,8 @@ stackctl -t local normalize  # merges config and validates
 
 3. **Secrets in Stage-Datei**: Nutze creds.yaml stattdessen
 
-4. **LLM Provider-Detection ignorieren**: `get_llm_provider()` kann anderes zurück geben als `llm.provider` - das ist Feature, nicht Bug
+4. **Explizite Providerwahl übergehen**: Eine explizite Auswahl ist nicht
+   dasselbe wie automatische Erkennung bei `auto`.
 
 5. **Env-Var Naming falsch**: `KI_CFG_LLM__PROVIDERS__KI__BASE_URL` mit `__` für nesting, nicht `.`
 

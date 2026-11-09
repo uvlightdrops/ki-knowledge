@@ -1,4 +1,17 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: refactorings
+created: "2026-10-04 17"
+updated: "2026-11-08 00"
+update_reason: "Jira-Datenbanken im Plan als Legacy eingeordnet"
+status: draft
+---
+
 # Distributed Collaboration Plan
+
+> Jira-spezifische Datenbanken im historischen Plan sind Legacy; Jira soll
+> künftig ein gleichberechtigtes Eingabe-/Importformat sein.
 
 ## Zielbild
 

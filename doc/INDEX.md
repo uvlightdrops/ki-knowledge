@@ -1,9 +1,30 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: documentation
+created: "2026-10-29 09"
+updated: "2026-11-08 08"
+update_reason: "Archivpfad des historischen Widget-Konzepts aktualisiert"
+status: active
+semantic_blocks:
+  - operations
+  - architecture
+  - features
+  - integrations
+  - refactorings
+  - tracking
+  - history
+  - shared-sources
+---
+
 # Dokumentindex
 
 [Einstieg und Pflegekonventionen](README.md) ·
 [Bestandsaufnahme 2026-10-28](tracking/project-inventory-2026-10-28.md)
 
-## Betrieb und Entwicklung
+<a id="betrieb-und-entwicklung"></a>
+<a id="operations"></a>
+## Betrieb und Entwicklung [operations]
 
 - [Deployment-Infrastruktur](deployment/README.md) — Übersicht der 4 Stages (dev-lokal, dev-mk, prod-k8s, prod).
   - [Ollama: Server-Anforderungen](deployment/OLLAMA_REQUIREMENTS.md) — Hardwareprofile für den separaten Root-Server und Leistungsziele.
@@ -22,28 +43,35 @@
 - [Textwerkstatt: Bedienung, Build und Betrieb](guides/text-workbench.md).
 - [EPUB-Bücher als Markdown-Quellen importieren](guides/epub-import.md).
 
-## Architektur und Modelle
+<a id="architektur-und-modelle"></a>
+<a id="architecture"></a>
+## Architektur und Modelle [architecture]
 
+- [Django, Wagtail und Widgetkit](architecture/DJANGO-WAGTAIL-WIDGETKIT.md) — technischer Ist-Überblick und Integrationsgrenzen.
+- [Ki-Knowledge: fachliches Konzept](architecture/KI-KNOWLEDGE-KONZEPT.md) — Gesamtentwurf.
+- [Text- und Wissensblöcke](architecture/TEXT-AND-KNOWLEDGE-BLOCKS.md) — Begriffe, Beispiele und offene Vorschläge.
 - [Systemueberblick](architecture/SYSTEM_OVERVIEW.md) — aelterer Architekturstand;
   fuer den aktuellen Befund die datierte Bestandsaufnahme verwenden.
-- [Quellen-, Workspace- und Workflow-Konzept](architecture/source-workspace-and-workflow-concept.md).
+- [Quellen-, Workspace- und Workflow-Konzept](architecture/SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md).
 - [InfoSite-Architektur](architecture/INFOSITE_ARCHITECTURE.md).
-- [Content-Modell: Einfuehrung](architecture/content-model-matrix-intro.md).
-- [Content-Modell: Matrix](architecture/content-model-matrix.md).
-- [Content-Modell: Dokumentauswertung](architecture/content-model-matrix-from-docs.md).
-- [Dashboard-Seitenlayout](architecture/dashboard-page-layout-concept.md).
-- [Textwerkstatt: Editor, Wissensblöcke und KI-Gespräch](architecture/knowledge-workbench-concept.md)
+- [Content-Modell: Einfuehrung](architecture/CONTENT-MODEL-MATRIX-INTRO.md).
+- [Content-Modell: Matrix](architecture/CONTENT-MODEL-MATRIX.md).
+- [Content-Modell: historische Dokumentauswertung](architecture/CONTENT-MODEL-MATRIX-FROM-DOCS.md).
+- [Dashboard-Seitenlayout](architecture/DASHBOARD-PAGE-LAYOUT-CONCEPT.md).
+- [Textwerkstatt: Editor, Wissensblöcke und KI-Gespräch](architecture/KNOWLEDGE-WORKBENCH-CONCEPT.md)
   — Zielbild; erste Umsetzung E0–E4 siehe Betriebsanleitung.
 
-## Fachfunktionen und Anforderungen
+<a id="fachfunktionen-und-anforderungen"></a>
+<a id="features"></a>
+## Fachfunktionen und Anforderungen [features]
 
 - [Knowledge Blocks](features/knowledge_blocks.md).
-- [Retrieval und Analyse](features/knowledge_retrieval.md).
-- [Hybride Suche](features/hybrid_search.md).
-- [Graph Explorer](features/graph_explorer.md).
-- [Knowledge Graph Explorer](features/knowledge_graph_explorer.md).
+- [Retrieval und Analyse](features/knowledge_retrieval.md) — gewünschte Funktion; bestehende Jira-Pfade sind Legacy.
+- [Hybride Suche](features/archiv/hybrid_search.md) — Jira-Pfad Legacy, Suche bleibt gewünscht.
+- [Graph Explorer](features/archiv/graph_explorer.md) — Jira-Legacy.
+- [Knowledge Graph Explorer](features/archiv/knowledge_graph_explorer.md) — Jira-Legacy; frühere allgemeine Quellenbehauptung widerlegt.
 - [Support-Chat](features/support_chat.md).
-- [Daily Timeline](features/daily_timeline.md).
+- [Daily Timeline](features/archiv/daily_timeline.md) — Jira-Legacy.
 - [PDF-Batch-Import](features/pdf_batch_import.md).
 - [Import und KI-Refinement](features/IMPORT_AI_REFINEMENT.md).
 - [InfoSite](features/INFOSITE.md).
@@ -52,22 +80,28 @@
 - [Textwerkstatt: Markdown-Wireframes und Bedienabläufe](features/knowledge-workbench-design.md)
   — Editor-Entwurf, keine laufende Anwendung.
 
-## Integrationen
+<a id="integrationen"></a>
+<a id="integrations"></a>
+## Integrationen [integrations]
 
 - [Nextcloud](integration/NEXTCLOUD.md).
 - [Lokale Identitaet und Sync](integration/local-identity-sync.md).
 - [widgetkit-django: Host-Integration](integration/widgetkit-django-host-integration.md).
 
-## Umbauten und offene Konzepte
+<a id="umbauten-und-offene-konzepte"></a>
+<a id="refactorings"></a>
+## Umbauten und offene Konzepte [refactorings]
 
 - [Views-Modulaufteilung](refactorings/views-module-architecture.md).
 - [Dashboard-Builder-Plan](refactorings/dashboard_builder_plan.md).
 - [Verteilte Zusammenarbeit](refactorings/distributed-collaboration-plan.md).
-- [Navigation und Informationsarchitektur](refactorings/navigation-ia-proposal.md).
+- [Navigation und Informationsarchitektur](refactorings/archiv/navigation-ia-proposal.md) — historischer Vorschlag.
 - [Widget-/Admin-Migration](refactorings/widget-migration-and-admin-plan.md).
-- [Widgets und Wagtail](refactorings/widget-building-wagtail-way.md).
+- [Widgets und Wagtail](refactorings/archiv/widget-building-wagtail-way.md) — historisches Konzept.
 
-## Bestands- und Abdeckungsberichte
+<a id="bestands--und-abdeckungsberichte"></a>
+<a id="tracking"></a>
+## Bestands- und Abdeckungsberichte [tracking]
 
 - [Live-Konfiguration und Providerprüfung, 29.10.2026](tracking/live-settings-2026-10-29.md).
 - [Projektbestand und Bereinigungsreihenfolge](tracking/project-inventory-2026-10-28.md).
@@ -78,7 +112,9 @@
 - [Widget-Katalog: Preview-Audit](tracking/widget-catalog-preview-audit.md) —
   wird auch von einem Abdeckungstest gelesen.
 
-## Historisches Material
+<a id="historisches-material"></a>
+<a id="history"></a>
+## Historisches Material [history]
 
 Diese Dokumente bewahren Entscheidungen und Verlauf. Sie sind keine aktuellen
 Installations- oder Fertigstellungsnachweise.
@@ -95,9 +131,11 @@ Installations- oder Fertigstellungsnachweise.
   [Suche](archive/jira-naming/jira_hybrid_search.md),
   [Chat](archive/jira-naming/jira_support_chat.md).
 
-## Gemeinsame Quellen ausserhalb dieses Repos
+<a id="gemeinsame-quellen-ausserhalb-dieses-repos"></a>
+<a id="shared-sources"></a>
+## Gemeinsame Quellen ausserhalb dieses Repos [shared-sources]
 
-- [Dokumentationsorganisation](../../../dev_doc/DOCUMENTATION_ORGANIZATION_GUIDE.md).
+- [Dokumentationsorganisation](../../../dev_doc/documentation-guidelines/DOCUMENTATION_ORGANIZATION_GUIDE.md).
 - [KI-Ökosystem: gemeinsame Workbench-Architektur](../../../dev_doc/architecture/ki-ecosystem-workbench.md)
   — projektübergreifender Entwurf.
 - [Server-Management](../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).

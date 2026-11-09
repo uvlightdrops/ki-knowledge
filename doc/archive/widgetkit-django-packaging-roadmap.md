@@ -1,3 +1,13 @@
+---
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: archive
+created: "2026-10-05 16"
+updated: "2026-11-07 23"
+update_reason: "Historische Roadmap als Archiv gekennzeichnet"
+status: archived
+---
+
 # widgetkit-django packaging roadmap
 
 > Historical plan, archived 2026-10-28. The package is now a sibling dependency;

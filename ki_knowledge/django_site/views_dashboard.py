@@ -299,7 +299,7 @@ def semantic_landing_view(request: HttpRequest):
 def output_landing_view(request: HttpRequest):
     """Landing page for the 'Info Output' area: formats that publish
     processed knowledge outward (currently Infosite; Quiz is a placeholder
-    for a future format, see doc/refactorings/navigation-ia-proposal.md).
+    for a future format, see doc/refactorings/archiv/navigation-ia-proposal.md).
 
     Also shows a per-domain overview of generated InfoSite output files
     (GeneratedDocument), analogous to the Data-Sources domain table, plus a
@@ -395,7 +395,7 @@ def output_landing_view(request: HttpRequest):
 
 def output_quiz_view(request: HttpRequest):
     """Placeholder page for the planned Quiz output format (no data model or
-    generator yet, see doc/refactorings/navigation-ia-proposal.md, offene Frage 6)."""
+    generator yet, see doc/refactorings/archiv/navigation-ia-proposal.md, offene Frage 6)."""
     active_domain = _active_semantic_domain(request)
     widget_ids = _load_dashboard_widget_ids(
         request,

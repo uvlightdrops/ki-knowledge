@@ -1,13 +1,39 @@
+---
+title: "Content-Modell-Matrix: Theoretische Einführung"
+project: ki-knowledge
+agent_project: ki-knowledge
+scope: architecture
+purpose: "Erläutert Zweck, Dimensionen und ursprüngliche Annahmen der Content-Modell-Matrix."
+created: "2026-09-03T02:22:07+02:00"
+updated: "2026-11-07T22:27:24+01:00"
+update_reason: "Dokumentationsstruktur und Verweise nach gemeinsamen Skills überarbeitet"
+status: draft
+semantic_blocks:
+  - content-model
+  - matrix-purpose
+  - matrix-dimensions
+  - mirroring-principle
+  - migration-patterns
+  - next-step
+relations:
+  - target: "CONTENT-MODEL-MATRIX-FROM-DOCS.md"
+    type: reference
+    reason: "Historische Auswertung"
+  - target: "CONTENT-MODEL-MATRIX.md"
+    type: reference
+    reason: "Matrix als Fortsetzung der Einführung"
+---
+
 # Die Content-Modell-Matrix: Theoretische Einführung
 
-> Dieses Dokument bereitet die eigentliche Content-Modell-Matrix vor (die als
-> nächstes Artefakt folgt: eine konkrete Tabelle, die jedes bestehende
-> Django-Modell auf sein Wagtail-Äquivalent, seinen Migrationsstatus und
-> offene Fragen abbildet). Bevor diese Tabelle gebaut wird, lohnt es sich,
-> kurz zu klären, *was* eine Content-Modell-Matrix eigentlich ist, *warum*
-> wir sie brauchen, und *welche Dimensionen* sie abdecken muss.
+> Historische Einführung: Die hier angekündigte Matrix liegt inzwischen vor;
+> aktuelle Speichergrenzen stehen in der [Content-Modell-Matrix](CONTENT-MODEL-MATRIX.md).
 
-## 1. Was ist ein Content-Modell?
+> Diese Einführung erklärt, *was* eine Content-Modell-Matrix ist, *warum*
+> sie benötigt wird und *welche Dimensionen* sie abdecken sollte. Die
+> folgenden Aussagen bewahren den damaligen Entwurfsstand.
+
+## 1. Was ist ein Content-Modell? [content-model]
 
 Ein **Content-Modell** ist die strukturelle Beschreibung dessen, was eine
 Anwendung an Inhalten verwaltet: welche Entitätstypen es gibt (z. B.
@@ -42,7 +68,7 @@ diese Überlappung macht eine Matrix nötig: Wir brauchen eine explizite,
 einsehbare Zuordnung, damit niemand (auch kein zukünftiger Agent) annehmen
 muss, welches Modell "die Wahrheit" ist.
 
-## 2. Warum eine Matrix und keine Prosa-Beschreibung?
+## 2. Warum eine Matrix und keine Prosa-Beschreibung? [matrix-purpose]
 
 Eine Tabelle erzwingt Vollständigkeit auf eine Weise, die Fließtext nicht
 kann: Jede Zeile (ein Legacy-Modell/-Feld) muss eine Spalte (Wagtail-
@@ -66,7 +92,7 @@ neues, bei dem beide Zeit lang parallel laufen) ist das entscheidend:
   Matrix macht auch das explizit, statt es implizit über "wird halt nicht
   erwähnt" zu regeln.
 
-## 3. Welche Dimensionen muss die Matrix abdecken?
+## 3. Welche Dimensionen muss die Matrix abdecken? [matrix-dimensions]
 
 Wenn wir die eigentliche Matrix bauen, sollte sie mindestens folgende
 Spalten je Legacy-Entität/-Feld enthalten:
@@ -84,7 +110,7 @@ Spalten je Legacy-Entität/-Feld enthalten:
 6. **Offene Fragen / Risiken** (z. B. "Wagtail-Workflow-States decken nicht
    alle bisherigen `sync_status`-Werte ab")
 
-## 4. Architektonisches Prinzip: Spiegeln statt Duplizieren
+## 4. Architektonisches Prinzip: Spiegeln statt Duplizieren [mirroring-principle]
 
 Ein zentrales Designprinzip, das in dieser Session bereits umgesetzt wurde
 und das die Matrix explizit dokumentieren sollte: Die Wagtail-Seiten
@@ -105,7 +131,7 @@ Legacy-Modell. Das bedeutet:
   zu "migriert" wird. Die Matrix sollte pro Feld markieren, ob dieser
   Punkt schon erreicht ist.
 
-## 5. Wie andere Systeme das lösen (Kurzeinordnung)
+## 5. Wie andere Systeme das lösen (Kurzeinordnung) [migration-patterns]
 
 CMS-Migrationen dieser Art folgen typischerweise einem von zwei Mustern:
 
@@ -128,9 +154,9 @@ aktuellen Adapter-Zustand vollständig und macht sichtbar, wo eine
 zukünftige echte Migration (Content-Type-Mapping im engeren Sinn)
 ansetzen müsste.
 
-## 6. Nächster Schritt
+## 6. Nächster Schritt [next-step]
 
-Auf Basis dieser Einführung folgt als nächstes Artefakt die eigentliche
+Auf Basis dieser Einführung entstand die eigentliche
 Matrix: eine Tabelle mit den oben genannten Spalten für jedes relevante
 Modell (`InfoSiteProject`, `SourceDocument`, `KnowledgeSource`,
 `KnowledgeBlockRecord`, `DataSourceDescriptor`, `SourceDocumentRecord`)
