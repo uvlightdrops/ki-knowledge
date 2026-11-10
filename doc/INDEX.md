@@ -3,8 +3,8 @@ project: ki-knowledge
 agent_project: ki-knowledge
 scope: documentation
 created: "2026-10-29 09"
-updated: "2026-11-08 08"
-update_reason: "Archivpfad des historischen Widget-Konzepts aktualisiert"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: active
 semantic_blocks:
   - operations
@@ -135,10 +135,10 @@ Installations- oder Fertigstellungsnachweise.
 <a id="shared-sources"></a>
 ## Gemeinsame Quellen ausserhalb dieses Repos [shared-sources]
 
-- [Dokumentationsorganisation](../../../dev_doc/documentation-guidelines/DOCUMENTATION_ORGANIZATION_GUIDE.md).
-- [KI-Ökosystem: gemeinsame Workbench-Architektur](../../../dev_doc/architecture/ki-ecosystem-workbench.md)
+- [Dokumentationsorganisation](../../../dev_doc/doc/documentation-guidelines/DOCUMENTATION_ORGANIZATION_GUIDE.md).
+- [KI-Ökosystem: gemeinsame Workbench-Architektur](../../../dev_doc/doc/architecture/ki-ecosystem-workbench.md)
   — projektübergreifender Entwurf.
-- [Server-Management](../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).
-- [Historische CLI-Architekturentwuerfe](../../../dev_doc/cli-management/README.md)
+- [Server-Management](../../../dev_doc/doc/server-mngm/SERVER_MANAGEMENT_README.md).
+- [Historische CLI-Architekturentwuerfe](../../../dev_doc/doc/cli-management/README.md)
   — aus dem bisherigen `docs/` ausgelagert, nicht als aktuelle Roadmap uebernommen.
 - [YAML-Betrieb](../../yaml_cfg_wizard/doc/YAML_CONFIG_SYSADMIN.md).

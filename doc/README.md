@@ -3,8 +3,8 @@ project: ki-knowledge
 agent_project: ki-knowledge
 scope: documentation
 created: "2026-10-29 09"
-updated: "2026-11-09 07"
-update_reason: "Temporäre Brücke und Weiterentwicklungskonzept verlinkt"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: active
 semantic_blocks:
   - getting-started
@@ -59,7 +59,7 @@ Kennzeichnung eines alten Jira-Pfads ist keine Ablehnung dieser Funktionen.
   In „Farben und Richtung“ den Relationstyp anklicken; er wird nach Klick
   auf „Beziehung anlegen“ gespeichert.
   Die Blocktexte selbst sind dort nur lesbar. Die sieben Typen und Farben
-  folgen `dev_doc/documentation-guidelines/DOCUMENTATION_VISUALIZATION.md`;
+  folgen `dev_doc/doc/documentation-guidelines/DOCUMENTATION_VISUALIZATION.md`;
   bereits vorhandene andere Typen bleiben sichtbar. Fehlende Ziele werden
   unter dem Netz genannt. Die Anordnung ist nicht gespeichert.
   Zusätzliche Dokumentdomänen lassen sich beim Start mehrfach angeben, je mit
@@ -97,7 +97,7 @@ Kennzeichnung eines alten Jira-Pfads ist keine Ablehnung dieser Funktionen.
 - Temporäre Brücke: `./start-wiki --ki-domains` zeigt die Markdown-Domänen
   der Django-App im Wissensnetz; `.venv/bin/python -m ki_knowledge.wiki_bridge
   link-wiki` macht `~/dev_wiki` in Django als Domäne `dev-wiki` sichtbar.
-  Details und Rückbau: `~/dev_doc/wissenswiki/BEDIENUNG.md` (Abschnitt
+  Details und Rückbau: `~/dev_doc/doc/wissenswiki/BEDIENUNG.md` (Abschnitt
   `bridge`).
 - [Weiterentwicklung von ki-knowledge](architecture/WEITERENTWICKLUNG.md):
   Optionen von Integration bis Neuentwicklung, Empfehlung und Migrationspfad.
@@ -177,8 +177,8 @@ mkdir -p .github
 ln -s ~/dev_doc/skills .github/skills
 ```
 
-- [Server-Management](../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).
-- [Gemeinsame CLI-Architektur: historische Entwuerfe](../../../dev_doc/cli-management/README.md).
+- [Server-Management](../../../dev_doc/doc/server-mngm/SERVER_MANAGEMENT_README.md).
+- [Gemeinsame CLI-Architektur: historische Entwuerfe](../../../dev_doc/doc/cli-management/README.md).
 - [Kanonische YAML-Betriebsanleitung](../../yaml_cfg_wizard/doc/YAML_CONFIG_SYSADMIN.md).
 
 Die externen Verweise setzen das bekannte Workspace-Layout voraus; sie sind

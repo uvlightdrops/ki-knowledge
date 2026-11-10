@@ -2,8 +2,8 @@
 project: ki-knowledge
 scope: deployment
 created: "2026-11-02 22"
-updated: "2026-11-03 15"
-update_reason: "U8-Bootstrap, systemd-User-Lifecycle und gemeinsamen U7/U8-Deploymentpfad implementiert"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: draft
 agent_project: ki-knowledge
 ---
@@ -227,7 +227,7 @@ oder einen opt-in Timer freigeben.
 
 [Deployment](README.md), [Config-Merge](CONFIG_MERGE_REFERENCE.md),
 [Dokumentationsbaum](../README.md),
-[Server-Management im Workspace](../../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).
+[Server-Management im Workspace](../../../../dev_doc/doc/server-mngm/SERVER_MANAGEMENT_README.md).
 
 Offizielle Dokumentation, fuer die Umsetzung am 03.11.2026 erneut geprueft:
 

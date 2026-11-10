@@ -3,8 +3,8 @@ project: ki-knowledge
 agent_project: ki-knowledge
 scope: guides
 created: "2026-10-29 09"
-updated: "2026-11-07 23"
-update_reason: "Konfigurationsgrundlagen und Betriebsabschnitte gekennzeichnet"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: active
 semantic_blocks:
   - shared-foundations
@@ -26,7 +26,7 @@ Kopie der gemeinsamen Konfigurationsdokumentation.
   Schichten, CLI, Editor-Grenzen, Identitaet und Betrieb im gesamten Workspace.
 - [Konfigurationskonzepte](../../../yaml_cfg_wizard/doc/YAML_CONFIG_CONCEPTS.md):
   Architektur und weiterfuehrende Konzepte.
-- [Projektuebergreifende Administration](../../../../dev_doc/yaml_config_administration.md)
+- [Projektuebergreifende Administration](../../../../dev_doc/doc/yaml_config_administration.md)
   in `~/dev_doc`.
 
 Die bisherige Vollkopie dieser Anleitung war vor der Umstellung byte-identisch

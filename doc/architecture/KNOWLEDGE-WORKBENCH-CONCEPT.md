@@ -5,8 +5,8 @@ agent_project: ki-knowledge
 scope: architecture
 purpose: "Beschreibt Architektur, Datenmodell und Entwicklungsschritte der Textwerkstatt als Zielbild."
 created: "2026-10-29T09:10:22+01:00"
-updated: "2026-11-08 03"
-update_reason: "Älteren Werkstattentwurf vom fachlichen Wissensblockmodell abgegrenzt"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: draft
 semantic_blocks:
   - recommendation
@@ -28,7 +28,7 @@ semantic_blocks:
   - acceptance-cases
   - open-decisions
 relations:
-  - target: "../../../../dev_doc/architecture/ki-ecosystem-workbench.md"
+  - target: "../../../../dev_doc/doc/architecture/ki-ecosystem-workbench.md"
     type: reference
     reason: "Ergänzende Dokumentation"
   - target: "../features/knowledge-workbench-design.md"
@@ -76,7 +76,7 @@ ki-knowledge erneut mit konkurrierenden Oberflächen und Speichern zu überladen
 | Weiterführendes Dokument | Zweck |
 |---|---|
 | [Editor-Entwurf mit Markdown-Wireframes](../features/knowledge-workbench-design.md) | Konkrete Oberfläche und Bedienabläufe |
-| [Gemeinsame Ökosystem-Architektur](../../../../dev_doc/architecture/ki-ecosystem-workbench.md) | Projektübergreifende Stack-, Paket- und Editorstrategie |
+| [Gemeinsame Ökosystem-Architektur](../../../../dev_doc/doc/architecture/ki-ecosystem-workbench.md) | Projektübergreifende Stack-, Paket- und Editorstrategie |
 | [Bestehender Quellen-/Workspace-Prozess](SOURCE-WORKSPACE-AND-WORKFLOW-CONCEPT.md) | Weiterhin führend für Aufnahme und Vorbereitung von Quellen |
 | [Content-Modell-Matrix](CONTENT-MODEL-MATRIX.md) | Bestehende Speicher- und Wagtail-Verantwortung |
 
@@ -302,7 +302,7 @@ fachliche Datenmodell oder die API zu ändern. Keine dauerhafte Mehrfachengine
 nur zur Absicherung einer noch nicht getroffenen Entscheidung.
 
 Offizielle Belege und die projektübergreifende Einordnung stehen im
-[gemeinsamen Konzept](../../../../dev_doc/architecture/ki-ecosystem-workbench.md).
+[gemeinsamen Konzept](../../../../dev_doc/doc/architecture/ki-ecosystem-workbench.md).
 
 ## 8. Das entscheidende Modell: fünf Dinge nicht vermischen [domain-model]
 
@@ -703,7 +703,7 @@ dauerhafte Markierung funktioniert.
 Python-ki-core bleibt Python-Infrastruktur. React-/TypeScript-Komponenten werden
 nicht dort hineingesteckt. widgetkit/widgetkit-django bleiben nützlich für
 Registry, Layout und Django-Flächen, sind aber keine vorhandene React-Bibliothek.
-Die gemeinsame [Ökosystemstrategie](../../../../dev_doc/architecture/ki-ecosystem-workbench.md)
+Die gemeinsame [Ökosystemstrategie](../../../../dev_doc/doc/architecture/ki-ecosystem-workbench.md)
 vertieft diese Grenzen.
 
 ## 16. Etappen mit klaren Ausstiegskriterien [implementation-stages]

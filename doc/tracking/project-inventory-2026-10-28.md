@@ -3,8 +3,8 @@ project: ki-knowledge
 agent_project: ki-knowledge
 scope: tracking
 created: "2026-10-29 09"
-updated: "2026-11-08 00"
-update_reason: "Jira-spezifische Befunde als Legacy eingeordnet"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: active
 ---
 
@@ -262,7 +262,7 @@ sind historischer Kontext, kein Nachweis bereits vollendeter Trennung.
 - Historische Jira-Namensweiterleitungen und abgeschlossene/aeltere Berichte
   ins Archiv eingeordnet, ohne ihren fachlichen Inhalt zu verwerfen.
 - Die beiden projektuebergreifenden CLI-Entwuerfe aus `docs/` nach
-  `~/dev_doc/cli-management/archive/` verschoben und dort als historisch markiert.
+  `~/dev_doc/doc/cli-management/archive/` verschoben und dort als historisch markiert.
 - Die identische YAML-Vollkopie durch einen projektspezifischen Einstieg mit
   Verweis auf die kanonische Quelle ersetzt.
 - Relative Dokumentlinks, Root-README, Codekommentare und den

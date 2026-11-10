@@ -3,8 +3,8 @@ project: ki-knowledge
 agent_project: ki-knowledge
 scope: tracking
 created: "2026-10-30 03"
-updated: "2026-11-08 00"
-update_reason: "Jira-spezifische Konfiguration als Legacy eingeordnet"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: active
 ---
 
@@ -197,4 +197,4 @@ Nach dieser Aktivierung benötigen die als live gekennzeichneten Werte keinen
 erneuten Serverneustart. Keine zusätzliche Django-Migration ist erforderlich.
 
 [Bedienung](../guides/live-settings.md) ·
-[Projektübergreifende Architektur](../../../../dev_doc/architecture/live-runtime-settings.md)
+[Projektübergreifende Architektur](../../../../dev_doc/doc/architecture/live-runtime-settings.md)

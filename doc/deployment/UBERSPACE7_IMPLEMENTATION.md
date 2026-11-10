@@ -2,8 +2,8 @@
 project: ki-knowledge
 scope: deployment
 created: "2026-11-03 01"
-updated: "2026-11-03 15"
-update_reason: "Gemeinsamen U7/U8-Workflow und plattformspezifische Lifecycle-Adapter dokumentiert"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: draft
 agent_project: ki-knowledge
 ---
@@ -135,7 +135,7 @@ Einstiege: [Deployment](README.md), [Config-Merge](CONFIG_MERGE_REFERENCE.md),
 [Dokumentationsbaum](../README.md). Der
 [U8-Leitfaden](UBERSPACE8_IMPLEMENTATION.md) beschreibt dieselbe Deployment-Linie,
 aber einen anderen Plattformadapter. Gemeinsame Grundlagen:
-[Server-Management](../../../../dev_doc/server-mngm/SERVER_MANAGEMENT_README.md).
+[Server-Management](../../../../dev_doc/doc/server-mngm/SERVER_MANAGEMENT_README.md).
 Workspace-Links setzen benachbarte Repositories voraus.
 
 ## 1. Was fuer U7 anders ist

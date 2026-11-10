@@ -3,8 +3,8 @@ project: ki-knowledge
 agent_project: ki-knowledge
 scope: architecture
 created: null
-updated: "2026-11-08 16"
-update_reason: "Darstellung von Blockrelationen im lokalen Viewer ergänzt"
+updated: "2026-11-10 20"
+update_reason: "Relocate shared documentation into doc/ and update references"
 status: draft
 semantic_blocks:
   - purpose
@@ -232,8 +232,8 @@ herausarbeiten.
 ## Beziehungen zwischen Dokumentationsblöcken [documentation-relations]
 
 **Diskussionsgrundlage, 2026-11-08:** Die gemeinsamen
-[Grundlagen](../../../../dev_doc/documentation-guidelines/SEMANTIC_KNOWLEDGE_ORGANIZATION.md)
-und das [Graph-Beispiel](../../../../dev_doc/documentation-guidelines/DOCUMENTATION_VISUALIZATION.md#graph-visualization-graph-generation)
+[Grundlagen](../../../../dev_doc/doc/documentation-guidelines/SEMANTIC_KNOWLEDGE_ORGANIZATION.md)
+und das [Graph-Beispiel](../../../../dev_doc/doc/documentation-guidelines/DOCUMENTATION_VISUALIZATION.md#graph-visualization-graph-generation)
 nennen verschiedene Relationstypen. Eine Relation hat eine Richtung: Die
 folgende Bedeutung ist jeweils von **A nach B** zu lesen.
 
